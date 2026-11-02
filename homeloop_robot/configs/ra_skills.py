@@ -97,11 +97,6 @@ def handover(node=None, inputs: str = "", **params) -> dict:
     return _run("handover", person=str(inputs or ""))
 
 
-def wait_for_unload(node=None, inputs: str = "", **params) -> dict:
-    """WaitForUnload: the nearest person takes the carried object (the handover skill)."""
-    return _run("handover", person="")
-
-
 def say(node=None, inputs: str = "", lang: str = "en", **params) -> dict:
     return _run("say", text=str(inputs), lang=str(lang or "en"))
 

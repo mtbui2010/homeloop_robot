@@ -10,7 +10,7 @@ PYTHONPATH=/path/to/robot_agent python -m robot_agent.contract.check_manifest --
 
 | file | content |
 |---|---|
-| `manifest.yaml` | robot `homeloop`: 18 skills with abstract actions (MoveTo Find Pick Place PutIn Open Close Handover WaitForUnload Say Announce Ask Look Query Wait Dock Verify Observe), params, pre / effects, verify (symbolic + sensor `pose` / `grasp_check`), errors; capabilities; geometry (core defaults: this robot has no measured geometry); two planner notes |
+| `manifest.yaml` | robot `homeloop`: 17 skills with abstract actions (MoveTo Find Pick Place PutIn Open Close Handover Say Announce Ask Look Query Wait Dock Verify Observe), params, pre / effects, verify (symbolic + sensor `pose` / `grasp_check`), errors; capabilities; geometry (core defaults: this robot has no measured geometry); two planner notes |
 | `skills_config.py` | literal `SKILL_CONFIGS`: every skill -> `homeloop_robot.configs.ra_skills.<name>` |
 | `ra_skills.py` | plain `def name(node, inputs=..., **params) -> dict` functions: `get_backend().call(...)` -> `SkillResult.to_legacy()`; find adds `ins: {name: {pose_3d}}`, pose returns a tuple, ask returns `text`, grasp_check's `isdone` = holding. Results name objects as the robot perceives them ("pink cup not found", "which one? (red book, blue book)"), never by world id: an id in a message was copied by the LLM into its next step ("Find plate 1"). `move` to the charging dock also docks (robot_agent has no Dock goal; "go back and charge" is a MoveTo the dock); `wait_for_unload` = the nearest person takes the carried object (handover) |
 | `backend.py` | `get_backend()` / `set_backend(robot)` / `reset_backend()`; without a backend a default robot on `senior_flat` (ideal) |
@@ -23,8 +23,11 @@ PYTHONPATH=/path/to/robot_agent python -m robot_agent.contract.check_manifest --
 the backend robot's world (CamelCase is split: `KitchenCounter` -> `kitchen counter`); a name that does
 not resolve to exactly one thing is passed through, and the skill then fails as unknown or ambiguous.
 `dock` / `charger` / `home` map to the house's dock place. Wait -> `wait` (default 5 s); Dock -> `dock`;
-WaitForUnload -> `wait_for_unload` (its own skill, so robot_agent offers the `deliver` goal; as an alias of Handover
-it was not a plan action and deliver goals were refused); Observe / Verify raise `Unbindable` (they are sensor skills
+WaitForUnload is an alias of Handover (bound when a plan uses it, but not a plan action: robot_agent's `deliver`
+goal means "take what the robot already carries, e.g. on a tray, to a place and wait until someone takes it",
+which this arm robot cannot do without a Pick first; declared as its own action, it made robot_agent offer deliver
+goals that compiled to MoveTo + WaitForUnload with an empty gripper, and its extra prompt lines made qwen3-vl:8b
+refuse more tasks); Observe / Verify raise `Unbindable` (they are sensor skills
 used by verify, not plan steps).
 
 ## How the bench drives it

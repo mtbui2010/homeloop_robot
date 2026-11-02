@@ -122,25 +122,13 @@ skills:
   - name: handover
     action: Handover
     description: "Hand the held object to a person nearby."
+    # WaitForUnload only as an alias: robot_agent's deliver goal (carry what is already loaded, wait for a person)
+    # does not fit an arm robot that must Pick first (docs/robot_agent.md)
+    alias_actions: [WaitForUnload]
     params:
       type: object
       properties:
         inputs: {type: string, default: "", description: "the person ('' = the nearest person)"}
-      required: []
-    pre: ["not hand_empty()"]
-    hold: []
-    effects: ["hand_empty()", "not holding(*)"]
-    verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
-    interruptible: true
-    errors: [dropped, grasp_failed, unreachable, timeout, hw_fault, estop, cancelled, software]
-    version: "1.0"
-  - name: wait_for_unload
-    action: WaitForUnload
-    description: "Wait at the person for them to take the carried object (the arm holds it out: a handover to the nearest person)."
-    params:
-      type: object
-      properties:
-        inputs: {type: string, default: "", description: "unused (the nearest person takes it)"}
       required: []
     pre: ["not hand_empty()"]
     hold: []

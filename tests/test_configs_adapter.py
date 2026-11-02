@@ -59,7 +59,7 @@ def test_adapter_bind_and_codes():
         assert ad.bind({"action": "Say", "object": "hi"}) == ("say", {"inputs": "hi"})
         assert ad.bind({"action": "Wait", "object": "3"}) == ("wait", {"inputs": "3"})
         assert ad.bind({"action": "Dock"}) == ("dock", {"inputs": "dock"})
-        assert ad.bind({"action": "WaitForUnload"}) == ("wait_for_unload", {})
+        assert ad.bind({"action": "WaitForUnload"})[0] == "handover"
         for a in ("Observe", "Verify", "Fly"):
             with pytest.raises(Unbindable):
                 ad.bind({"action": a, "object": "x"})
@@ -103,19 +103,6 @@ def test_ra_skills_report_names_not_ids_and_dock_on_move():
         assert not ep.world.robot.docked
         m = ra_skills.move(None, inputs="dock@living")
         assert m["isdone"] and m["docked"] and ep.world.robot.docked
-    finally:
-        reset_backend()
-
-
-def test_wait_for_unload_hands_over():
-    ep = episode()
-    set_backend(ep.robot)
-    try:
-        assert ra_skills.move(None, inputs="counter@kitchen")["isdone"]
-        assert ra_skills.find(None, inputs="red mug")["isdone"] and ra_skills.pick(None, inputs="red mug")["isdone"]
-        assert ra_skills.move(None, inputs="grandma")["isdone"]
-        out = ra_skills.wait_for_unload(None)
-        assert out["isdone"] and ep.world.objects["mug_1"].at == "person:grandma"
     finally:
         reset_backend()
 

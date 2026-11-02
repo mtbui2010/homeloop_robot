@@ -92,8 +92,6 @@ class Adapter:
             return spec.name, {}
         if spec.action == "Handover":
             return spec.name, ({"inputs": self._resolve(obj, "person")} if obj else {})
-        if spec.action == "WaitForUnload":
-            return spec.name, {}
         if not obj:
             raise Unbindable(f"{action} needs an argument")
         kind = "object" if spec.action in OBJECT_ACTIONS else "place"
