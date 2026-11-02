@@ -23,10 +23,10 @@ params:
   hw.p_persistent:
     kind: prob
     role: failure
-    value: 0.94
-    source: https://digitalcommons.usf.edu/etd/980
-    where: "Abstract"
-    note: "Carlson (2004): in the cited field study 94 % of failures suspended the task until repair. Field UGVs, not household robots; read at abstract level only. Used as the share of hardware faults that persist for the episode."
+    value: 0.5
+    assumed: true
+    anchor: https://digitalcommons.usf.edu/etd/980
+    note: "No household or service-robot source splits hardware faults into transient (cleared by a retry or restart within the task) and persistent (task abandoned / repair). Checked: STRANDS (arXiv 1604.04384) reports run terminations (Sec. 6) and navigation recoveries (Table 2) but no hardware split; OK-Robot (arXiv 2401.12202, Sec. III-D, V-A) names hardware causes (payload, reach, miscalibration, wheels on carpet) without counts; Carlson 2004 (USF etd/980, abstract) gives 94 % task-suspending and two-thirds field-repairable for military/USAR UGVs only; Steinbauer 2012 (doi:10.1007/978-3-642-39250-4_31) and Honig & Oron-Gilad 2018 (doi:10.3389/fpsyg.2018.00861) give fault classes but no shares we could read. Assumed 0.5 (maximum uncertainty); sensitivity: the stress profile scales it to 0.95, and `python -m homeloop_robot.report hw-rates` / `oracle-mix --p-persistent` sweep {0.2, 0.5, 0.94} (docs/calibration.md)."
   estop.rate_per_h:
     kind: rate_per_h
     role: failure

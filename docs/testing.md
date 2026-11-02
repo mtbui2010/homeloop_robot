@@ -20,6 +20,7 @@ PYTHONPATH=/path/to/robot_agent ... -m pytest -q tests                          
 | `test_oracle.py` | 50 random goals per house solved in `ideal`; unsolvable goals; closed-loop composition band |
 | `test_selftest.py` | selftest byte-identical, ideal differs from real |
 | `test_realism.py` | catalog completeness, every house passes R-a..R-h, placement rules |
+| `test_report.py` | closed-form hardware rates (4-call no-retry = OK-Robot), oracle-mix deterministic, no failures in `ideal` |
 | `test_consistency.py` | binomial test; every rate check at n = 1500; physical possibility on short traces |
 | `test_configs_adapter.py` | ENV shape, legacy skill dicts; with robot_agent: `check_manifest --strict`, adapter bind / observe |
 
@@ -31,6 +32,8 @@ on the user / safety models; `test_determinism.py` also runs with the full model
 ```
 python -m homeloop_robot.selftest --seed 7 --episodes 30 --profile real --out /tmp/a.jsonl   # deterministic trace
 python -m homeloop_robot.profiles validate --strict
+python -m homeloop_robot.report hw-rates                     # episode-level hardware-failure rates, p_persistent sweep
+python -m homeloop_robot.report oracle-mix --episodes 300    # outcome mix of oracle-plan calls (calibrated failures only)
 python -m robot_agent.contract.check_manifest --strict homeloop_robot/homeloop_robot          # robot_agent on PYTHONPATH
 grep -rniE '<private names>' . --include=*.py --include=*.yaml --include=*.md               # no private names
 ```
@@ -38,3 +41,7 @@ grep -rniE '<private names>' . --include=*.py --include=*.yaml --include=*.md   
 The selftest writes, per episode, 25 calls (each with p 0.6 the next oracle call toward a random
 reachable goal, else a random skill with random valid arguments) and a summary line; two runs with the
 same arguments give byte-identical files and the `ideal` and `real` traces differ.
+
+The selftest's random calls often miss their preconditions (`unreachable`, `absent` dominate), so its outcome
+mix is not the calibrated failure mix; `python -m homeloop_robot.report oracle-mix` gives the mix of the
+oracle's calls (docs/calibration.md, "Hardware faults").

@@ -118,8 +118,10 @@ https://arxiv.org/abs/2401.14403
 Carlson, "Analysis of How Mobile Robots Fail in the Field", M.S. thesis, University of South Florida, 2004.
 https://digitalcommons.usf.edu/etd/980
 
-- Abstract (read at abstract level only; field UGVs, not household robots): 94 % of the failures in a cited
-  study suspended the task until repair. -> `hw.p_persistent`.
+- Abstract (read at abstract level only; military / USAR field UGVs, not household robots): "Two-thirds of the
+  failures examined in [6] and [7] could be repaired in the field"; failures that suspended the task until
+  repair were 94 % of the failures reported in [13]. Only an anchor for the assumed `hw.p_persistent` (0.5);
+  the 94 % end is kept in the sensitivity sweep below. The full text (USF viewcontent PDF) returned HTTP 403.
 
 ### STF: Stretch velocities (forum post)
 Hello Robot forum, "Physical aspects of the Robot for Simulation", 2023-08-24.
@@ -144,6 +146,49 @@ Interaction Experiment", IEEE RO-MAN 2005. https://uhra.herts.ac.uk/id/eprint/26
 - DYN: Liu et al., "DynaMem: Online Dynamic Spatio-Semantic Memory for Open World Mobile Manipulation", 2024.
   https://arxiv.org/abs/2411.04999 - Sec. 4.2, Fig. 7c: 9 of 17 long-horizon home tasks succeeded.
 
+## Hardware faults: transient vs persistent, episode-level rates
+
+`hw.p_per_motion_call` = 0.01875 is sourced (OKR, 7.5 % of 171 trials / 4 motion primitives). The share of
+those faults that persist for the episode, `hw.p_persistent`, is **assumed** (0.5). Sources checked for a
+transient / persistent split (cleared by retry or restart within the task vs task abandoned / repair):
+
+| source | opened | what it gives | usable? |
+|---|---|---|---|
+| STR, arXiv 1604.04384 | PDF as text | Sec. 5: crashed components are relaunched automatically (no count). Sec. 6: of 7 runs in 2015, 1 ended by user intervention, 2 by project software bugs, 4 by software or hardware faults beyond the project's components; the 28-day run ended with motors not responding (fixed by firmware). Table 2: recoveries of navigation failures only | no hardware split |
+| OKR, arXiv 2401.12202 | PDF as text | Sec. III-D: hardware 7.5 % of trials; Sec. V-A: payload, reach, camera / robot miscalibration "over time", wheels on carpet; no counts per cause and no retries (Sec. V-D: one failed module fails the trial) | no |
+| CAR, USF etd/980 | abstract | two-thirds of field failures field-repairable; 94 % of failures in one study suspended the task until repair (military / USAR UGVs) | anchor only |
+| Carlson & Murphy, IEEE T-RO 2005 | not opened (paywalled) | - | not used |
+| Steinbauer, RoboCup 2012 (doi:10.1007/978-3-642-39250-4_31) | abstract only (Springer full text behind login) | impact classes not critical / repairable / terminal; no number read | not used |
+| Honig & Oron-Gilad, Front. Psychol. 2018 (doi:10.3389/fpsyg.2018.00861) | HTML, first part | definitions of terminal and field-repairable failures (citing Carlson & Murphy); MTBF "within a few hours"; no shares | no |
+| Wienke & Wrede, arXiv 1708.07379 (developer survey) | PDF as text | Fig. 4 MTBF answers, Fig. 5 hardware the most frequent failure cause; no transient share | no |
+
+Episode-level hardware-failure rate (`python -m homeloop_robot.report hw-rates`), q = 0.01875 per motion call,
+n motion calls. "No retry" = P(any hardware fault) = 1 - (1 - q)^n, the episode fails when the planner never
+retries (OK-Robot's setting); it does not depend on `hw.p_persistent`. "Retry" = P(the episode is lost to a
+persistent fault) when every transient fault is retried until it succeeds, 1 - (1 - q p / (q p + 1 - q))^n.
+
+| `hw.p_persistent` | 4 calls no retry / retry | 8 calls no retry / retry | 12 calls no retry / retry |
+|---|---|---|---|
+| 0.2 | 7.29 % / 1.51 % | 14.05 % / 3.01 % | 20.32 % / 4.47 % |
+| **0.5 (real)** | 7.29 % / 3.73 % | 14.05 % / 7.32 % | 20.32 % / 10.78 % |
+| 0.94 | 7.29 % / 6.87 % | 14.05 % / 13.27 % | 20.32 % / 19.24 % |
+
+OK-Robot: 7.5 % per 4-primitive trial with no retry. The 4-call no-retry rate, 7.29 %, matches it (the gap
+is the linear split 0.075 / 4; the binomial standard error of 7.5 % on 171 trials is 2.0 points). With
+retries, `hw.p_persistent` decides how much of that a recovering planner can win back: half at 0.5.
+`stress` scales it x2 to the 0.95 cap, so the stress profile is the persistent end of the sweep.
+
+Calibrated failures vs precondition misuse (`python -m homeloop_robot.report oracle-mix`, seed 0, 300
+episodes, random reachable goals, closed-loop oracle `oracle.rollout`, mean 9.1 calls per episode): in `real`,
+81.4 % of the oracle's calls succeed and 16.7 % fail with an injected (calibrated) failure: blocked 6.5 %,
+timeout 3.5 % (most are `ask` help requests the user does not answer), unreachable 3.0 %, absent 2.2 %,
+hw_fault 1.6 %, grasp_failed 1.1 %, dropped 0.3 %, perception_unavailable 0.3 %. The only non-injected
+failures are `ask` timeouts from the user model (1.8 %). Episodes: success 78 %, any hardware fault 14 %,
+persistent hardware fault 8 % (2 % at p 0.2, 13 % at p 0.94, `--p-persistent`). The selftest trace, which
+mixes random calls with unmet preconditions, has a different mix (seed 0, 200 episodes: ok 65.0 %,
+unreachable 10.2 %, absent 9.4 %, hw_fault 5.4 %; with the former 0.94: hw_fault 10.9 %), so read
+calibrated rates from `oracle-mix`, not from the selftest.
+
 ## Assumptions
 
 No source was found for these parameters (research gaps). Each has `assumed: true` and a note saying why
@@ -152,6 +197,7 @@ them (`assumed: N params`).
 
 | parameter | value | why / anchor |
 |---|---|---|
+| `hw.p_persistent` | 0.5 | share of hardware faults that persist for the episode; no household / service source splits transient vs persistent hardware faults (searched below); 0.5 is the maximum-uncertainty value, swept over {0.2, 0.5, 0.94} (anchor CAR) |
 | `hw.p_per_sensor_call` | 0.002 | no per-call camera / speaker fault rate; an order of magnitude below the motion rate (anchor NAV) |
 | `move.p_false_arrival_normal` | 0.01 | CoBot gives only the worst-region rate 0.038 (anchor COB) |
 | `move.false_arrival_offset_m` | 0.6 m | above the 0.3 m arrive tolerance so a pose check can detect it |
