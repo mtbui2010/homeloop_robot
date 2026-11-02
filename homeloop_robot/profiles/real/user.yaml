@@ -1,0 +1,219 @@
+# Simulated-user and ASR parameters of the `real` profile (robot-human-safety stream).
+# Every entry: kind, role, value, note; sourced entries have source + where; the rest are assumed: true.
+# Sources are listed in docs/calibration.md (user-safety block) and explained in docs/user_model.md.
+profile: real
+part: user
+params:
+  # ------------------------------------------------------------------------------------------- ASR
+  asr.en.near_wer:
+    kind: prob
+    role: user_noise
+    value: 0.044
+    source: https://arxiv.org/abs/2212.04356
+    where: "Table 2, FLEURS en row, Whisper large-v2"
+    note: "English WER for read sentences near the microphone: Whisper large-v2 zero-shot 4.4 % on FLEURS en. Used per word when the speaker is within asr.far_threshold_m."
+    assumed: false
+  asr.en.far_wer:
+    kind: prob
+    role: user_noise
+    value: 0.255
+    source: https://arxiv.org/abs/2212.04356
+    where: "Table 2, CHiME-6 row, Whisper large-v2"
+    note: "English WER for distant speech in real homes: Whisper large-v2 zero-shot 25.5 % on CHiME-6 (dinner-party recordings in homes). Used per word beyond asr.far_threshold_m."
+    assumed: false
+  asr.ko.near_cer:
+    kind: prob
+    role: user_noise
+    value: 0.1048
+    source: https://arxiv.org/abs/2410.18444
+    where: "Table 3, group (2) General, Whisper large-v2 fine-tuned on KsponSpeech, eval-clean"
+    note: "Korean CER of an in-domain Korean ASR on spontaneous conversation: 10.48 %. Used per Hangul syllable near the microphone. Zero-shot (14.66 %) is the stress value."
+    assumed: false
+  asr.ko.far_cer:
+    kind: prob
+    role: user_noise
+    value: 0.2257
+    assumed: true
+    anchor: https://arxiv.org/abs/2212.04356
+    note: "No Korean far-field household number found. Derived: near CER 0.1048 x English far/near ratio on the same AMI meetings, SDM1 36.4 % / IHM 16.9 % = 2.154 (Whisper Table 2), giving 0.2257. Assumes the ratio transfers across languages."
+  asr.p_not_heard:
+    kind: prob
+    role: user_noise
+    value: 0.0270
+    source: https://arxiv.org/abs/2403.02421
+    where: "Table 2 (error taxonomy), 'Not listened' 69 of 2,552 turns; Sec. 4.1"
+    note: "Older adults with a voice assistant at home for four weeks: the request was not picked up in 69 of 2,552 turns, 69/2552 = 0.0270 per utterance."
+    assumed: false
+  asr.p_partial:
+    kind: prob
+    role: user_noise
+    value: 0.0114
+    source: https://arxiv.org/abs/2403.02421
+    where: "Table 2, 'Partially listened' 29 of 2,552 turns"
+    note: "Same study: the request was only partly captured in 29 of 2,552 turns, 29/2552 = 0.0114 per utterance. The partial transcript keeps the first half or more of the tokens."
+    assumed: false
+  asr.far_threshold_m:
+    kind: distance_m
+    role: nominal
+    value: 1.2
+    assumed: true
+    anchor: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
+    note: "Distance beyond which the far-field ASR rate applies. Chosen as the outer edge of Hall's personal zone (1.2 m, as tabulated in Walters et al. 2005 Table 1); no ASR study gives a near/far switch distance for a robot microphone."
+  asr.op_shares:
+    kind: categorical
+    role: nominal
+    keys: [sub, del, ins]
+    value: {sub: 0.6, del: 0.3, ins: 0.1}
+    assumed: true
+    note: "Share of substitution, deletion and insertion among corrupted tokens. Not reported by the ASR sources used here; substitutions are taken as the majority error type, a modelling choice."
+  # ---------------------------------------------------------------------------------------- answers
+  user.answer.p_wrong:
+    kind: prob
+    role: user_noise
+    value: 0.173
+    source: https://arxiv.org/abs/2008.00279
+    where: "Table 1 and Sec. 3.4 (oracle condition): correct 73.1 %, not sure 9.6 %, incorrect 17.3 %"
+    note: "Share of informative answers to a clarifying question that are wrong (17.3 %). Crowd workers answering a product-search system, not a robot: the closest measured answer mix found."
+    assumed: false
+  user.answer.p_not_sure:
+    kind: prob
+    role: user_noise
+    value: 0.096
+    source: https://arxiv.org/abs/2008.00279
+    where: "Table 1 and Sec. 3.4: not sure 9.6 %"
+    note: "Share of answers that are 'not sure' (9.6 %); the remaining 73.1 % are correct. Applied only when the user had an informative answer to give."
+    assumed: false
+  user.latency:
+    kind: lognormal
+    role: nominal
+    value: {median: 4.98, sigma: 0.842, min: 1.75}
+    source: https://arxiv.org/abs/2008.00279
+    where: "Sec. 3.3 (Fig. 4): minimum 1.75 s, mean 7.1 s, median 4.98 s per question"
+    note: "Answer delay. Lognormal with the reported median 4.98 s; sigma from mean/median: sqrt(2 ln(7.1/4.98)) = 0.842; floor at the reported minimum 1.75 s."
+    assumed: false
+  user.patience_questions:
+    kind: count
+    role: nominal
+    value: 7
+    source: https://arxiv.org/abs/2008.00279
+    where: "Sec. 3.3 (Fig. 2): questions answered before stopping, mean 11.4, median 7"
+    note: "The user stops answering after the median number of clarifying questions users were willing to answer (7). Later asks time out."
+    assumed: false
+  user.p_no_answer:
+    kind: prob
+    role: user_noise
+    value: 0.05
+    assumed: true
+    anchor: https://arxiv.org/abs/2008.00279
+    note: "No measured rate of silence after a robot question was found (research gap 1). Chosen as about half of the 'not sure' share (9.6 %) of the anchor; the ask then times out."
+  user.p_interrupt_stop:
+    kind: prob
+    role: user_noise
+    value: 0.01
+    assumed: true
+    anchor: https://arxiv.org/abs/2403.02421
+    note: "Probability per episode that the user tells the robot to stop. No per-task rate exists (gap 2). Anchor: older adults interrupted the assistant in 21 of 2,552 turns (0.82 %), rounded to 1 % per task."
+  user.interrupt_after_calls:
+    kind: range
+    role: nominal
+    value: [1, 6]
+    assumed: true
+    note: "Inclusive range of motion calls after which a random stop arrives (uniform). A modelling choice that places the stop inside a typical short household task."
+  # ----------------------------------------------------------------------------------------- motion
+  user.gait_mps_men:
+    kind: map
+    role: nominal
+    keys: ["20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-99"]
+    value: {"20-29": 1.36, "30-39": 1.43, "40-49": 1.43, "50-59": 1.43, "60-69": 1.34, "70-79": 1.26, "80-99": 0.97}
+    source: https://doi.org/10.1016/j.physio.2010.12.004
+    where: "Decade table of comfortable gait speed (men), as reproduced in the University of Toronto handout; range 143.4-94.3 cm/s confirmed in the abstract"
+    note: "Comfortable walking speed of healthy men by decade (meta-analysis of 41 studies, 23,111 subjects). Used for adult persons under 65, by age group."
+    assumed: false
+  user.gait_mps_women:
+    kind: map
+    role: nominal
+    keys: ["20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-99"]
+    value: {"20-29": 1.34, "30-39": 1.34, "40-49": 1.39, "50-59": 1.31, "60-69": 1.24, "70-79": 1.13, "80-99": 0.94}
+    source: https://doi.org/10.1016/j.physio.2010.12.004
+    where: "Decade table of comfortable gait speed (women), as reproduced in the University of Toronto handout"
+    note: "Comfortable walking speed of healthy women by decade, same meta-analysis. Persons with unknown sex use the mean of the two tables."
+    assumed: false
+  user.gait_older:
+    kind: normal
+    role: nominal
+    value: {mean: 0.92, sd: 0.27, min: 0.245, max: 1.595}
+    source: https://doi.org/10.1001/jama.2010.1923
+    where: "Abstract: gait speed mean 0.92 m/s (SD 0.27) in 34,485 community-dwelling adults aged 65 or more"
+    note: "Per-person walking speed of persons aged 65+, drawn once per episode. The truncation at mean +- 2.5 SD (0.245, 1.595) is our choice to avoid non-physical speeds."
+    assumed: false
+  user.gait_child_mps:
+    kind: speed_mps
+    role: nominal
+    value: 1.0
+    assumed: true
+    note: "No child gait source was opened. 1.0 m/s is a round value below the young-adult norms (about 1.35 m/s) for a child walking indoors."
+  user.indoor_gait_factor:
+    kind: value
+    role: nominal
+    value: 0.7
+    assumed: true
+    anchor: https://doi.org/10.1016/j.physio.2010.12.004
+    note: "Indoor room-to-room walks are short with turns; the meta-analysis warns its norms may not hold for short walks from a standing start or with a turn (gap 9). Speeds are multiplied by 0.7, an assumption."
+  user.motion.rate_per_h:
+    kind: rate_per_h
+    role: user_noise
+    value: 2.0
+    assumed: true
+    note: "How often a person walks to another seat (Poisson). No in-home source was found; two walks per hour is a modelling choice. Zero in ideal (people stay put)."
+  user.motion.pause_s:
+    kind: range_s
+    role: nominal
+    value: [30, 300]
+    assumed: true
+    note: "Minimum stay at a seat after a walk, uniform 30-300 s. A modelling choice that keeps people from walking continuously."
+  # --------------------------------------------------------------------------------------- dialog etc.
+  user.hearing_range_m:
+    kind: distance_m
+    role: nominal
+    value: 3.6
+    assumed: true
+    anchor: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
+    note: "A person in another room hears the robot within this distance. Chosen as the outer edge of Hall's social zone (3.6 m, Walters et al. 2005 Table 1); not an acoustic measurement."
+  user.p_location_unknown:
+    kind: prob
+    role: user_noise
+    value: 0.2
+    assumed: true
+    note: "Probability that the user does not know where an asked-about object is. No source; a modelling choice so that location questions are useful but not an oracle."
+  user.handover_latency:
+    kind: lognormal
+    role: nominal
+    value: {median: 2.0, sigma: 0.5, min: 0.5}
+    assumed: true
+    note: "Time for the person to take an offered object. No handover-timing source was opened; median 2 s is a modelling choice."
+  user.handover_timeout_s:
+    kind: duration_s
+    role: nominal
+    value: 60
+    assumed: true
+    note: "The robot waits this long for the person to take the object, then the handover times out. An engineering default, not a measured value."
+  user.p_unresponsive:
+    kind: prob
+    role: user_noise
+    value: 0.02
+    assumed: true
+    note: "Probability that the person does not take an offered object (busy, not attending). No source; a modelling choice."
+  user.approach_distance_m:
+    kind: distance_m
+    role: nominal
+    value: 0.57
+    source: https://uhra.herts.ac.uk/id/eprint/13538/2/MohammedrezaEtAl_AISB10Proxemic.pdf
+    where: "Table 1: base human-robot distance 57 cm (handing over an object -7 cm)"
+    note: "Distance from which the user speaks the instruction to the robot (base interaction distance 0.57 m). It sets the ASR condition of the instruction (near)."
+    assumed: false
+  user.asr_on_instruction:
+    kind: flag
+    role: nominal
+    value: true
+    assumed: true
+    note: "Whether the spoken instruction itself goes through ASR noise. A benchmark design choice; in ideal the ASR rates are zero, so the instruction is heard exactly."
