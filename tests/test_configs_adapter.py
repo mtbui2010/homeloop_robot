@@ -59,7 +59,7 @@ def test_adapter_bind_and_codes():
         assert ad.bind({"action": "Say", "object": "hi"}) == ("say", {"inputs": "hi"})
         assert ad.bind({"action": "Wait", "object": "3"}) == ("wait", {"inputs": "3"})
         assert ad.bind({"action": "Dock"}) == ("dock", {"inputs": "dock"})
-        assert ad.bind({"action": "WaitForUnload"})[0] == "handover"
+        assert ad.bind({"action": "WaitForUnload"}) == ("wait_for_unload", {})
         for a in ("Observe", "Verify", "Fly"):
             with pytest.raises(Unbindable):
                 ad.bind({"action": a, "object": "x"})
@@ -91,3 +91,16 @@ def test_robot_agent_grounds_a_copied_key():
     task = "Could you stash that gray towel in the bathroom cabinet?"
     assert places.candidates("bath_cabinet@bathroom", task) == ["bath_cabinet@bathroom"]
     assert places.ground("kitchen_sink@main", task) == "kitchen_sink@main"
+
+
+def test_wait_for_unload_hands_over():
+    ep = episode()
+    set_backend(ep.robot)
+    try:
+        assert ra_skills.move(None, inputs="counter@kitchen")["isdone"]
+        assert ra_skills.find(None, inputs="red mug")["isdone"] and ra_skills.pick(None, inputs="red mug")["isdone"]
+        assert ra_skills.move(None, inputs="grandma")["isdone"]
+        out = ra_skills.wait_for_unload(None)
+        assert out["isdone"] and ep.world.objects["mug_1"].at == "person:grandma"
+    finally:
+        reset_backend()

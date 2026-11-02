@@ -14,6 +14,7 @@ SKILL_CONFIGS: dict = {
     'open': (f'{_PKG}', 'open'),
     'close': (f'{_PKG}', 'close'),
     'handover': (f'{_PKG}', 'handover'),
+    'wait_for_unload': (f'{_PKG}', 'wait_for_unload'),
     'say': (f'{_PKG}', 'say'),
     'announce': (f'{_PKG}', 'announce'),
     'ask': (f'{_PKG}', 'ask'),

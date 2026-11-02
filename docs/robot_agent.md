@@ -10,7 +10,7 @@ PYTHONPATH=/path/to/robot_agent python -m robot_agent.contract.check_manifest --
 
 | file | content |
 |---|---|
-| `manifest.yaml` | robot `homeloop`: 17 skills with abstract actions (MoveTo Find Pick Place PutIn Open Close Handover Say Announce Ask Look Query Wait Dock Verify Observe), params, pre / effects, verify (symbolic + sensor `pose` / `grasp_check`), errors; capabilities; geometry (core defaults: this robot has no measured geometry); two planner notes |
+| `manifest.yaml` | robot `homeloop`: 18 skills with abstract actions (MoveTo Find Pick Place PutIn Open Close Handover WaitForUnload Say Announce Ask Look Query Wait Dock Verify Observe), params, pre / effects, verify (symbolic + sensor `pose` / `grasp_check`), errors; capabilities; geometry (core defaults: this robot has no measured geometry); two planner notes |
 | `skills_config.py` | literal `SKILL_CONFIGS`: every skill -> `homeloop_robot.configs.ra_skills.<name>` |
 | `ra_skills.py` | plain `def name(node, inputs=..., **params) -> dict` functions: `get_backend().call(...)` -> `SkillResult.to_legacy()`; find adds `ins: {id: {pose_3d}}`, pose returns a tuple, ask returns `text`, grasp_check's `isdone` = holding |
 | `backend.py` | `get_backend()` / `set_backend(robot)` / `reset_backend()`; without a backend a default robot on `senior_flat` (ideal) |
@@ -23,7 +23,8 @@ PYTHONPATH=/path/to/robot_agent python -m robot_agent.contract.check_manifest --
 the backend robot's world (CamelCase is split: `KitchenCounter` -> `kitchen counter`); a name that does
 not resolve to exactly one thing is passed through, and the skill then fails as unknown or ambiguous.
 `dock` / `charger` / `home` map to the house's dock place. Wait -> `wait` (default 5 s); Dock -> `dock`;
-WaitForUnload is an alias of Handover; Observe / Verify raise `Unbindable` (they are sensor skills
+WaitForUnload -> `wait_for_unload` (its own skill, so robot_agent offers the `deliver` goal; as an alias of Handover
+it was not a plan action and deliver goals were refused); Observe / Verify raise `Unbindable` (they are sensor skills
 used by verify, not plan steps).
 
 ## How the bench drives it
