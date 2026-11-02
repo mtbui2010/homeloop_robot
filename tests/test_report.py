@@ -27,3 +27,11 @@ def test_oracle_mix_deterministic_and_ideal_clean():
     assert i["ok"] == 1.0 and i["by_code"] == {} and i["success"] == 1.0
     lo = oracle_mix(0, 12, "real", {"hw.p_persistent": 0.0})
     assert lo["hw_persistent_episode_rate"] == 0.0
+
+
+def test_okrobot_trials_deterministic_and_ideal_succeeds():
+    from homeloop_robot.report import okrobot_trials
+    a = okrobot_trials(0, 20, "real")
+    assert a == okrobot_trials(0, 20, "real") and a["n_trials"] == 20
+    assert abs(sum(a["sim"].values()) - 1.0) < 1e-9
+    assert okrobot_trials(0, 20, "ideal")["sim"]["success"] == 1.0

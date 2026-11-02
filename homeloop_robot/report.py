@@ -5,7 +5,10 @@
 - ``oracle-mix``: the outcome mix of every call the closed-loop oracle (``oracle.rollout``) issues on random
   reachable goals. The selftest trace mixes in random calls whose preconditions often do not hold
   (``unreachable``, ``not_holding`` ...); this mix shows the calibrated failures alone.
-Both are deterministic (no wall clock).
+- ``okrobot``: OK-Robot-style open-loop pick-and-drop trials (navigate, find, pick, navigate, place; the first
+  failure ends the trial, no retries) and their stage outcome mix next to OK-Robot Fig. 4 (375 trials: navigation
+  failure 42, manipulation failure 73, placing failure 6, success 254), a calibration check of the per-call rates.
+All are deterministic (no wall clock).
 """
 
 from __future__ import annotations
@@ -20,7 +23,8 @@ from .houses import list_houses
 from .profiles import Profile, load_profile
 from .rng import derive_seed, rng_for
 
-OKROBOT_HW_PER_TRIAL = 0.075        # OK-Robot Sec. III-D: robot hardware failure in 7.5 % of 171 trials
+OKROBOT_HW_PER_TRIAL = 0.075        # OK-Robot Sec. III-D: robot hardware failure in 7.5 % of trials (28 / 375, Fig. 4)
+OKROBOT_FIG4 = {"n": 375, "navigation": 42, "manipulation": 73, "placing": 6, "success": 254}   # Fig. 4 (page 6)
 OKROBOT_CALLS_PER_TRIAL = 4         # navigate, pick, navigate, drop
 SWEEP_P_PERSISTENT = (0.2, 0.5, 0.94)
 TASK_CALLS = (4, 8, 12)
@@ -109,6 +113,56 @@ def oracle_mix(seed: int = 0, episodes: int = 200, profile: str = "real", overri
             "not_injected_by_code": {k: clean[k] / d for k in sorted(clean)}}
 
 
+def okrobot_trials(seed: int = 0, trials: int = 300, profile: str = "real") -> dict:
+    """Open-loop pick-and-drop trials in the OK-Robot protocol (Sec. II-D: a linear chain navigate -> grasp ->
+    navigate -> drop, no error detection or correction). Stage of the first failed call: navigation (the move to
+    the object and the find, which holds semantic-memory retrieval as in Fig. 4), manipulation (pick, incl.
+    hardware), placing (the move to the target and the place); a chain that reports ok but leaves the object off
+    its target is a silent failure, counted in the stage of its silent call."""
+    from . import goals as G
+    prof = load_profile(profile)
+    houses = list_houses()
+    stages = {"navigation": 0, "manipulation": 0, "placing": 0, "success": 0}
+    n = 0
+    for i in range(trials * 4):
+        if n >= trials:
+            break
+        rng = rng_for(seed, "okrobot", i)
+        house = houses[i % len(houses)]
+        ep = make_episode(house, rng.randrange(1000), prof, derive_seed(seed, "okrobot", i), key=f"okrobot|{seed}|{i}")
+        w = ep.world
+        objs = sorted(o for o, ob in w.objects.items() if not ob.inside and not str(ob.at).startswith("person:"))
+        surf = sorted(p for p, pl in w.house.places.items() if pl.kind == "surface")
+        if not objs or not surf:
+            continue
+        obj = objs[rng.randrange(len(objs))]
+        tgt = [p for p in surf if p != w.objects[obj].at]
+        tgt = tgt[rng.randrange(len(tgt))]
+        goal = {"all": [{"pred": "on", "args": [obj, tgt]}]}
+        plan = oracle.solve(w, goal)
+        if not plan or [c.skill for c in plan] != ["move", "find", "pick", "move", "place"]:
+            continue                                  # only the plain five-call chain of the OK-Robot protocol
+        n += 1
+        stage_of = ["navigation", "navigation", "manipulation", "placing", "placing"]
+        failed = None
+        for k, c in enumerate(plan):
+            r = ep.robot.call(c.skill, **c.args)
+            if not r.ok:
+                failed = stage_of[k]
+                break
+        if failed is None:
+            if G.evaluate(goal, w).holds:
+                failed = "success"
+            else:                                     # a silent failure: the pick slipped, or the object fell
+                slip = any((t.get("truth") or {}).get("event") == "slip" for t in ep.robot.trace)
+                failed = "manipulation" if slip else "placing"
+        stages[failed] += 1
+    ref = OKROBOT_FIG4
+    return {"profile": profile, "seed": seed, "n_trials": n,
+            "sim": {k: v / max(1, n) for k, v in stages.items()},
+            "okrobot_fig4": {k: ref[k] / ref["n"] for k in ("navigation", "manipulation", "placing", "success")}}
+
+
 def _fmt_rates(t: dict) -> str:
     lines = [f"profile {t['profile']}: hw.p_per_motion_call {t['p_per_motion_call']}, "
              f"hw.p_persistent {t['p_persistent']}; OK-Robot {t['okrobot_per_trial']:.1%} per "
@@ -130,7 +184,14 @@ def main(argv=None) -> int:
     o.add_argument("--seed", type=int, default=0)
     o.add_argument("--episodes", type=int, default=200)
     o.add_argument("--p-persistent", type=float, default=None, help="override hw.p_persistent (sweep)")
+    k = sub.add_parser("okrobot", help="open-loop pick-and-drop stage mix vs OK-Robot Fig. 4")
+    k.add_argument("--profile", default="real", choices=["ideal", "real", "stress"])
+    k.add_argument("--seed", type=int, default=0)
+    k.add_argument("--trials", type=int, default=300)
     a = ap.parse_args(argv)
+    if a.cmd == "okrobot":
+        print(json.dumps(okrobot_trials(a.seed, a.trials, a.profile), sort_keys=True, indent=1))
+        return 0
     if a.cmd == "hw-rates":
         t = hw_rates_table(a.profile)
         print(json.dumps(t, sort_keys=True, indent=1) if a.json else _fmt_rates(t))

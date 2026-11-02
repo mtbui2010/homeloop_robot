@@ -161,6 +161,28 @@ Interaction Experiment", IEEE RO-MAN 2005. https://uhra.herts.ac.uk/id/eprint/26
 - DYN: Liu et al., "DynaMem: Online Dynamic Spatio-Semantic Memory for Open World Mobile Manipulation", 2024.
   https://arxiv.org/abs/2411.04999 - Sec. 4.2, Fig. 7c: 9 of 17 long-horizon home tasks succeeded.
 
+## Calibration check: OK-Robot pick-and-drop trials
+
+`python -m homeloop_robot.report okrobot --trials 300` runs open-loop pick-and-drop trials in the OK-Robot protocol
+(navigate, find, pick, navigate, place; the first failure ends the trial; no retries) on random objects and
+surfaces of all houses, `real` profile, and compares the stage of the first failure with OK-Robot Fig. 4.
+
+| stage | OK-Robot Fig. 4 (375 trials) | homeloop_robot `real` (300 trials, seed 0) |
+|---|---|---|
+| navigation failure (incl. semantic memory) | 11.2 % | 17.0 % |
+| manipulation failure (incl. hardware) | 19.5 % | 9.3 % |
+| placing failure (incl. the move to the target) | 1.6 % | 18.0 % |
+| success | 67.7 % | 55.7 % |
+
+The simulated robot fails more often overall (44 % vs 32 %) and in a different place. Known causes, not tuned
+away because no source gives the right per-call numbers: the hardware rate (7.5 % per trial) is spread over all 4
+motion calls, whereas Fig. 4 puts all 28 hardware failures in manipulation; the silent-failure rate
+`verify.p_false_success` (4.8 %, a per-trajectory rate from RUM) also applies to place, and `carry.p_drop` and
+`place.p_drop` (BINDER) apply on the way to and at the target, whereas OK-Robot's drop heuristic failed in 6 of 260
+trials; the move to the target is a second navigation that Fig. 4 does not count separately; and the houses have
+people, whose presence can stop the robot (safety aborts). Treat the `real` profile as somewhat harsher than
+OK-Robot's homes; the `stress` profile is harsher still.
+
 ## Hardware faults: transient vs persistent, episode-level rates
 
 `hw.p_per_motion_call` = 0.01875 is sourced (OKR, 7.5 % of 171 trials / 4 motion primitives). The share of
