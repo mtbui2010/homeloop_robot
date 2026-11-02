@@ -220,3 +220,25 @@ def test_goal_rules_are_off_without_a_goal():
     # a destination question is not read as "where is it?" (the user does not know what was asked)
     assert compose("Where should I put the blue mug?", "en", None, w, knows_location=True).rule == "generic_user"
     assert compose("Where is the blue mug?", "en", None, w, knows_location=True).text == "It's on the counter."
+
+
+def test_goal_more_question_forms():
+    assert _ans("Could you clarify where you want the blue mug placed?").text == "On the sink, please."
+    assert _ans("Which place do you mean for the blue mug?").text == "On the sink, please."
+    assert _ans("What should I do with the phone?").text == "Bring it to me, please."
+    assert _ans("휴대폰은 어떻게 해야 할까요?", "ko").text == "저한테 갖다 주세요."
+    # offered places that are not where the request goes: the user says who it is for
+    c = _ans("Which place do you mean: counter in the kitchen or table in the living?",
+             wants={"all": [{"pred": "held_by", "args": ["phone_1", "grandma"]}]})
+    assert c.text == "Bring it to me, please."
+    c = _ans("Which place do you mean: counter in the kitchen or table in the living?",
+             wants={"all": [{"pred": "said_to", "args": ["child", "dinner_ready"]}]})
+    assert c.text == "Child is at the bed."
+    w = FakeWorld()
+    c = compose("Which place should I look for the blue mug?", "en", None, w, knows_location=True)
+    assert c.text == "It's on the counter."
+
+
+def test_which_place_to_look_is_a_location_question():
+    c = _ans("Which place should I look for the blue mug and the phone?")
+    assert c.rule == "location" and c.text == "It's on the counter."

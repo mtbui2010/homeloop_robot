@@ -80,6 +80,10 @@ path only when the user is reachable.
        person to tell; for "bring it to me" the user's own seat or "you" counts), else "No, " + the first part it
        gets wrong or leaves out ("No, put the blue mug on the sink."); a yes / no question about one part of the
        request is judged on that part only;
+     - "what should I do with X?" (X requested) is a destination question; "which place do you mean for X?" too,
+       but "which place should I look for X?" asks where X is;
+     - a list of places none of which is where the request goes, when the request is for a person -> who it is
+       for: "Bring it to me, please." or where that person is ("Grandpa is at the bed.");
      - open questions ("What should I do?", "What else?") are not answered from the request;
    - "where is X?" about one object -> its true place ("It's on the counter." / "조리대 위에 있어요."), unless the
      user does not know (`user.p_location_unknown`); "where should I put X?" is not read as "where is X?";

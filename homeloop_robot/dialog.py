@@ -253,9 +253,9 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
     # location question about an object ("where is X?"; "where should I put X?" asks where it should go, not
     # where it is)
     ql = _q_text(question)
-    dest_only = bool(DEST_RX["en"].search(ql.lower()) or DEST_RX["ko"].search(ql)) and not (
-        LOC_RX["en"].search(ql.lower()) or LOC_RX["ko"].search(ql))
-    if qtype == "wh" and not dest_only and any(mentions(question, w, lg) for lg in ("en", "ko") for w in WHERE[lg]):
+    dest_only = asks_destination(question) and not (LOC_RX["en"].search(ql.lower()) or LOC_RX["ko"].search(ql))
+    if qtype == "wh" and not dest_only and (any(mentions(question, w, lg) for lg in ("en", "ko") for w in WHERE[lg])
+                                            or re.search(r"\bwhich place\b[^?]*\b(look|find|search)\b", ql.lower())):
         objs = mentioned_objects(world, question)
         if len(objs) > 1 and spec.get("intended") in objs:
             objs = [spec["intended"]]
@@ -303,11 +303,16 @@ GOAL_TEXT = {
     "person_at": {"en": "{person} is at the {place}.", "ko": "{person}{eun} {place}에 있어요."},
 }
 # "where should I put / bring ... ?" (a destination), not "where is ...?" (a location)
-DEST_RX = {"en": re.compile(r"\bwhere\b[^?]*\b(put|place|leave|bring|take|move|keep|store|stash|go|deliver|hand|"
-                            r"give|drop|set)\b|\b(put|place|bring|take|leave|move|set)\b[^?]*\bwhere\b"),
-           "ko": re.compile(r"어디\s*(에|에다|로|으로|다)?\s*(가)?\s*(두|둘|놓|놔|넣|가져|갖다|옮기|옮겨|드리|드릴|놓아|올려)")}
-LOC_RX = {"en": re.compile(r"\bwhere\b[^?]*\b(is|are)\b|\blocated\b|\bwhere\b[^?]*\b(find|look)\b"),
+DEST_RX = {"en": re.compile(r"\bwhere\b[^?]*\b(put|place[sd]?|leave|left|bring|brought|take|taken|move[sd]?|keep|kept|"
+                            r"store[sd]?|stash(ed)?|go|goes|deliver(ed)?|hand|give|given|drop(ped)?|set)\b|"
+                            r"\b(put|place|bring|take|leave|move|set)\b[^?]*\bwhere\b|"
+                            r"\bwhat (should|do|shall) (i|you want me to) do with\b"),
+           "ko": re.compile(r"어디\s*(에|에다|로|으로|다)?\s*(가)?\s*(두|둘|놓|놔|넣|가져|갖다|옮기|옮겨|드리|드릴|놓아|올려)|"
+                           r"(어떻게|뭘|무엇을)\s*(해야|할까|하면)")}
+LOC_RX = {"en": re.compile(r"\bwhere\b[^?]*\b(is|are)\b|\blocated\b|\b(where|which place)\b[^?]*\b(find|look|search)\b"),
           "ko": re.compile(r"어디\s*(에)?\s*(있|계)")}
+WHICH_FOR_RX = re.compile(r"\bwhich place\b[^?]*\bfor the\b")       # "which place do you mean for the mug?"
+SEARCH_RX = re.compile(r"\b(look|find|search)\b")
 ALT_RX = re.compile(r"\bor\b|아니면|또는|이나|거나")
 READBACK_RX = re.compile(r"\bI will\b|\bI'll\b|\bI'm going to\b|\bI am going to\b|겠습니다|게요|놓아요|둬요|넣어요|"
                          r"맞죠|맞나요|맞습니까")
@@ -416,7 +421,9 @@ def _specific_name(world: Any, oid: str, L: str) -> str:
 def asks_destination(question: str) -> bool:
     """Does the question ask where something should go ("where should I put X?", "어디에 둘까요?")?"""
     q = _q_text(question)
-    return bool(DEST_RX["en"].search(q.lower()) or DEST_RX["ko"].search(q))
+    low = q.lower()
+    return bool(DEST_RX["en"].search(low) or DEST_RX["ko"].search(q)
+                or (WHICH_FOR_RX.search(low) and not SEARCH_RX.search(low)))
 
 
 def _dest_answer(gv: "GoalView", objs: list, L: str) -> str:
@@ -549,7 +556,7 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
         wrong_place = _say(key, L, place=place_name(world, other_place, L))
 
     # 1. "Where should I put / bring the X?": where the user wants it
-    is_dest = bool(DEST_RX["en"].search(low) or DEST_RX["ko"].search(q))
+    is_dest = asks_destination(question)
     if goal_objs and is_dest:
         parts = []
         if (LOC_RX["en"].search(low) or LOC_RX["ko"].search(q)) and knows_location:
@@ -557,7 +564,8 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
             if len(goal_objs) == 1:
                 parts.append(location_text(world, goal_objs[0], L))
             else:
-                parts += [f"{_specific_name(world, o, L)}: {location_text(world, o, L)}" for o in goal_objs[:2]]
+                parts += [(f"The {_specific_name(world, o, L)}: " if L == "en" else f"{_specific_name(world, o, L)}: ")
+                          + location_text(world, o, L) for o in goal_objs[:2]]
         parts.append(_dest_answer(gv, goal_objs, L))
         return Content("correct", " ".join(parts), True, wrong_place, "goal_destination")
 
@@ -603,6 +611,17 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
                 if person != gv.user_id:
                     targets.append(gv.place_of(person))
         hits = [p for p in places if p in targets]
+        if not hits:
+            # none of the offered places is where the request goes: the person it is for, or "to me"
+            for a in gv.atoms:
+                if a["pred"] in ("held_by", "said_to"):
+                    person = a["args"][1] if a["pred"] == "held_by" else a["args"][0]
+                    if person == gv.user_id:
+                        return Content("correct", _say("to_me", L), True, None, "goal_place")
+                    here = gv.place_of(person)
+                    if here:
+                        txt = _say("person_at", L, person=person_name(world, person, L), place=place_name(world, here, L))
+                        return Content("correct", txt[:1].upper() + txt[1:], True, None, "goal_place")
         if hits:
             others = [p for p in places if p not in targets]
             return Content("correct", _say("pick", L, name=place_name(world, hits[0], L)), True,
