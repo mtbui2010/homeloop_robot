@@ -51,6 +51,7 @@ assumption), `stress` (failure probabilities doubled, sourced worst cases). See
 [architecture](docs/architecture.md) · [world and houses](docs/world.md) · [skills](docs/skills.md) ·
 [failure model](docs/failure_model.md) · [profiles](docs/profiles.md) · [calibration](docs/calibration.md) ·
 [oracle](docs/oracle.md) · [robot_agent package](docs/robot_agent.md) · [realism](docs/realism.md) ·
+[safety](docs/safety.md) · [simulated user](docs/user_model.md) · [hazards](docs/hazards.md) ·
 [testing](docs/testing.md)
 
 ## License

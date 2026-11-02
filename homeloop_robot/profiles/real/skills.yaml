@@ -12,7 +12,7 @@ params:
     value: 0.01875
     source: https://arxiv.org/abs/2401.12202
     where: "Sec. III-D (failure analysis)"
-    note: "OK-Robot: robot hardware failure in 7.5 % of 171 home trials. A trial is navigate, pick, navigate, drop = 4 motion primitives, so per motion call 0.075 / 4 = 0.01875."
+    note: "OK-Robot: robot hardware failure in 7.5 % of home trials (Fig. 4: 28 of 375). A trial is navigate, pick, navigate, drop = 4 motion primitives, so per motion call 0.075 / 4 = 0.01875. move.p_fail and pick.p_fail exclude the hardware share, so it is not counted twice."
   hw.p_per_sensor_call:
     kind: prob
     role: failure
@@ -39,10 +39,10 @@ params:
     kind: prob_map
     role: failure
     keys: [low, medium, high]
-    value: {low: 0.04, medium: 0.12, high: 0.15}
+    value: {low: 0.0067, medium: 0.02, high: 0.025}
     source: https://arxiv.org/abs/2401.12202
-    where: "Sec. III-C, Fig. 6"
-    note: "OK-Robot navigation error by clutter level: high cleanup 4 %, low cleanup 12 %, no cleanup 15 % of trials. Our target clutter low / medium / high = their high / low / no cleanup."
+    where: "Sec. III-C, Fig. 6; Fig. 4"
+    note: "OK-Robot navigation error by clutter level: high cleanup 4 %, low cleanup 12 %, no cleanup 15 % of trials (Fig. 6). These stage rates include semantic-memory retrieval failures, which find.p_miss models separately: Fig. 4 splits the 42 navigation failures of 375 trials into 35 'localized wrong or no object' (semantic memory, = find.p_miss 9.3 %) and 7 'navigated to suboptimal final position' (motion). We keep only the motion share 7/42 = 0.1667 of each level, assuming the share is the same at every cleanup level: 0.04, 0.12, 0.15 x 0.1667 = 0.0067, 0.02, 0.025. One navigation stage per trial in Fig. 4 = one move call, so no per-call division. Our target clutter low / medium / high = their high / low / no cleanup."
   move.split:
     kind: split
     role: failure
@@ -145,7 +145,7 @@ params:
     value: 0.093
     source: https://arxiv.org/abs/2401.12202
     where: "Sec. III-D"
-    note: "OK-Robot: semantic-memory retrieval failure (object not found or ambiguous) in 9.3 % of 171 trials, the first-ranked failure cause. Used per find call when the object is visible."
+    note: "OK-Robot: semantic-memory retrieval failure (object not found or ambiguous) in 9.3 % of trials, the first-ranked failure cause (Fig. 4: 35 'localized wrong or no object' of 375 trials). Used per find call when the object is visible; move.p_fail excludes this share so it is not counted twice."
   find.p_false_positive:
     kind: prob
     role: failure
@@ -178,10 +178,10 @@ params:
     kind: prob_map
     role: failure
     keys: [low, medium, high]
-    value: {low: 0.13, medium: 0.16, high: 0.25}
+    value: {low: 0.0534, medium: 0.0658, high: 0.1027}
     source: https://arxiv.org/abs/2401.12202
-    where: "Sec. III-C, Fig. 6"
-    note: "OK-Robot manipulation error by clutter level: high cleanup 13 %, low cleanup 16 %, no cleanup 25 %. Our place clutter low / medium / high = their high / low / no cleanup."
+    where: "Sec. III-C, Fig. 6; Fig. 4"
+    note: "OK-Robot manipulation error by clutter level: high cleanup 13 %, low cleanup 16 %, no cleanup 25 % of trials (Fig. 6). These stage rates include hardware failures (injected separately by hw.p_per_motion_call) and wrong-object detections (find.p_wrong_instance). Fig. 4 splits the 73 manipulation failures of 375 trials into 28 hardware, 17 'LangSAM detected wrong object' and 30 'AnyGrasp failure' (grasp model); we keep the grasp-model share 30/73 = 0.411 of each level (assumed equal across levels): 0.13, 0.16, 0.25 x 0.411 = 0.0534, 0.0658, 0.1027. 30/375 = 8.0 % is the 'difficult pose from the manipulation module' of Sec. III-D. One pick per trial, so no per-call division. Our place clutter low / medium / high = their high / low / no cleanup."
   pick.p_fail_class:
     kind: prob_map
     role: failure
@@ -218,7 +218,7 @@ params:
     value: 0.048
     source: https://arxiv.org/abs/2409.05865
     where: "Sec. 3.6, Fig. 11"
-    note: "Robot Utility Models: the MLLM success detector reported success on 4.8 % of failed trajectories. Used as the share of silent failures: a pick that reports ok with an empty hand, a place whose object falls, an open that is only partial."
+    note: "Robot Utility Models: '4.8% of our trajectories exhibit such behavior [the mLLM detector calls a failure a success], constituting half of the total errors' (Sec. 3.6). 4.8 % is a share of ALL trajectories, not of failed ones. A RUM trajectory is one single-skill policy rollout (door / drawer opening, pick-up, reorientation), so we use it per manipulation call as the unconditional probability of a silent failure: a pick that reports ok with an empty hand, a place whose object falls, an open that is only partial."
   carry.p_drop:
     kind: prob
     role: failure
@@ -231,7 +231,7 @@ params:
     role: nominal
     value: 1.0
     source: https://arxiv.org/abs/2401.12202
-    where: "Sec. V-E"
+    where: "Sec. III-D (Robot hardware limitations)"
     note: "OK-Robot (Stretch) payload limit of 1 kg: heavier objects cannot be picked (catalog.PAYLOAD_KG)."
   place.p_drop:
     kind: prob
@@ -316,10 +316,10 @@ params:
   vlm.p_false_yes:
     kind: prob
     role: failure
-    value: 0.048
+    value: 0.5
     source: https://arxiv.org/abs/2409.05865
     where: "Sec. 3.6, Fig. 11"
-    note: "Robot Utility Models: MLLM success detector false positives on 4.8 % of trajectories; used as P(yes | the queried condition is false)."
+    note: "Robot Utility Models: the mLLM success detector calls a failed trajectory a success on 4.8 % of ALL trajectories, 'constituting half of the total errors' (Sec. 3.6; 90 % overall success, Sec. 3.1), so P(detector says success | the trajectory failed) = 4.8 % / about 9.6 % failed = 0.5. Used as P(yes | the queried condition is false). Per task trajectory in RUM; applied here per vlm_check."
   vlm.p_false_no:
     kind: prob
     role: failure

@@ -66,9 +66,10 @@ class NullSafety:
         self.world = world
         self._min_sep: Optional[float] = None
 
-    def traverse(self, skill, path, v_nominal, t0, people, *, part="base", collaborative_with=None) -> Traverse:
+    def traverse(self, skill, path, v_nominal, t0, people, *, part="base", collaborative_with=None,
+                 nominal_s=None) -> Traverse:
         path = [tuple(p[:2]) for p in path]
-        if part == "base":
+        if part in ("base", "dock"):
             dur = polyline_length(path) / v_nominal if v_nominal > 0 else 0.0
         else:
             dur = 0.0                            # arm: no extra time

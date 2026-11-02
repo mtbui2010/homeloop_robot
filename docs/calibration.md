@@ -21,10 +21,22 @@ Liu et al., "OK-Robot: What Really Matters in Integrating Open-Knowledge Models 
 https://arxiv.org/abs/2401.12202
 
 - Sec. III-C, Fig. 6: navigation error 15 / 12 / 4 % and manipulation error 25 / 16 / 13 % of trials for
-  no / low / high cleanup. -> `move.p_fail`, `pick.p_fail` (our clutter high / medium / low).
-- Sec. III-D: of 171 trials in 10 homes, semantic-memory retrieval failure 9.3 % (-> `find.p_miss`) and
-  robot hardware failure 7.5 % (-> `hw.p_per_motion_call` = 0.075 / 4 motion primitives per trial).
-- Sec. V-E: 1 kg payload limit of the robot. -> `carry.payload_kg`, `catalog.PAYLOAD_KG`.
+  no / low / high cleanup. These are per-trial STAGE rates that include causes we inject separately.
+- Fig. 4 (page 6, Sankey over all 375 trials, the three cleanup phases pooled): navigation failure 42 =
+  35 "localized wrong or no object" (semantic memory) + 7 "navigated to suboptimal final position";
+  manipulation failure 73 = 28 hardware + 17 "LangSAM detected wrong object" + 30 AnyGrasp failure
+  (the figure labels the model branch 45); placing failure 6 of 260; 254 successes.
+  -> `move.p_fail` = Fig. 6 level x 7/42 (motion share only) = 0.0067 / 0.02 / 0.025;
+  `pick.p_fail` = Fig. 6 level x 30/73 (grasp-model share only) = 0.0534 / 0.0658 / 0.1027. The share is
+  assumed equal at every cleanup level (Fig. 4 pools them). One navigation and one pick stage per trial in
+  Fig. 4, so no per-call division. This avoids counting semantic memory (in `find.p_miss`) and hardware
+  (in `hw.p_per_motion_call`) twice.
+- Sec. III-D: semantic-memory retrieval failure 9.3 % (35 / 375, -> `find.p_miss`) and robot hardware
+  failure 7.5 % (28 / 375, -> `hw.p_per_motion_call` = 0.075 / 4 motion primitives per trial). The text
+  says 171 pick-and-drop experiments in 10 homes; Fig. 4 counts 375 trials, and 9.3 % / 7.5 % match the
+  375 (35 / 375, 28 / 375).
+- Sec. III-D ("Robot hardware limitations"): 1 kg payload limit of the robot. -> `carry.payload_kg`,
+  `catalog.PAYLOAD_KG`.
 - Abstract, Fig. 1, Sec. III-A: 58.5 % pick-and-drop success in cluttered homes, 82 % in cleaner ones
   (composition target, docs/failure_model.md).
 
@@ -72,8 +84,11 @@ https://arxiv.org/abs/2409.05865
 - Table 1 (App. A.1): door opening 47 / 50, drawer opening 47 / 50, tissue pick-up 46 / 50, bag pick-up
   42 / 50, with self-critique retries. -> `pick.p_fail_class` (bag 0.16, tissue 0.08) and, with Dobb-E's
   first-try numbers, `open.p_retry_success`.
-- Sec. 3.6, Fig. 11: the MLLM success detector has 4.8 % false positives. -> `verify.p_false_success`
-  (silent failures) and `vlm.p_false_yes`.
+- Sec. 3.6, Fig. 11: "4.8% of our trajectories exhibit such behavior [a failure judged a success],
+  constituting half of the total errors". 4.8 % is a share of ALL trajectories, not of failed ones, and it
+  is per task trajectory (one single-skill policy rollout). -> `verify.p_false_success` = 0.048 (the
+  unconditional silent-failure probability per manipulation call) and `vlm.p_false_yes` = 0.5
+  (P(detector says yes | failed) = 4.8 % / about 9.6 % failed trajectories, "half of the total errors").
 
 ### DOBBE: Dobb-E
 Shafiullah et al., "On Bringing Robots Home", 2023.

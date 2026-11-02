@@ -368,12 +368,32 @@ def explain_unsolvable(world: World, goal: dict, *, avoid_hazards: bool = True, 
     return ""
 
 
+HELP_QUESTION = {"en": "Could you please clear the way for me?", "ko": "지나갈 수 있게 길을 좀 비켜 주시겠어요?"}
+RETRY_WAIT_S = 5
+
+
+def recovery_call(code: Optional[str], skill: str, world: World, user, t: float, lang: str = "en") -> Optional[Call]:
+    """The closed-loop oracle's follow-up to a failed call (shared by :func:`rollout` and the bench's
+    ``oracle`` planner, so the calibration report and the benchmark use one policy): a blocked move ->
+    ask the user to clear the way when the user can hear the robot, else wait; perception_unavailable /
+    blocked (other skills) -> wait 5 s; anything else -> None (retry or re-plan)."""
+    if code == "blocked" and skill == "move":
+        uid = getattr(user, "user_id", None)
+        xy = tuple(world.robot.pose[:2])
+        if uid is not None and hasattr(user, "hears") and user.hears(uid, xy, t, False):
+            return Call("ask", {"question": HELP_QUESTION.get(lang, HELP_QUESTION["en"]), "lang": lang})
+        return Call("wait", {"seconds": RETRY_WAIT_S})
+    if code in ("perception_unavailable", "blocked"):
+        return Call("wait", {"seconds": RETRY_WAIT_S})
+    return None
+
+
 def rollout(episode, goal: dict, *, max_calls: int = 60, max_time_s: float = 1800.0, max_attempts: int = 3,
             lang: str = "en") -> dict:
     """Closed-loop oracle on an episode (reference behaviour, docs/oracle.md): re-solve from the true
-    world after every call; at most ``max_attempts`` consecutive failures of the same call; wait 5 s
-    before retrying perception_unavailable / blocked; ask for help while a path is blocked.
-    Returns {"success", "calls", "status"}."""
+    world after every call; at most ``max_attempts`` consecutive failures of the same call; the follow-up of
+    :func:`recovery_call` (wait 5 s before retrying perception_unavailable / blocked; ask for help with a
+    blocked path when the user can hear). Returns {"success", "calls", "status"}."""
     w, robot = episode.world, episode.robot
     fails: dict = {}
     n = 0
@@ -397,10 +417,9 @@ def rollout(episode, goal: dict, *, max_calls: int = 60, max_time_s: float = 180
         if r.code is not None and r.code.value in ("hw_fault", "estop") and \
                 any(f.clears_on == "never" for f in w.faults.values()) or w.robot.estop:
             return {"success": False, "calls": n, "status": "give_up"}
-        if r.code is not None and r.code.value == "blocked" and c.skill == "move" and n < max_calls:
-            robot.call("ask", question="Could you please clear the way for me?", lang=lang)
-            n += 1
-        elif r.code is not None and r.code.value in ("perception_unavailable", "blocked") and n < max_calls:
-            robot.call("wait", seconds=5)
+        rc = recovery_call(r.code.value if r.code is not None else None, c.skill, w, episode.user,
+                           episode.clock.t, lang)
+        if rc is not None and n < max_calls:
+            robot.call(rc.skill, **rc.args)
             n += 1
     return {"success": bool(G.evaluate(goal, w).holds), "calls": n, "status": "budget"}

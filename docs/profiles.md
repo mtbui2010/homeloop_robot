@@ -18,9 +18,9 @@ move.p_fail:
                                  # mass_kg rate_per_h count lognormal normal categorical flag words_per_s value map
   role: failure                  # failure | recovery | nominal | user_noise | safety_noise
   keys: [low, medium, high]
-  value: {low: 0.04, medium: 0.12, high: 0.15}
+  value: {low: 0.0067, medium: 0.02, high: 0.025}
   source: https://arxiv.org/abs/2401.12202
-  where: "Sec. III-C, Fig. 6"
+  where: "Sec. III-C, Fig. 6; Fig. 4"
   note: "OK-Robot navigation error by clutter level ..."
 perception.p_unavailable:
   kind: prob

@@ -28,4 +28,7 @@ and return success or a typed failure drawn from failure rates calibrated from p
 - [Oracle](docs/oracle.md): the privileged planner over the true world
 - [robot_agent package](docs/robot_agent.md): manifest, adapter, how the bench drives it
 - [Realism](docs/realism.md): object provenance, placement / house rules, outcome consistency
+- [Safety](docs/safety.md): standards, separation formulas, the safety monitor
+- [Simulated user](docs/user_model.md): dialog, ASR noise, interruptions, motion, sources
+- [Hazards](docs/hazards.md): semantic hazard codes and checks
 - [Testing](docs/testing.md): test map, selftest, checks

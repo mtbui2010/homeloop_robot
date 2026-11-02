@@ -14,6 +14,7 @@ import dataclasses
 import importlib
 import json
 import math
+import re
 from typing import Optional
 
 from . import goals as _goals
@@ -30,6 +31,12 @@ HANDOVER_TIMEOUT_DEFAULT_S = 60.0   # time spent when a handover is not taken an
 POSE_AT_TOL_M = 0.3           # pose() reports `at` within this distance of an approach pose
 HIGH_SHELF_REACH_M = 1.5      # a high_shelf place higher than this is out of the arm's reach
 WAIT_CLEARS_S = 5.0           # a wait at least this long may clear a camera fault
+DOCK_TRAVEL_M = 0.5           # the base reverses this far onto the charger contacts (design choice)
+# an ask that is a request for help with an obstacle (any language the robot speaks)
+HELP_RX = re.compile(r"\b(clear|block\w*|in the way|out of the way|get (past|through)|let me (pass|through)|"
+                     r"path|obstacle)\b|비켜|치워|치우|길|막혀|지나가|지나갈", re.I)
+# calls that do not change what the robot is doing between a blocked move and the ask about it
+_QUIET = ("wait", "look", "say", "announce", "pose", "grasp_check", "vlm_check")
 
 MOTION_SKILLS = ("move", "pick", "place", "put_in", "open", "close", "handover", "dock")
 
@@ -177,7 +184,7 @@ class Robot:
     def reported_at(self):
         return self._reported_at
 
-    def call(self, skill: str, **args) -> SkillResult:
+    def call(self, skill: str, /, **args) -> SkillResult:
         t0 = self.clock.t
         res = self._call(skill, args, t0)
         dur = max(0.0, float(res.dur))
@@ -383,10 +390,12 @@ class Robot:
     def _people(self):
         return self.user.people_at
 
-    def _arm_safety(self, res, skill, collaborative_with=None) -> bool:
-        """Arm motion under the safety monitor: extra time, abort -> blocked. True when aborted."""
+    def _arm_safety(self, res, skill, collaborative_with=None, nominal_s=None) -> bool:
+        """Arm motion under the safety monitor for its whole nominal duration (``res.dur`` when not given):
+        extra time from slow-downs and stops, abort -> blocked. True when aborted."""
+        ns = float(res.dur if nominal_s is None else nominal_s)
         tr = self.safety.traverse(skill, [self._xy()], float(self._p_arm_speed()), self.clock.t, self._people(),
-                                  part="arm", collaborative_with=collaborative_with)
+                                  part="arm", collaborative_with=collaborative_with, nominal_s=ns)
         res.dur += float(tr.duration_s)
         if tr.aborted:
             res.fail(F.BLOCKED, "protective stop: person in the way (blocked)", injected=True, event="safety_abort")
@@ -488,7 +497,10 @@ class Robot:
         if tr.aborted:
             return res.fail(F.BLOCKED, "protective stop: person in the way (blocked)", injected=True,
                             event="safety_abort")
-        # success (possibly a false arrival); transport drop
+        # success (possibly a false arrival); transport drop. The robot went another way: a blocked path it
+        # met earlier is not known to be blocked any more (no stale help-clearable fault).
+        for k in [k for k in w.faults if k.startswith("path:") and k != fkey]:
+            del w.faults[k]
         r.perceived = set()
         r.phantoms = set()
         r.docked = False
@@ -798,9 +810,27 @@ class Robot:
         if self._hw(res, u, "arm"):
             res.dur = nominal * frac
             return res
-        res.dur = nominal
-        if self._arm_safety(res, "handover", collaborative_with=pid):
-            return res
+        res.dur = 0.0
+        if hasattr(self.safety, "handover"):
+            # collaborative handover (DESIGN 6.2): the base approaches to safety.handover_distance_m at no more
+            # than safety.handover_speed_mps, the arm extends, the base backs off again (same path, same cap)
+            tb, ta = self.safety.handover(pid, here, t0, self._people(), arm_s=nominal)
+            res.dur += float(tb.duration_s)
+            if tb.aborted or ta.aborted:
+                res.dur += float(ta.duration_s) + (nominal if not tb.aborted else 0.0)
+                return res.fail(F.BLOCKED, "protective stop: person in the way (blocked)", injected=True,
+                                event="safety_abort")
+            res.dur += nominal + float(ta.duration_s)
+            if tb.duration_s > 0:
+                from .safety import handover_pose
+                goal = handover_pose(here, ppos, float(self._p("safety.handover_distance_m")))
+                back = self.safety.traverse("handover", [goal, here], float(self._p("safety.handover_speed_mps")),
+                                            t0 + res.dur, self._people(), part="base")
+                res.dur += float(back.duration_s)
+        else:
+            res.dur = nominal
+            if self._arm_safety(res, "handover", collaborative_with=pid):
+                return res
         taken, latency = self.user.take_handover(pid, oid, t0 + res.dur)
         if not taken:
             res.dur += float(latency) if latency else HANDOVER_TIMEOUT_DEFAULT_S
@@ -852,7 +882,7 @@ class Robot:
         if not heard:
             res.dur += timeout
             return res.fail(F.TIMEOUT, "no reply: nobody in hearing range", event="nobody")
-        helped = [k for k in sorted(w.faults) if w.faults[k].p_help > 0]
+        helped = self._help_faults(str(question))
         if helped:
             self.user.help_request(str(question), t0)      # before answer(): the user model's contract
         reply, h = self.user.answer(str(question), lang or self.lang, self._xy(), t0 + res.dur)
@@ -869,6 +899,23 @@ class Robot:
                     del w.faults[k]
                     res.truth.setdefault("help_cleared", []).append(k)
         return res
+
+    def _help_faults(self, question: str) -> list:
+        """Active help-clearable faults this ask is about: the ask follows a blocked move (only quiet calls in
+        between), or the question asks for help with an obstacle (HELP_RX). Any other question gets its
+        ordinary answer even while a path fault exists."""
+        active = [k for k in sorted(self.world.faults) if self.world.faults[k].p_help > 0]
+        if not active:
+            return []
+        if HELP_RX.search(question):
+            return active
+        for rec in reversed(self.trace):
+            if rec.get("skill") in _QUIET:
+                continue
+            if rec.get("skill") == "move" and rec.get("code") == F.BLOCKED.value:
+                return active
+            break
+        return []
 
     def _sk_look(self, res, u, t0):
         w, r = self.world, self.world.robot
@@ -968,7 +1015,15 @@ class Robot:
         if self._hw(res, u, "base"):
             res.dur = nominal * _uniform(u[U.FAILTIME], self._p("move.fail_time_frac"))
             return res
-        res.dur = nominal
+        # reversing onto the charger: muted protective field (ISO 3691-4 docking; safety.muted_speed_mps)
+        xy, yaw = self._xy(), math.radians(float(r.pose[2]))
+        path = [xy, (xy[0] - DOCK_TRAVEL_M * math.cos(yaw), xy[1] - DOCK_TRAVEL_M * math.sin(yaw))]
+        v = DOCK_TRAVEL_M / nominal if nominal > 0 else 0.0
+        tr = self.safety.traverse("dock", path, v, t0, self._people(), part="dock")
+        res.dur = nominal + max(0.0, float(tr.duration_s) - (DOCK_TRAVEL_M / v if v > 0 else 0.0))
+        if tr.aborted:
+            return res.fail(F.BLOCKED, "protective stop: person in the way (blocked)", injected=True,
+                            event="safety_abort")
         r.docked = True
         res.data["docked"] = True
         return res

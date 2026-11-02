@@ -14,8 +14,8 @@ def u_with(**slots):
 
 
 def test_p_fail_tables():
-    assert p_fail(REAL, Ctx("move", clutter="high")) == 0.15
-    assert p_fail(REAL, Ctx("pick", clutter="low")) == 0.13
+    assert p_fail(REAL, Ctx("move", clutter="high")) == 0.025
+    assert p_fail(REAL, Ctx("pick", clutter="low")) == 0.0534
     assert p_fail(REAL, Ctx("pick", clutter="low", grasp_class="deformable")) == 0.16
     assert p_fail(REAL, Ctx("open", container_type="drawer")) == 0.167
     assert p_fail(REAL, Ctx("open", container_type="fridge")) == 0.21
@@ -48,4 +48,4 @@ def test_empirical_failure_rate():
     n = 20000
     fails = sum(sample_outcome(REAL, Ctx("move", clutter="medium"), [rng.random() for _ in range(N_UNIFORMS)]).kind
                 == "fail" for _ in range(n))
-    assert abs(fails / n - 0.12) < 0.01
+    assert abs(fails / n - 0.02) < 0.004
