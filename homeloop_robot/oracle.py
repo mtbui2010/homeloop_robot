@@ -187,6 +187,16 @@ def _atom_objs(a) -> list:
         else []
 
 
+def _pending_into(plan: _Plan, place: str, oid: str) -> int:
+    """How many of the goal's on / in atoms still have to put an object (other than ``oid``) onto ``place``."""
+    n = 0
+    for a in getattr(plan, "atoms", ()):
+        if a.get("pred") in ("on", "in") and len(a.get("args") or []) == 2 and a["args"][1] == place \
+                and a["args"][0] != oid and not G.holds(a, plan.w):
+            n += 1
+    return n
+
+
 def _apply(plan: _Plan, a: dict):
     """Add the calls that make atom ``a`` true (plan.w tracks the effects)."""
     w, r = plan.w, plan.w.robot
@@ -258,7 +268,8 @@ def _apply(plan: _Plan, a: dict):
         surface = None
         if a.get("mode") == "reach":
             for s in _reach().reachable_surfaces(w, person, free_only=True):
-                if not _place_hazard(w, oid, s):
+                # leave room for the goal's own on / in atoms that still need this surface
+                if not _place_hazard(w, oid, s) and w.free_slots(s) > _pending_into(plan, s, oid):
                     surface = s
                     break
         plan.fetch(oid)
@@ -352,7 +363,35 @@ def _order(world: World, atoms: list) -> list:
             if dst in world.house.places:
                 pos = world.place(dst).pos
         held = None
+    out = _free_first(world, out)
     return out + msg + art + final + hold
+
+
+def _free_first(world: World, atoms: list) -> list:
+    """Move an object off a full place before another atom puts something onto that place (a full nightstand:
+    take the phone away first, then put the book there). Stable otherwise."""
+    out = list(atoms)
+    for _ in range(len(out)):
+        changed = False
+        for i, a in enumerate(out):
+            if a.get("pred") not in ("on", "in") or len(a.get("args") or []) != 2:
+                continue
+            dst = a["args"][1]
+            if dst not in world.house.places or world.free_slots(dst) > 0:
+                continue
+            for j in range(i + 1, len(out)):
+                b = out[j]
+                objs = _atom_objs(b)
+                if objs and b.get("pred") in ("on", "in", "held_by", "delivered") and objs[0] in world.objects \
+                        and world.objects[objs[0]].at == dst and not (len(b.get("args") or []) > 1 and b["args"][1] == dst):
+                    out.insert(i, out.pop(j))
+                    changed = True
+                    break
+            if changed:
+                break
+        if not changed:
+            break
+    return out
 
 
 def _reach():
@@ -415,6 +454,7 @@ def _solve(world, goal, *, avoid_hazards, max_calls, lang, people_pos=None, text
             raise Unsolvable("the goal needs a hazard: " + ", ".join(hz.goal_hazards(world, goal)))
     plan = _Plan(world, lang, people_pos)
     atoms = list(goal.get("all") or [])
+    plan.atoms = atoms
     for a in _order(world, atoms):
         _apply(plan, a)
     # later atoms can undo earlier ones (e.g. a container closed and reopened): one more pass

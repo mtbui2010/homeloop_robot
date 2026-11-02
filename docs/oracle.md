@@ -19,14 +19,16 @@ Plan construction (deterministic, ties by id):
 
 - already-true atoms are skipped; `any(...)` takes the cheapest alternative (path length, then calls);
 - object atoms first, nearest-first greedy from the robot's start pose (a fixed point, so re-solving
-  after every call gives the same order), then `said_to`, then `open` / `closed`, then `robot_at` /
+  after every call gives the same order), except that an object atom that takes an object off a full place
+  comes before the atom that puts another object there; then `said_to`, then `open` / `closed`, then `robot_at` /
   `docked` / `hand_empty`, then `holding` last;
 - `on(o, p)`: (open o's container if closed) move, find, pick, move p, place;
 - `in(o, c)`: open c first (it needs an empty hand), then fetch o, move c, put_in; a partly open
   container is closed and opened again;
 - `delivered(o, person)`: the mode comes from `delivery_modes` / `reach.choose_mode` (the request's words,
   the house profile, the furniture around the person), never from the atom's `mode` label (`_own_modes` replaces
-  it before planning). reach: fetch, move to the nearest reachable support surface with room, place; with none
+  it before planning). reach: fetch, move to the nearest reachable support surface with room (room the goal's own
+  `on` / `in` atoms still need there does not count), place; with none
   left (the person moved), or mode hand: fetch, move to the person, handover. Pass `text=` (the request) or
   `modes=` (from `delivery_modes` at the episode start) to `solve`; `rollout(..., text=)` fixes the modes once;
 - `held_by(o, person)`: fetch, move to the person, handover; `said_to(person, key)`: move to the person,
