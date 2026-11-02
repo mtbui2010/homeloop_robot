@@ -872,15 +872,32 @@ class Robot:
     def _sk_announce(self, res, u, t0, text, lang="en"):
         return self._speak(res, u, t0, "announce", text, lang, True)[1]
 
+    def _ask_app(self, res, t0, question, lang, audience):
+        """The question on the user's app (user.dialog_channel = app): it reaches ``audience`` wherever the
+        robot is; the robot's speaker is not used. The deployed robot_agent dashboard asks this way."""
+        w = self.world
+        if not str(question or "").strip():
+            return None, res.fail(F.SOFTWARE, "TypeError: ask() needs a non-empty text")
+        w.utterances.append(Utterance(t=t0, skill="ask", text=str(question), lang=lang or self.lang,
+                                      heard_by=tuple(audience)))
+        res.dur = self._speech_s(question)
+        return tuple(audience), res
+
     def _sk_ask(self, res, u, t0, question, lang="en"):
         w = self.world
-        heard, res = self._speak(res, u, t0, "ask", question, lang, False)
+        audience = self.user.ask_audience(self._xy(), t0) if hasattr(self.user, "ask_audience") else None
+        if audience is None:
+            heard, res = self._speak(res, u, t0, "ask", question, lang, False)
+        else:
+            heard, res = self._ask_app(res, t0, question, lang, audience)
         if heard is None:
             return res
         res.data.pop("heard_by", None)
         timeout = float(self._p("ask.timeout_s"))
         if not heard:
             res.dur += timeout
+            if audience is not None:
+                return res.fail(F.TIMEOUT, "no reply: the user is not reachable", event="nobody")
             return res.fail(F.TIMEOUT, "no reply: nobody in hearing range", event="nobody")
         helped = self._help_faults(str(question))
         if helped:

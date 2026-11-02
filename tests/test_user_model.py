@@ -59,7 +59,7 @@ def test_patience_then_silence():
 
 
 def test_out_of_hearing_range():
-    u = user("ideal")
+    u = user("ideal", **{"user.dialog_channel": "voice"})
     r, h = u.answer("Which mug?", "en", (9.5, 4.5), 0.0)  # kitchen, 8.5 m away
     assert r.kind == "no_answer" and not r.heard_question and h.event == "not_heard"
     assert u.hears("grandma", (3.5, 6.0), 0.0)  # bedroom, 3.08 m away: within 3.6 m
@@ -100,9 +100,25 @@ def test_location_answer_through_user():
 
 def test_far_answer_uses_far_asr():
     u = user("real", **{"user.p_no_answer": 0.0, "asr.en.far_wer": 1.0, "asr.p_not_heard": 0.0,
-                        "asr.p_partial": 0.0, "user.answer.p_wrong": 0.0, "user.answer.p_not_sure": 0.0})
+                        "asr.p_partial": 0.0, "user.answer.p_wrong": 0.0, "user.answer.p_not_sure": 0.0,
+                        "user.dialog_channel": "voice"})
     r, h = u.answer("Which mug, the red one or the blue one?", "en", (3.5, 2.5), 0.0)  # 3.0 m: far
     assert r.text == "The blue one." and h.event == "corrupted" and u.log[-1]["cond"] == "far"
+
+
+def test_app_channel_reaches_the_user_anywhere_with_near_asr():
+    u = user("real", **{"user.p_no_answer": 0.0, "asr.en.far_wer": 1.0, "asr.p_not_heard": 0.0,
+                        "asr.p_partial": 0.0, "user.answer.p_wrong": 0.0, "user.answer.p_not_sure": 0.0,
+                        "asr.en.near_wer": 0.0})
+    assert u.dialog_channel == "app"
+    far = (9.5, 4.5)                                 # kitchen, 8.5 m away: out of hearing range
+    assert not u.hears("grandma", far, 0.0) and u.reachable(far, 0.0)
+    assert u.ask_audience(far, 0.0) == ("grandma",)
+    r, h = u.answer("Which mug, the red one or the blue one?", "en", far, 0.0)
+    assert r.text == "The blue one." and h.event == "ok" and u.log[-1]["cond"] == "near"
+    asleep = user("ideal", spec=dict(SPEC, asleep=["grandma"]))
+    assert not asleep.reachable(NEAR, 0.0) and asleep.ask_audience(NEAR, 0.0) == ()
+    assert user("ideal", **{"user.dialog_channel": "voice"}).ask_audience(far, 0.0) is None
 
 
 def test_instruction_asr():

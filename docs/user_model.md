@@ -25,10 +25,29 @@ seed give the same answers, walks and ASR errors.
 | `interrupt_plan()` | the scripted `spec.interrupt` or a random stop, as `{after_calls, kind, text, new_goal}`; the runner triggers it at the start of motion call `after_calls + 1` |
 | `events_between(t0, t1)` | time-scheduled events; interruptions are call-indexed, so it returns `[]` |
 
+## Dialog channel
+
+`user.dialog_channel` (profile, default `app`) says how the task and the robot's questions travel between the user
+and the robot:
+
+- `app` (default): the user gives the task on their phone / tablet app, speaking near its microphone (the
+  instruction's ASR is the near condition of `user.approach_distance_m`), and the robot's `ask` reaches them there,
+  wherever the robot is (`SimUser.reachable`: the user is awake). They answer into the same device (near ASR). The
+  robot's speaker is not used for the question. This is how the deployed robot_agent runs a task started from its
+  dashboard: the question is spoken and listened to in the browser that started the run, and a typed answer from
+  any client also answers it (robot_agent `interact/dialog.py`). The user starts each episode at their own seat,
+  not next to the robot, so this is the channel that matches the start state.
+- `voice`: the robot's own speaker and microphone: a question reaches the user only within hearing range (below),
+  and the answer's ASR condition follows the robot-user distance.
+
+`say` and `announce` (messages for other people) always use the robot's speaker and hearing range.
+`SimUser.ask_audience(robot_xy, t)` tells the robot who a question reaches; the oracle asks for help with a blocked
+path only when the user is reachable.
+
 ## Dialog policy
 
-1. **Who answers**: the person with `role: user`. Not in hearing range, asleep, or past the patience limit ->
-   no answer (the robot's `ask` times out).
+1. **Who answers**: the person with `role: user`. Not reachable (see the channel), asleep, or past the patience
+   limit -> no answer (the robot's `ask` times out).
 2. **Question type** (`dialog.classify`): a wh-word anywhere (EN which, what, where, who, how, when; KO 어느,
    어떤, 어디, 누구, 뭐, 무엇, 무슨, 어떻게, 몇, 언제) -> `wh`; an EN question starting with an auxiliary or ending in
    "?", a KO question ending in 까요?, 나요?, 가요?, 죠?, 니?, 맞아요?, ...요? -> `yes_no`; otherwise `other`.

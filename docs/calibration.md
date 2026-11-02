@@ -324,6 +324,7 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 | `user.handover_timeout_s` | 60 s | engineering default |
 | `user.p_unresponsive` | 0.02 | no source |
 | `user.asr_on_instruction` | true | benchmark design choice |
+| `user.dialog_channel` | app | benchmark design choice: the task and the robot's questions go through the user's app (as the deployed robot_agent dashboard does); `voice` = the robot's speaker and microphone |
 | `safety.mode` | monitored | design choice for a robot with a person tracker |
 | `safety.v_h_switch_m` | 0.5 m | CAMPO19's wording; the standard's condition could not be checked |
 | `safety.v_h_margin` | 0.1 m/s | keeps S_p(0) = 1.191 m inside the houses' 1.20 m path clearance |

@@ -380,7 +380,9 @@ def recovery_call(code: Optional[str], skill: str, world: World, user, t: float,
     if code == "blocked" and skill == "move":
         uid = getattr(user, "user_id", None)
         xy = tuple(world.robot.pose[:2])
-        if uid is not None and hasattr(user, "hears") and user.hears(uid, xy, t, False):
+        reach = getattr(user, "reachable", None)
+        if uid is not None and (reach(xy, t) if callable(reach) else
+                                hasattr(user, "hears") and user.hears(uid, xy, t, False)):
             return Call("ask", {"question": HELP_QUESTION.get(lang, HELP_QUESTION["en"]), "lang": lang})
         return Call("wait", {"seconds": RETRY_WAIT_S})
     if code in ("perception_unavailable", "blocked"):

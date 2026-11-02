@@ -217,3 +217,10 @@ params:
     value: true
     assumed: true
     note: "Whether the spoken instruction itself goes through ASR noise. A benchmark design choice; in ideal the ASR rates are zero, so the instruction is heard exactly."
+  user.dialog_channel:
+    kind: value
+    role: nominal
+    keys: [app, voice]
+    value: app
+    assumed: true
+    note: "How the task and the robot's questions travel. app: the user gives the task on their phone / tablet app, near its microphone (so the instruction ASR is the near condition of user.approach_distance_m), and the robot's questions reach them there wherever the robot is; answers are spoken into the same device (near ASR). This is how the deployed robot_agent runs a task started from its dashboard (questions are spoken and listened to in the browser that started the run; typed answers are accepted too). voice: the robot's own speaker and microphone, heard within user.hearing_range_m. A benchmark design choice, not a measured value: the user starts at their own seat, not next to the robot, so a task spoken at the robot would contradict the start state."

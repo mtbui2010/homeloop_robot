@@ -120,6 +120,7 @@ PARAM_REGISTRY: dict = {
     "user.p_unresponsive": _p("prob", "user_noise"),
     "user.approach_distance_m": _p("distance_m", "nominal"),
     "user.asr_on_instruction": _p("flag", "nominal"),
+    "user.dialog_channel": _p("value", "nominal", ["app", "voice"]),
     "safety.mode": _p("value", "nominal", ['monitored', 'static']),
     "safety.v_h_far": _p("speed_mps", "nominal"),
     "safety.v_h_near": _p("speed_mps", "nominal"),

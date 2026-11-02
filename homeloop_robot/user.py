@@ -57,6 +57,7 @@ PARAMS = (
     "user.p_unresponsive",
     "user.approach_distance_m",
     "user.asr_on_instruction",
+    "user.dialog_channel",
 )
 
 HORIZON_S = 3600.0  # people stop scheduling new walks after this (episodes are much shorter)
@@ -103,6 +104,12 @@ class SimUser:
         self.p_unresponsive = float(g("user.p_unresponsive"))
         self.approach_distance_m = float(g("user.approach_distance_m"))
         self.asr_on_instruction = bool(g("user.asr_on_instruction"))
+        # how the task and the robot's questions travel between the user and the robot (docs/user_model.md):
+        # "app" = the user's phone / tablet app (the task is given there, the robot's ask reaches the user there
+        # wherever the robot is, answers are spoken into it); "voice" = the robot's own speaker and microphone
+        self.dialog_channel = str(g("user.dialog_channel"))
+        if self.dialog_channel not in ("app", "voice"):
+            raise ValueError(f"user.dialog_channel must be app or voice, not {self.dialog_channel!r}")
         self.asr = _asr.ASRRates(profile)
         users = sorted(pid for pid, p in world.people.items() if getattr(p, "role", "") == "user")
         self.user_id = users[0] if users else (sorted(world.people)[0] if world.people else None)
@@ -235,6 +242,23 @@ class SimUser:
             return True
         return dist(robot_xy, st.pos) <= self.hearing_range_m
 
+    def reachable(self, robot_xy, t: float) -> bool:
+        """Does a question of the robot reach the user (the person who gave the task)? app: whenever the user is
+        awake (their phone is with them); voice: within hearing range of the robot."""
+        uid = self.user_id
+        if uid is None:
+            return False
+        if self.dialog_channel == "app":
+            return self._state(uid, t).awake
+        return self.hears(uid, robot_xy, t, False)
+
+    def ask_audience(self, robot_xy, t: float):
+        """Who a question of the robot reaches: None = the robot's own speaker (everyone in hearing range);
+        else the people the app channel reaches (the user, or nobody)."""
+        if self.dialog_channel != "app":
+            return None
+        return (self.user_id,) if self.reachable(robot_xy, t) else ()
+
     # ------------------------------------------------------------------ dialog
     def hear_instruction(self, text: str, lang: str) -> Heard:
         """What the robot hears of the task instruction (spoken near: from the approach distance)."""
@@ -261,8 +285,9 @@ class SimUser:
         self._help = None
         if uid is None:
             return self._no_answer(question, t, False, "nobody")
-        if not self.hears(uid, robot_xy, t, False):
-            return self._no_answer(question, t, False, "out_of_range")
+        if not self.reachable(robot_xy, t):
+            return self._no_answer(question, t, False, "out_of_range" if self.dialog_channel == "voice"
+                                   else "unreachable")
         if k > self.patience:
             return self._no_answer(question, t, True, "patience")
         if rng.random() < self.p_no_answer:
@@ -290,7 +315,8 @@ class SimUser:
         lat = self.latency
         latency = lognormal(rng, lat["median"], lat["sigma"], lat["min"])
         st = self._state(uid, t)
-        cond = self.asr.condition(dist(robot_xy, st.pos))
+        # app: spoken into the user's own device, the near condition of the instruction; voice: robot-user distance
+        cond = self.asr.condition(self.approach_distance_m if self.dialog_channel == "app" else dist(robot_xy, st.pos))
         heard = _asr.corrupt(text, L, cond, self.streams.rng_for("user", "asr", k), self.asr)
         self.log.append({"t": r6(t), "q": question, "kind": kind, "why": rule, "text": text, "heard": heard.text,
                          "asr": heard.event, "cond": cond, "latency_s": r6(latency)})

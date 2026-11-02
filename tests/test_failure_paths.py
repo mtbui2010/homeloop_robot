@@ -146,6 +146,7 @@ def test_handover_approaches_the_person():
 
 def test_oracle_waits_instead_of_asking_when_nobody_hears():
     ep = _sim()
+    ep.user.dialog_channel = "voice"         # the robot's own speaker: the user must be in hearing range
     w = ep.world
     xy = tuple(w.robot.pose[:2])
     assert ep.user.hears(ep.user.user_id, xy, 0.0, False)
@@ -154,3 +155,27 @@ def test_oracle_waits_instead_of_asking_when_nobody_hears():
     assert oracle.recovery_call("blocked", "move", w, ep.user, 0.0).skill == "wait"
     assert oracle.recovery_call("perception_unavailable", "find", w, ep.user, 0.0).skill == "wait"
     assert oracle.recovery_call("grasp_failed", "pick", w, ep.user, 0.0) is None
+
+
+def test_oracle_asks_through_the_app_wherever_the_robot_is():
+    ep = _sim()
+    assert ep.user.dialog_channel == "app"
+    w = ep.world
+    w.robot.pose = (*w.place("bed@bedroom").pos, 0.0)      # out of grandma's hearing range
+    assert not ep.user.hears(ep.user.user_id, tuple(w.robot.pose[:2]), 0.0, False)
+    assert oracle.recovery_call("blocked", "move", w, ep.user, 0.0).skill == "ask"
+
+
+def test_ask_reaches_the_user_through_the_app_from_another_room():
+    ep = _sim()
+    w = ep.world
+    assert go(ep, "move", target="bed@bedroom").ok
+    xy = tuple(w.robot.pose[:2])
+    assert not ep.user.hears(ep.user.user_id, xy, ep.clock.t, False)
+    r = go(ep, "ask", question="Where is the remote control?")
+    assert r.ok and r.truth["reply_kind"] == "correct" and "coffee table" in r.data["answer"].lower()
+    assert w.utterances[-1].skill == "ask" and w.utterances[-1].heard_by == (ep.user.user_id,)
+    # the robot's own speaker (voice): nobody in hearing range, the ask times out
+    ep.user.dialog_channel = "voice"
+    r = go(ep, "ask", question="Where is the remote control?")
+    assert not r.ok and r.code == F.TIMEOUT and "hearing range" in r.msg
