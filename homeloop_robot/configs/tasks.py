@@ -6,15 +6,21 @@ from ..world import World, from_house
 from .backend import DEFAULT_HOUSE
 
 
+DOCK_TASK_WORDS = ["charge", "charging", "charging station", "충전", "충전기"]
+
+
 def env_for(world: World) -> dict:
     """Per place: {loc: {x, y, rz}, height, default_mode, aliases, openable} keyed by place id."""
     env = {}
     for pid, p in sorted(world.house.places.items()):
         room = world.house.rooms[p.room]
         rname, pname = room.name.get("en", ""), p.name.get("en", "")
-        with_room = pname if pname.lower().startswith(rname.lower()) else f"{rname} {pname}".strip()
+        with_room = pname if rname.lower() in pname.lower() else f"{rname} {pname}".strip()
         aliases = [p.name.get("en", ""), p.name.get("ko", "")] + list(p.aliases.get("en") or []) + \
             list(p.aliases.get("ko") or []) + [with_room]
+        if pid == world.house.dock:
+            # how people name the charger in a task: "go back and charge", "충전하러 가"
+            aliases += DOCK_TASK_WORDS
         if "_" in pid:
             # robot_agent reads a copied key through its word normalizer ('bath_cabinet@bathroom' ->
             # 'bath cabinet@bathroom'); this spelling resolves it back to the key instead of to the whole room

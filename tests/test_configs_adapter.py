@@ -24,7 +24,7 @@ def test_ra_skills_legacy_dicts():
     try:
         assert ra_skills.move(None, inputs="counter@kitchen")["isdone"] is True
         f = ra_skills.find(None, inputs="red mug")
-        assert f["isdone"] and "mug_1" in f["ins"]
+        assert f["isdone"] and f["found"] == "red mug" and "red mug" in f["ins"]   # names, not world ids
         assert ra_skills.pick(None, inputs="mug_1")["isdone"]
         assert ra_skills.grasp_check(None)["isdone"] is True
         p = ra_skills.pose(None)
@@ -93,6 +93,20 @@ def test_robot_agent_grounds_a_copied_key():
     assert places.ground("kitchen_sink@main", task) == "kitchen_sink@main"
 
 
+def test_ra_skills_report_names_not_ids_and_dock_on_move():
+    ep = episode()
+    set_backend(ep.robot)
+    try:
+        assert ra_skills.move(None, inputs="bed@bedroom")["isdone"]
+        f = ra_skills.find(None, inputs="red mug")
+        assert f["isdone"] is False and "mug_1" not in f["msg"] and "red mug" in f["msg"]
+        assert not ep.world.robot.docked
+        m = ra_skills.move(None, inputs="dock@living")
+        assert m["isdone"] and m["docked"] and ep.world.robot.docked
+    finally:
+        reset_backend()
+
+
 def test_wait_for_unload_hands_over():
     ep = episode()
     set_backend(ep.robot)
@@ -104,3 +118,11 @@ def test_wait_for_unload_hands_over():
         assert out["isdone"] and ep.world.objects["mug_1"].at == "person:grandma"
     finally:
         reset_backend()
+
+
+def test_env_dock_aliases_name_charging():
+    from homeloop_robot.world import from_house
+    env = env_for(from_house("family_house", 0))
+    assert {"charge", "충전"} <= set(env["dock@living"]["aliases"])
+    env = env_for(from_house("shared_flat", 0))
+    assert "room A bed in room A" not in env["bed@room_a"]["aliases"]
