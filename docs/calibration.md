@@ -165,7 +165,7 @@ them (`assumed: N params`).
 | `find.duration_s`, `look.duration_s`, `vlm.duration_s` | 3-6 s, 3-5 s, 2-4 s | no duration distributions in the sources |
 | `handover.p_drop` | 0.0196 | no handover drop rate; BINDER drop-while-placing reused (anchor BIND) |
 | `handover.duration_s` | 4-8 s | arm extension and release, no source |
-| `open.split`, `close.split` | blocked 0.5 / grasp_failed 0.5 | no source splits articulated failures by cause |
+| `open.split`, `close.split` | blocked 0.5 / unreachable 0.5 | no source splits articulated failures by cause; handle failures are reported as unreachable |
 | `open.duration_s`, `close.duration_s` | 5-10 s, 4-8 s | anchor DOBBE mean demonstration 3.82 s |
 | `close.p_retry_success` | = `open.p_retry_success` | no close-specific retry data |
 | `vlm.p_false_no` | 0.05 | no VLM false-negative rate found |
@@ -178,3 +178,14 @@ them (`assumed: N params`).
 
 User-model and safety assumptions are listed in docs/user_model.md and docs/safety.md (robot-human-safety
 part).
+
+## Object provenance (realism)
+
+Used by the catalog's realism fields ([realism.md](realism.md)), not by profile parameters:
+
+- AI2-THOR object types and "Default Compatible Receptacles" (opened 2026-11-02):
+  https://ai2thor.allenai.org/ithor/documentation/objects/object-types
+- ALFRED: Shridhar et al., "ALFRED: A Benchmark for Interpreting Grounded Instructions for Everyday Tasks",
+  2020. https://arxiv.org/abs/1912.01734
+- YCB: Calli et al., "Benchmarking in Manipulation Research: The YCB Object and Model Set and Benchmarking
+  Protocols", 2015. https://arxiv.org/abs/1502.03143 - Table II: object masses.

@@ -272,10 +272,10 @@ params:
   open.split:
     kind: split
     role: failure
-    keys: [blocked, grasp_failed]
-    value: {blocked: 0.5, grasp_failed: 0.5}
+    keys: [blocked, unreachable]
+    value: {blocked: 0.5, unreachable: 0.5}
     assumed: true
-    note: "No source splits articulated-object failures by cause; we assume half 'will not open' (blocked) and half handle-grasp failures."
+    note: "No source splits articulated-object failures by cause; we assume half 'will not open' (blocked) and half handle failures, reported as the handle out of reach (unreachable): grasp_failed is kept for pick and handover."
   open.duration_s:
     kind: range_s
     role: nominal
@@ -301,10 +301,10 @@ params:
   close.split:
     kind: split
     role: failure
-    keys: [blocked, grasp_failed]
-    value: {blocked: 0.5, grasp_failed: 0.5}
+    keys: [blocked, unreachable]
+    value: {blocked: 0.5, unreachable: 0.5}
     assumed: true
-    note: "No source; same split as open (half blocked, half grasp failures)."
+    note: "No source; same split as open (half blocked, half handle out of reach)."
   close.duration_s:
     kind: range_s
     role: nominal

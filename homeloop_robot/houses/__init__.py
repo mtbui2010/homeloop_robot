@@ -38,7 +38,9 @@ def parse_house(d: dict) -> House:
         x0, y0, x1, y1 = _t(r["rect"])
         floor = r.get("floor") or {}
         fpos = _t(floor["pos"]) if floor.get("pos") is not None else ((x0 + x1) / 2, (y0 + y1) / 2)
-        rooms[rid] = Room(id=rid, name=dict(r["name"]), rect=(x0, y0, x1, y1), floor_pos=fpos)
+        rtypes = r.get("type") or []
+        rooms[rid] = Room(id=rid, name=dict(r["name"]), rect=(x0, y0, x1, y1), floor_pos=fpos,
+                          types=tuple([rtypes] if isinstance(rtypes, str) else rtypes))
         places[f"floor@{rid}"] = Place(id=f"floor@{rid}", room=rid, kind="floor",
                                        name={"en": "floor", "ko": "바닥"}, aliases={"en": [], "ko": []},
                                        pos=fpos, yaw_deg=0.0, height_m=0.0, clutter="high", capacity=99,
@@ -56,7 +58,8 @@ def parse_house(d: dict) -> House:
             tags=sorted(p.get("tags") or []), hard_nav=bool(p.get("hard_nav", False)),
             container=Container(type=c["type"], openable=bool(c.get("openable", True)),
                                 opened=bool(c.get("opened", False))) if c else None,
-            person_pos=_t(p["person_pos"]) if p.get("person_pos") is not None else None)
+            person_pos=_t(p["person_pos"]) if p.get("person_pos") is not None else None,
+            category=p.get("category"))
     objects = [ObjSpec(id=o["id"], cls=o["cls"], attrs=dict(o.get("attrs") or {}), at=o["at"],
                        alt=list(o.get("alt") or [])) for o in d.get("objects") or []]
     people = [PersonSpec(id=p["id"], role=p.get("role", "other"), name=dict(p["name"]),

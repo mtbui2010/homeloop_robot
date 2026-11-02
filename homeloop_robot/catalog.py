@@ -107,7 +107,6 @@ _ALL = [
     _c("houseplant", "potted plant", "화분", "heavy", 3.0, (), (), ("plant",), ("식물",)),
     _c("water_jug", "water jug", "생수통", "heavy", 4.0, ("liquid",), ("water_bottle",), ("big water bottle",), ("큰 생수통",)),
     _c("laundry_basket", "laundry basket", "빨래 바구니", "heavy", 2.0, (), (), ("laundry",), ("빨래통",)),
-    _c("dumbbell", "dumbbell", "아령", "heavy", 3.0, ("metal",), ()),
     _c("tv", "television", "텔레비전", "fixed", 10.0, ("electronic",), (), ("tv",), ("티비", "TV")),
 ]
 
@@ -172,3 +171,261 @@ def class_names(cls: str, lang: str) -> list:
     c = CLASSES[cls]
     out = [c.name[lang]] + list((c.aliases or {}).get(lang) or [])
     return out
+
+
+# ── realism (DESIGN 13.1): provenance, physical attributes, typical receptacles ─────────────────────────
+#
+# Object sets (opened 2026-11-02):
+#   AI2-THOR object types (the object / receptacle types ALFRED uses), "Default Compatible Receptacles":
+#     https://ai2thor.allenai.org/ithor/documentation/objects/object-types
+#   ALFRED (Shridhar et al., 2020): https://arxiv.org/abs/1912.01734
+#   YCB object set, Table II (object, mass): Calli et al., https://arxiv.org/abs/1502.03143
+# A typical receptacle marked "thor" is in the AI2-THOR "Default Compatible Receptacles" list of the
+# object's AI2-THOR type (narrowed to the plausible subset); one marked with a reason is an assumption.
+
+AI2THOR_URL = "https://ai2thor.allenai.org/ithor/documentation/objects/object-types"
+ALFRED_URL = "https://arxiv.org/abs/1912.01734"
+YCB_URL = "https://arxiv.org/abs/1502.03143"
+SIZE_ORDER = ("xs", "s", "m", "l", "xl")
+
+# receptacle / fixture categories: AI2-THOR names where AI2-THOR has the type
+RECEPTACLES: dict = {
+    "CounterTop": {"thor": True, "room_types": ("kitchen",), "capacity_size_class": "xl"},
+    "SinkBasin": {"thor": True, "room_types": ("kitchen",), "capacity_size_class": "xl"},
+    "Sink": {"thor": True, "room_types": ("bathroom",), "capacity_size_class": "xl"},
+    "StoveBurner": {"thor": True, "room_types": ("kitchen",), "capacity_size_class": "xl"},
+    "Fridge": {"thor": True, "room_types": ("kitchen",), "capacity_size_class": "l"},
+    "Microwave": {"thor": True, "room_types": ("kitchen",), "capacity_size_class": "m"},
+    "Cabinet": {"thor": True, "room_types": ("kitchen", "bathroom", "utility", "living"), "capacity_size_class": "l"},
+    "Drawer": {"thor": True, "room_types": ("kitchen", "bedroom", "study", "living", "bathroom"), "capacity_size_class": "m"},
+    "Shelf": {"thor": True, "room_types": ("kitchen", "living", "bedroom", "study", "utility", "balcony"),
+              "capacity_size_class": "xl"},
+    "DiningTable": {"thor": True, "room_types": ("kitchen", "dining", "living"), "capacity_size_class": "xl"},
+    "CoffeeTable": {"thor": True, "room_types": ("living",), "capacity_size_class": "xl"},
+    "SideTable": {"thor": True, "room_types": ("living", "bedroom"), "capacity_size_class": "xl"},
+    "Desk": {"thor": True, "room_types": ("bedroom", "study", "living"), "capacity_size_class": "xl"},
+    "TVStand": {"thor": True, "room_types": ("living", "bedroom"), "capacity_size_class": "xl"},
+    "Sofa": {"thor": True, "room_types": ("living",), "capacity_size_class": "xl"},
+    "ArmChair": {"thor": True, "room_types": ("living", "bedroom"), "capacity_size_class": "xl"},
+    "Bed": {"thor": True, "room_types": ("bedroom",), "capacity_size_class": "xl"},
+    "Box": {"thor": True, "room_types": ("bedroom", "living"), "capacity_size_class": "l"},
+    "Chair": {"thor": True, "room_types": ("bedroom", "study", "kitchen", "living"), "capacity_size_class": None,
+              "note": "AI2-THOR Chair is not a receptacle: nothing is kept on it"},
+    "Wardrobe": {"thor": False, "room_types": ("bedroom",), "capacity_size_class": "l",
+                 "note": "assumed: no AI2-THOR wardrobe type (clothes / towels storage in bedrooms)"},
+    "ShoeCabinet": {"thor": False, "room_types": ("living",), "capacity_size_class": "l",
+                    "note": "assumed: the entryway shoe cabinet of Korean homes (신발장); no AI2-THOR type"},
+    "DryingRack": {"thor": False, "room_types": ("balcony", "utility"), "capacity_size_class": "xl",
+                   "note": "assumed: the clothes drying rack on a Korean balcony (빨래 건조대); no AI2-THOR type"},
+    "Floor": {"thor": True, "room_types": ("*",), "capacity_size_class": "xl"},
+    "Dock": {"thor": False, "room_types": ("*",), "capacity_size_class": None, "note": "the robot's dock"},
+}
+
+# fixtures a room type must have (R-h); a combined room has several types
+REQUIRED_FIXTURES: dict = {"kitchen": (("CounterTop",), ("SinkBasin",), ("Fridge",)),
+                           "bathroom": (("Sink", "Toilet"),), "bedroom": (("Bed",),)}
+
+# place-id prefix -> receptacle category (a place may override it with `category:` in the house YAML)
+PLACE_CATEGORY: dict = {
+    "counter": "CounterTop", "sink": "Sink", "stove": "StoveBurner", "hob": "StoveBurner", "fridge": "Fridge",
+    "kimchi_fridge": "Fridge", "microwave": "Microwave", "drawer": "Drawer", "study_drawer": "Drawer",
+    "file_drawer": "Drawer", "dresser": "Drawer", "sink_cabinet": "Cabinet", "bath_cabinet": "Cabinet",
+    "medicine_cabinet": "Cabinet", "storage_cabinet": "Cabinet", "laundry_cabinet": "Cabinet",
+    "upper_cabinet": "Shelf", "shelf": "Shelf", "wall_shelf": "Shelf", "bookshelf": "Shelf", "bookcase": "Shelf",
+    "display_shelf": "Shelf", "shared_shelf": "Shelf", "utility_shelf": "Shelf", "plant_shelf": "Shelf",
+    "dining_table": "DiningTable", "table": "DiningTable", "coffee_table": "CoffeeTable",
+    "side_table": "SideTable", "nightstand": "SideTable", "desk": "Desk", "kids_desk": "Desk",
+    "tv_stand": "TVStand", "wardrobe": "Wardrobe", "closet": "Wardrobe", "shoe_cabinet": "ShoeCabinet",
+    "sofa": "Sofa", "armchair": "ArmChair", "recliner": "ArmChair", "reading_chair": "ArmChair", "bed": "Bed",
+    "kids_bed": "Bed", "desk_chair": "Chair", "toy_box": "Box", "drying_rack": "DryingRack", "floor": "Floor",
+    "dock": "Dock", "kitchen_sink": "SinkBasin",
+}
+
+# cls -> (category, size_class, provenance, typical)
+#   provenance: list of (set, item, url) or [] (then `provenance_note` says why: no published set has it)
+#   typical: {receptacle: "thor" | reason}
+_T = "thor"
+_KITCHEN_DISH = {"CounterTop": _T, "Cabinet": _T, "Shelf": _T, "DiningTable": _T, "SinkBasin": _T}
+_REAL = {
+    "mug": ("dishware", "s", [("AI2-THOR", "Mug", AI2THOR_URL), ("YCB", "Table II ID 31 Mug (118 g)", YCB_URL)],
+            {**_KITCHEN_DISH, "CoffeeTable": _T, "SideTable": _T,
+             "Desk": "a mug left on a desk; the AI2-THOR Mug list omits Desk"}),
+    "cup": ("dishware", "s", [("AI2-THOR", "Cup", AI2THOR_URL)],
+            {**_KITCHEN_DISH, "CoffeeTable": _T, "SideTable": _T, "Desk": _T}),
+    "glass": ("dishware", "s", [("AI2-THOR", "Cup (proxy: no glass type)", AI2THOR_URL),
+                                ("YCB", "Table II ID 30 Wine glass (133 g)", YCB_URL)],
+              {**_KITCHEN_DISH, "CoffeeTable": _T, "SideTable": _T}),
+    "tumbler": ("dishware", "s", [("AI2-THOR", "Cup (proxy: no tumbler type)", AI2THOR_URL)],
+                {**_KITCHEN_DISH, "Desk": _T, "SideTable": _T}),
+    "plate": ("dishware", "m", [("AI2-THOR", "Plate", AI2THOR_URL), ("YCB", "Table II ID 24 Plate (279 g)", YCB_URL)],
+              {**_KITCHEN_DISH, "Fridge": _T, "Microwave": _T}),
+    "bowl": ("dishware", "s", [("AI2-THOR", "Bowl", AI2THOR_URL), ("YCB", "Table II ID 25 Bowl (147 g)", YCB_URL)],
+             {**_KITCHEN_DISH, "Fridge": _T, "Microwave": _T}),
+    "spoon": ("cutlery", "xs", [("AI2-THOR", "Spoon", AI2THOR_URL), ("YCB", "Table II ID 27 Spoon (30 g)", YCB_URL)],
+              {"Drawer": _T, "CounterTop": _T, "DiningTable": _T, "SinkBasin": _T}),
+    "fork": ("cutlery", "xs", [("AI2-THOR", "Fork", AI2THOR_URL), ("YCB", "Table II ID 26 Fork (34 g)", YCB_URL)],
+             {"Drawer": _T, "CounterTop": _T, "DiningTable": _T, "SinkBasin": _T}),
+    "knife": ("cutlery", "s", [("AI2-THOR", "Knife", AI2THOR_URL), ("YCB", "Table II ID 28 Knife (31 g, a table knife)", YCB_URL)],
+              {"Drawer": _T, "CounterTop": _T, "SinkBasin": _T}),
+    "scissors": ("tool", "s", [("YCB", "Table II ID 34 Scissors (82 g)", YCB_URL)],
+                 {"Drawer": "scissors are kept in a desk or kitchen drawer (no AI2-THOR type)",
+                  "Desk": "scissors used at a desk (no AI2-THOR type)"}),
+    "water_bottle": ("drink", "s", [("AI2-THOR", "Bottle", AI2THOR_URL)],
+                     {"Fridge": _T, "CounterTop": _T, "DiningTable": _T, "CoffeeTable": _T, "SideTable": _T,
+                      "Desk": _T, "Shelf": _T}),
+    "juice": ("drink", "s", [("AI2-THOR", "Bottle (proxy)", AI2THOR_URL)],
+              {"Fridge": _T, "CounterTop": _T, "DiningTable": _T}),
+    "milk": ("drink", "s", [("AI2-THOR", "Bottle (proxy: no milk type)", AI2THOR_URL)],
+             {"Fridge": _T, "CounterTop": _T, "DiningTable": _T}),
+    "apple": ("produce", "xs", [("AI2-THOR", "Apple", AI2THOR_URL), ("YCB", "Table II ID 14 Apple (68 g)", YCB_URL)],
+              {"Fridge": _T, "CounterTop": _T, "DiningTable": _T, "CoffeeTable": _T}),
+    "orange": ("produce", "xs", [("YCB", "Table II ID 18 Orange (47 g)", YCB_URL), ("AI2-THOR", "Apple (proxy)", AI2THOR_URL)],
+               {"Fridge": _T, "CounterTop": _T, "DiningTable": _T, "CoffeeTable": _T}),
+    "banana": ("produce", "s", [("YCB", "Table II ID 12 Banana (66 g)", YCB_URL), ("AI2-THOR", "Apple (proxy)", AI2THOR_URL)],
+               {"CounterTop": _T, "DiningTable": _T, "CoffeeTable": _T}),
+    "bread": ("food", "m", [("AI2-THOR", "Bread", AI2THOR_URL)],
+              {"CounterTop": _T, "DiningTable": _T, "Fridge": _T}),
+    "snack": ("food", "s", [("YCB", "Table II ID 9 Chips Can (proxy)", YCB_URL)],
+              {"Shelf": "snacks kept on a shelf (assumed)", "Cabinet": "snacks in a kitchen cabinet (assumed)",
+               "CounterTop": "assumed", "Desk": "a snack at the desk (assumed)",
+               "CoffeeTable": "assumed", "SideTable": "assumed"}),
+    "cereal_box": ("food", "m", [("YCB", "Table II ID 1 Cereal Box (510 g)", YCB_URL)],
+                   {"Cabinet": "assumed: dry food in a cabinet", "Shelf": "assumed", "CounterTop": "assumed",
+                    "DiningTable": "assumed"}),
+    "canned_soup": ("food", "s", [("YCB", "Table II ID 11 Tomato Soup Can (349 g)", YCB_URL)],
+                    {"Cabinet": "assumed: canned food in a cabinet", "Shelf": "assumed", "CounterTop": "assumed"}),
+    "kimchi_box": ("food", "m", [], {"Fridge": "a kimchi container is kept in the (kimchi) fridge",
+                                     "CounterTop": "taken out for a meal", "DiningTable": "taken out for a meal"}),
+    "cooking_oil": ("cooking", "m", [], {"CounterTop": "next to the stove (assumed)",
+                                         "Cabinet": "assumed", "Shelf": "assumed"}),
+    "bleach": ("cleaning", "m", [("AI2-THOR", "SprayBottle (proxy)", AI2THOR_URL),
+                                 ("YCB", "Table II ID 20 Windex Bottle (proxy, 1022 g)", YCB_URL)],
+               {"Cabinet": _T, "Shelf": _T}),
+    "detergent": ("cleaning", "s", [("AI2-THOR", "SoapBottle (proxy)", AI2THOR_URL)],
+                  {"Cabinet": _T, "CounterTop": _T, "Shelf": _T, "Sink": _T}),
+    "cleaning_spray": ("cleaning", "s", [("AI2-THOR", "SprayBottle", AI2THOR_URL)],
+                       {"Cabinet": _T, "Shelf": _T, "CounterTop": _T}),
+    "medicine_bottle": ("medicine", "xs", [], {c: "medicine kept where it is taken (no AI2-THOR type)" for c in
+                                               ("SideTable", "DiningTable", "CounterTop", "Drawer", "Cabinet",
+                                                "Shelf", "CoffeeTable")}),
+    "pill_box": ("medicine", "xs", [], {c: "a weekly pill organizer (no AI2-THOR type)" for c in
+                                        ("SideTable", "DiningTable", "CounterTop", "Drawer", "Shelf",
+                                         "CoffeeTable", "TVStand")}),
+    "vitamins": ("medicine", "xs", [], {c: "supplements (no AI2-THOR type)" for c in
+                                        ("DiningTable", "CounterTop", "Desk", "Shelf", "SideTable", "Cabinet")}),
+    "remote": ("electronics", "s", [("AI2-THOR", "RemoteControl", AI2THOR_URL)],
+               {"Sofa": _T, "ArmChair": _T, "TVStand": _T, "CoffeeTable": _T, "SideTable": _T}),
+    "phone": ("electronics", "xs", [("AI2-THOR", "CellPhone", AI2THOR_URL)],
+              {"Sofa": _T, "ArmChair": _T, "Desk": _T, "Bed": _T, "DiningTable": _T, "CoffeeTable": _T,
+               "SideTable": _T, "Drawer": _T, "TVStand": _T}),
+    "charger": ("electronics", "xs", [], {"Desk": "a phone charger at the desk (assumed)",
+                                          "SideTable": "a charger on the bedside table (assumed)",
+                                          "Drawer": "assumed"}),
+    "hair_dryer": ("electronics", "m", [], {"Sink": "kept by the bathroom sink (assumed)", "Cabinet": "assumed",
+                                            "Drawer": "assumed"}),
+    "book": ("personal", "s", [("AI2-THOR", "Book", AI2THOR_URL)],
+             {"Shelf": _T, "Desk": _T, "SideTable": _T, "CoffeeTable": _T, "Bed": _T, "Sofa": _T,
+              "ArmChair": _T, "TVStand": _T}),
+    "notebook": ("personal", "s", [("AI2-THOR", "Book (proxy)", AI2THOR_URL)],
+                 {"Desk": _T, "Shelf": _T, "SideTable": _T, "Drawer": _T}),
+    "pen": ("personal", "xs", [("AI2-THOR", "Pen", AI2THOR_URL), ("YCB", "Table II ID 35 Permanent Marker (proxy)", YCB_URL)],
+            {"Desk": _T, "Drawer": _T, "SideTable": _T}),
+    "glasses": ("personal", "xs", [], {c: "eyeglasses (no AI2-THOR type)" for c in
+                                       ("SideTable", "CoffeeTable", "Desk", "TVStand", "Bed", "ArmChair",
+                                        "Drawer", "Shelf")}),
+    "keys": ("personal", "xs", [("AI2-THOR", "KeyChain", AI2THOR_URL), ("YCB", "Table II ID 38 Keys (6 g)", YCB_URL)],
+             {"CoffeeTable": _T, "SideTable": _T, "Desk": _T, "Drawer": _T, "Shelf": _T,
+              "ShoeCabinet": "keys kept in the entryway shoe cabinet (assumed)"}),
+    "wallet": ("personal", "xs", [("AI2-THOR", "CreditCard (proxy)", AI2THOR_URL)],
+               {"SideTable": _T, "Desk": _T, "Drawer": _T, "CoffeeTable": _T,
+                "ShoeCabinet": "left in the entryway (assumed)"}),
+    "towel": ("textile", "m", [("AI2-THOR", "Cloth (proxy)", AI2THOR_URL)],
+              {"Cabinet": _T, "Drawer": _T, "Shelf": _T, "Sink": _T,
+               "Wardrobe": "folded towels in a wardrobe (assumed)", "DryingRack": "drying (assumed)"}),
+    "shirt": ("textile", "m", [("AI2-THOR", "Cloth (proxy)", AI2THOR_URL)],
+              {"Drawer": _T, "Sofa": _T, "ArmChair": _T, "Wardrobe": "hung in a wardrobe (assumed)",
+               "Bed": "clothes left on the bed (assumed)", "DryingRack": "drying (assumed)"}),
+    "socks": ("textile", "xs", [("AI2-THOR", "Cloth (proxy)", AI2THOR_URL)],
+              {"Drawer": _T, "Sofa": _T, "Bed": "left on the bed (assumed)", "DryingRack": "drying (assumed)",
+               "Wardrobe": "socks kept in the closet's drawers (assumed)"}),
+    "tissue_box": ("household", "m", [("AI2-THOR", "TissueBox", AI2THOR_URL)],
+                   {"SideTable": _T, "CoffeeTable": _T, "Desk": _T, "TVStand": _T, "Shelf": _T, "DiningTable": _T}),
+    "plastic_bag": ("household", "s", [], {"Drawer": "assumed", "Cabinet": "assumed", "CounterTop": "assumed"}),
+    "toy_car": ("toy", "s", [], {c: "a small toy (no AI2-THOR type)" for c in
+                                 ("Box", "Desk", "Bed", "CoffeeTable", "Shelf")}),
+    "teddy_bear": ("toy", "m", [("AI2-THOR", "TeddyBear", AI2THOR_URL)],
+                   {"Bed": _T, "Sofa": _T, "ArmChair": _T, "Desk": _T, "Box": "soft toys in a toy box (assumed)"}),
+    "ball": ("toy", "s", [("AI2-THOR", "BasketBall (proxy)", AI2THOR_URL)],
+             {"Sofa": _T, "ArmChair": _T, "Bed": _T, "Desk": _T, "Box": "toys in a toy box (assumed)"}),
+    "blocks": ("toy", "s", [("YCB", "Table II ID 71 Colored Wood Blocks (proxy)", YCB_URL)],
+               {c: "toy blocks (no AI2-THOR type)" for c in ("Box", "Desk", "CoffeeTable", "Shelf")}),
+    "lighter": ("fire", "xs", [], {c: "a lighter kept away from children (no AI2-THOR type)" for c in
+                                   ("Drawer", "Shelf", "Cabinet", "SideTable")}),
+    "matches": ("fire", "xs", [], {c: "matches (no AI2-THOR type)" for c in ("Drawer", "Cabinet", "Shelf")}),
+    "candle": ("decor", "s", [("AI2-THOR", "Candle", AI2THOR_URL)],
+               {"Shelf": _T, "TVStand": _T, "SideTable": _T, "DiningTable": _T, "CoffeeTable": _T, "Drawer": _T,
+                "Cabinet": _T}),
+    "foil": ("cooking", "s", [("AI2-THOR", "AluminumFoil", AI2THOR_URL)],
+             {"Drawer": "kitchen drawer (AI2-THOR lists no receptacle for AluminumFoil)", "Cabinet": "assumed",
+              "CounterTop": "assumed"}),
+    "vase": ("decor", "m", [("AI2-THOR", "Vase", AI2THOR_URL)],
+             {"Shelf": _T, "TVStand": _T, "SideTable": _T, "DiningTable": _T, "CoffeeTable": _T}),
+    "houseplant": ("decor", "l", [("AI2-THOR", "HousePlant", AI2THOR_URL)],
+                   {c: "a potted plant (AI2-THOR HousePlant is not pickupable; assumed places)" for c in
+                    ("Shelf", "TVStand", "SideTable", "CounterTop")}),
+    "water_jug": ("drink", "l", [], {"CounterTop": "a large water container (assumed)",
+                                     "Shelf": "stored in the utility room (assumed)"}),
+    "laundry_basket": ("household", "l", [("AI2-THOR", "LaundryHamper", AI2THOR_URL)],
+                       {"Bed": "brought to the bed to fold laundry (assumed)",
+                        "Shelf": "on the utility-room shelf (assumed)"}),
+    "tv": ("electronics", "xl", [("AI2-THOR", "Television", AI2THOR_URL)],
+           {"TVStand": "a television stands on a TV stand (AI2-THOR Television is not pickupable)"}),
+}
+
+# masses from YCB Table II where the class is a YCB object (others: the nominal weights above, assumed)
+_YCB_MASS = {"mug": 0.118, "plate": 0.279, "bowl": 0.147, "spoon": 0.030, "fork": 0.034, "apple": 0.068,
+             "orange": 0.047, "banana": 0.066, "scissors": 0.082, "keys": 0.006, "canned_soup": 0.349,
+             "cereal_box": 0.510, "glass": 0.133}
+
+
+def _attach_realism():
+    out = {}
+    for cls, c in CLASSES.items():
+        cat, size, prov, typical = _REAL[cls]
+        mass = _YCB_MASS.get(cls, c.weight_kg)
+        out[cls] = {
+            "category": cat, "size_class": size,
+            "provenance": [{"set": s, "item": i, "url": u} for s, i, u in prov],
+            "provenance_note": "" if prov else "no published object set has this item; a common household item (assumed)",
+            "mass_kg": mass, "mass_source": "YCB Table II" if cls in _YCB_MASS else "nominal (assumed)",
+            "graspable": c.grasp_class not in ("heavy", "fixed") and mass <= PAYLOAD_KG,
+            "liquid": "liquid" in c.tags, "fragile": "fragile" in c.tags, "sharp": "sharp" in c.tags,
+            "food": "food" in c.tags, "hot": "hot" in c.tags,
+            "packaged_liquid": "liquid" in c.tags,   # every liquid in the catalog is in a bottle / carton / jug
+            "typical_receptacles": {r: ({"source": "AI2-THOR Default Compatible Receptacles", "url": AI2THOR_URL}
+                                        if why == _T else {"assumed": True, "reason": why})
+                                    for r, why in sorted(typical.items())},
+        }
+    return out
+
+
+REALISM: dict = _attach_realism()
+
+
+def place_category(place) -> str:
+    """The receptacle category of a Place (explicit `category` or by its id prefix)."""
+    explicit = getattr(place, "category", None)
+    if explicit:
+        return explicit
+    return PLACE_CATEGORY.get(place.id.split("@", 1)[0], "")
+
+
+def size_fits(cls: str, category: str) -> bool:
+    cap = (RECEPTACLES.get(category) or {}).get("capacity_size_class")
+    if cap is None:
+        return False
+    return SIZE_ORDER.index(REALISM[cls]["size_class"]) <= SIZE_ORDER.index(cap)
+
+
+def is_typical(cls: str, category: str) -> bool:
+    return category in REALISM[cls]["typical_receptacles"]

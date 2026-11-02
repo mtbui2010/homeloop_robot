@@ -3,12 +3,12 @@ house: korean_apt_59
 version: 1
 name: {en: "59 m2 apartment", ko: 59제곱미터 아파트}
 rooms:
-  living:  {name: {en: living room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [3.2, 2.0], tags: [exit_path]}}
-  kitchen: {name: {en: kitchen, ko: 주방}, rect: [5, 0, 8, 4], floor: {pos: [6.4, 1.6]}}
-  master:  {name: {en: master bedroom, ko: 안방}, rect: [0, 4, 4, 7], floor: {pos: [2.6, 5.4]}}
-  small:   {name: {en: small room, ko: 작은방}, rect: [4, 4, 7, 7], floor: {pos: [5.0, 5.0]}}
-  veranda: {name: {en: balcony, ko: 베란다}, rect: [0, -1.5, 5, 0], floor: {pos: [2.6, -0.7]}}
-  utility: {name: {en: utility room, ko: 다용도실}, rect: [8, 0, 9.5, 2.5], floor: {pos: [8.6, 1.2]}}
+  living:  {type: [living], name: {en: living room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [3.2, 2.0], tags: [exit_path]}}
+  kitchen: {type: [kitchen, dining], name: {en: kitchen, ko: 주방}, rect: [5, 0, 8, 4], floor: {pos: [6.4, 1.6]}}
+  master:  {type: [bedroom], name: {en: master bedroom, ko: 안방}, rect: [0, 4, 4, 7], floor: {pos: [2.6, 5.4]}}
+  small:   {type: [study], name: {en: small room, ko: 작은방}, rect: [4, 4, 7, 7], floor: {pos: [5.0, 5.0]}}
+  veranda: {type: [balcony], name: {en: balcony, ko: 베란다}, rect: [0, -1.5, 5, 0], floor: {pos: [2.6, -0.7]}}
+  utility: {type: [utility], name: {en: utility room, ko: 다용도실}, rect: [8, 0, 9.5, 2.5], floor: {pos: [8.6, 1.2]}}
 doors:
   - {rooms: [living, kitchen], at: [5.0, 2.0], width_m: 1.0}
   - {rooms: [living, master], at: [2.0, 4.0], width_m: 0.9}
@@ -28,7 +28,7 @@ places:
   shoe_cabinet@living:
     {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: [현관 신발장]},
-     pos: [4.4, 0.6], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path]}
+     pos: [4.4, 0.6], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path], hard_nav: true}
   dock@living:
     {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
      pos: [2.2, 3.4], yaw_deg: 90, height_m: 0.0, clutter: low, capacity: 0, tags: []}
@@ -57,6 +57,9 @@ places:
   dining_table@kitchen:
     {room: kitchen, kind: surface, name: {en: dining table, ko: 식탁}, aliases: {en: [table], ko: []},
      pos: [6.5, 2.2], yaw_deg: 0, height_m: 0.75, clutter: medium, capacity: 6, tags: []}
+  kitchen_sink@kitchen:
+    {room: kitchen, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [7.2, 1.5], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
   bed@master:
     {room: master, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [], ko: [안방 침대]},
      pos: [1.9, 6.2], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 6.5]}
@@ -79,17 +82,17 @@ places:
      pos: [4.6, 6.0], yaw_deg: 180, height_m: 1.45, clutter: medium, capacity: 6, tags: [high_shelf]}
   drying_rack@veranda:
     {room: veranda, kind: surface, name: {en: drying rack, ko: 빨래 건조대}, aliases: {en: [clothes rack], ko: [건조대]},
-     pos: [1.4, -0.8], yaw_deg: 270, height_m: 1.0, clutter: low, capacity: 6, tags: []}
+     pos: [1.4, -0.8], yaw_deg: 270, height_m: 1.0, clutter: low, capacity: 6, tags: [], hard_nav: true}
   plant_shelf@veranda:
     {room: veranda, kind: surface, name: {en: plant shelf, ko: 화분 선반}, aliases: {en: [], ko: []},
-     pos: [3.9, -0.8], yaw_deg: 270, height_m: 0.8, clutter: medium, capacity: 5, tags: [wet]}
+     pos: [3.9, -0.8], yaw_deg: 270, height_m: 0.8, clutter: medium, capacity: 5, tags: [wet], hard_nav: true}
   utility_shelf@utility:
     {room: utility, kind: surface, name: {en: utility shelf, ko: 다용도실 선반}, aliases: {en: [], ko: [선반]},
-     pos: [8.8, 1.9], yaw_deg: 90, height_m: 1.2, clutter: medium, capacity: 5, tags: [wet]}
+     pos: [8.8, 1.9], yaw_deg: 90, height_m: 1.2, clutter: medium, capacity: 5, tags: [wet], hard_nav: true}
   storage_cabinet@utility:
     {room: utility, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: storage cabinet, ko: 수납장}, aliases: {en: [], ko: [다용도실 수납장]},
-     pos: [8.8, 0.6], yaw_deg: 0, height_m: 1.2, clutter: medium, capacity: 6, tags: []}
+     pos: [8.8, 0.6], yaw_deg: 0, height_m: 1.2, clutter: medium, capacity: 6, tags: [], hard_nav: true}
 objects:
   - {id: mug_1, cls: mug, attrs: {color: white}, at: dining_table@kitchen, alt: [coffee_table@living, desk@small]}
   - {id: mug_2, cls: mug, attrs: {color: green}, at: counter@kitchen, alt: [dining_table@kitchen]}
@@ -111,7 +114,7 @@ objects:
   - {id: shirt_1, cls: shirt, attrs: {color: white}, at: drying_rack@veranda, alt: [wardrobe@master]}
   - {id: socks_1, cls: socks, attrs: {color: gray}, at: drying_rack@veranda, alt: [dresser@master]}
   - {id: towel_1, cls: towel, attrs: {color: blue}, at: drying_rack@veranda, alt: [wardrobe@master]}
-  - {id: lighter_1, cls: lighter, attrs: {color: yellow}, at: tv_stand@living, alt: [drawer@kitchen]}
+  - {id: lighter_1, cls: lighter, attrs: {color: yellow}, at: drawer@kitchen, alt: []}
   - {id: houseplant_1, cls: houseplant, attrs: {color: green}, at: plant_shelf@veranda, alt: []}
   - {id: water_jug_1, cls: water_jug, attrs: {color: blue}, at: utility_shelf@utility, alt: []}
 people:

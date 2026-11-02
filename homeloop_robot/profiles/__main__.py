@@ -1,4 +1,4 @@
-"""``python -m homeloop_robot.profiles {validate [--strict], show NAME, list}``."""
+"""``python -m homeloop_robot.profiles {validate [--strict], consistency [--strict], show NAME, list}``."""
 
 from __future__ import annotations
 
@@ -17,10 +17,17 @@ def main(argv=None) -> int:
     s = sub.add_parser("show", help="print a resolved profile as sorted JSON")
     s.add_argument("name")
     sub.add_parser("list", help="profile names")
+    c = sub.add_parser("consistency", help="simulated outcome rates vs the profile; physical possibility of traces")
+    c.add_argument("--strict", action="store_true", help="any failed check fails (the default reports too)")
+    c.add_argument("--n", type=int, default=20000, help="calls per rate check (>= 20000 for the acceptance check)")
+    c.add_argument("--seed", type=int, default=0)
     a = ap.parse_args(argv)
     if a.cmd == "validate":
         from .validate import run
         return run(strict=a.strict)
+    if a.cmd == "consistency":
+        from ..consistency import run as run_consistency
+        return run_consistency(n=a.n, seed=a.seed, strict=a.strict)
     if a.cmd == "show":
         p = load_profile(a.name)
         print(json.dumps({"name": p.name, "sha": p.sha, "params": p.values()}, sort_keys=True,

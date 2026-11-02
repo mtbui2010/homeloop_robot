@@ -3,10 +3,10 @@ house: couple_flat
 version: 1
 name: {en: Couple's flat, ko: 신혼집}
 rooms:
-  living:   {name: {en: living room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [3.0, 2.2], tags: [exit_path]}}
-  kitchen:  {name: {en: kitchen, ko: 주방}, rect: [5, 0, 9, 4], floor: {pos: [6.6, 2.2]}}
-  bedroom:  {name: {en: bedroom, ko: 침실}, rect: [0, 4, 5, 8], floor: {pos: [2.6, 5.6], tags: [carpet]}}
-  bathroom: {name: {en: bathroom, ko: 욕실}, rect: [5, 4, 8, 7], floor: {pos: [6.4, 5.2]}}
+  living:   {type: [living], name: {en: living room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [3.0, 2.2], tags: [exit_path]}}
+  kitchen:  {type: [kitchen, dining], name: {en: kitchen, ko: 주방}, rect: [5, 0, 9, 4], floor: {pos: [6.6, 2.2]}}
+  bedroom:  {type: [bedroom], name: {en: bedroom, ko: 침실}, rect: [0, 4, 5, 8], floor: {pos: [2.6, 5.6], tags: [carpet]}}
+  bathroom: {type: [bathroom], name: {en: bathroom, ko: 욕실}, rect: [5, 4, 8, 7], floor: {pos: [6.4, 5.2]}}
 doors:
   - {rooms: [living, kitchen], at: [5.0, 2.2], width_m: 1.0}
   - {rooms: [living, bedroom], at: [3.0, 4.0], width_m: 0.8}
@@ -24,7 +24,7 @@ places:
   shoe_cabinet@living:
     {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
-     pos: [4.3, 3.3], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path]}
+     pos: [4.3, 3.3], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path], hard_nav: true}
   dock@living:
     {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
      pos: [4.2, 0.6], yaw_deg: 0, height_m: 0.0, clutter: low, capacity: 0, tags: []}
@@ -52,6 +52,9 @@ places:
   upper_cabinet@kitchen:
     {room: kitchen, kind: surface, name: {en: upper shelf, ko: 찬장}, aliases: {en: [top shelf], ko: [위 찬장]},
      pos: [5.7, 3.3], yaw_deg: 90, height_m: 1.45, clutter: low, capacity: 4, tags: [high_shelf]}
+  kitchen_sink@kitchen:
+    {room: kitchen, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [6.8, 1.5], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
   bed@bedroom:
     {room: bedroom, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [], ko: []},
      pos: [1.5, 5.6], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 4, tags: [], person_pos: [0.5, 7.4]}
@@ -71,7 +74,7 @@ places:
   bath_cabinet@bathroom:
     {room: bathroom, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: bathroom cabinet, ko: 욕실 수납장}, aliases: {en: [], ko: [수납장]},
-     pos: [6.0, 6.3], yaw_deg: 90, height_m: 1.2, clutter: low, capacity: 5, tags: []}
+     pos: [6.0, 6.3], yaw_deg: 90, height_m: 1.2, clutter: low, capacity: 5, tags: [], hard_nav: true}
 objects:
   - {id: mug_1, cls: mug, attrs: {color: red, owner: partner_a}, at: table@kitchen, alt: [coffee_table@living]}
   - {id: mug_2, cls: mug, attrs: {color: blue, owner: partner_b}, at: table@kitchen, alt: [nightstand@bedroom]}
@@ -89,7 +92,7 @@ objects:
   - {id: book_1, cls: book, attrs: {color: blue}, at: nightstand@bedroom, alt: [reading_chair@bedroom, coffee_table@living]}
   - {id: book_2, cls: book, attrs: {color: yellow}, at: tv_stand@living, alt: [nightstand@bedroom]}
   - {id: towel_1, cls: towel, attrs: {color: white}, at: bath_cabinet@bathroom, alt: [sink@bathroom]}
-  - {id: towel_2, cls: towel, attrs: {color: pink}, at: dresser@bedroom, alt: [bath_cabinet@bathroom, bed@bedroom]}
+  - {id: towel_2, cls: towel, attrs: {color: pink}, at: dresser@bedroom, alt: [bath_cabinet@bathroom]}
   - {id: detergent_1, cls: detergent, attrs: {color: green}, at: bath_cabinet@bathroom, alt: []}
   - {id: keys_1, cls: keys, attrs: {color: gray}, at: shoe_cabinet@living, alt: [coffee_table@living]}
   - {id: wallet_1, cls: wallet, attrs: {color: brown}, at: shoe_cabinet@living, alt: [nightstand@bedroom]}

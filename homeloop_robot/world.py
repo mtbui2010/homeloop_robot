@@ -27,6 +27,7 @@ class Room:
     name: dict
     rect: tuple                      # x0, y0, x1, y1 (m)
     floor_pos: tuple = None          # approach pose of floor@<room> (where dropped objects are picked up)
+    types: tuple = ()                # room types (kitchen, bedroom, ...): realism rule R-h
 
     def contains(self, xy, tol: float = 1e-9) -> bool:
         x0, y0, x1, y1 = self.rect
@@ -63,6 +64,7 @@ class Place:
     hard_nav: bool
     container: Optional[Container] = None
     person_pos: Optional[tuple] = None   # body position of a person using this place as a seat
+    category: Optional[str] = None       # receptacle category override (catalog.PLACE_CATEGORY by id prefix)
 
 
 @dataclass

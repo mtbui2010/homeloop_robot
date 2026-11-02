@@ -13,7 +13,8 @@ and return success or a typed failure drawn from failure rates calibrated from p
   JSON with `sort_keys=True` and floats rounded by `rng.r6`.
 - Never fabricate numbers or sources: a calibrated value needs a source listed in docs/calibration.md
   with the page / table; otherwise mark it `assumed: true` with a note.
-- `python -m homeloop_robot.profiles validate --strict` must pass after any profile change.
+- `python -m homeloop_robot.profiles validate --strict` and `... profiles consistency --strict` must pass after
+  any profile or skill change; `python -m homeloop_robot.realism --strict` after any catalog / house change.
 - GPU: never needed here (the bench's LLM tool uses GPU 0 only).
 - Commits: explicit `git add <paths>`; message ends with the attribution lines; no push.
 
@@ -26,4 +27,5 @@ and return success or a typed failure drawn from failure rates calibrated from p
 - [Calibration](docs/calibration.md): every source and what was taken from it
 - [Oracle](docs/oracle.md): the privileged planner over the true world
 - [robot_agent package](docs/robot_agent.md): manifest, adapter, how the bench drives it
+- [Realism](docs/realism.md): object provenance, placement / house rules, outcome consistency
 - [Testing](docs/testing.md): test map, selftest, checks

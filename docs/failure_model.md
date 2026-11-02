@@ -18,7 +18,8 @@ are profile parameters ([profiles.md](profiles.md)); their sources are in [calib
    2. skill failure from the skill's table: `move.p_fail[clutter of the target]`,
       `pick.p_fail[clutter of the place]` (or `pick.p_fail_class[grasp class]` for deformable objects),
       `open.p_fail` / `close.p_fail[door | drawer]`;
-   3. the failure code from the skill's `split`;
+   3. the failure code from the skill's `split` (`grasp_failed` only for pick; an articulated-object
+      handle failure is `unreachable`);
    4. silent failure (the call reports ok, the effect is not applied): `verify.p_false_success` for
       pick (slip: hand empty), place / put_in (the object falls to the floor) and open (only partly
       open: objects inside cannot be reached or added);

@@ -4,10 +4,10 @@ house: care_home_suite
 version: 1
 name: {en: Care home suite, ko: 요양원 방}
 rooms:
-  sitting:     {name: {en: sitting room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [2.8, 2.0], tags: [exit_path]}}
-  kitchenette: {name: {en: kitchenette, ko: 간이 주방}, rect: [5, 0, 7.5, 4], floor: {pos: [6.0, 1.6]}}
-  bedroom:     {name: {en: bedroom, ko: 침실}, rect: [0, 4, 5, 7.5], floor: {pos: [2.6, 5.4]}}
-  bathroom:    {name: {en: bathroom, ko: 화장실}, rect: [5, 4, 7.5, 6.5], floor: {pos: [6.2, 5.0], tags: [wet]}}
+  sitting:     {type: [living], name: {en: sitting room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [2.8, 2.0], tags: [exit_path]}}
+  kitchenette: {type: [kitchen, dining], name: {en: kitchenette, ko: 간이 주방}, rect: [5, 0, 7.5, 4], floor: {pos: [6.0, 1.6]}}
+  bedroom:     {type: [bedroom], name: {en: bedroom, ko: 침실}, rect: [0, 4, 5, 7.5], floor: {pos: [2.6, 5.4]}}
+  bathroom:    {type: [bathroom], name: {en: bathroom, ko: 화장실}, rect: [5, 4, 7.5, 6.5], floor: {pos: [6.2, 5.0], tags: [wet]}}
 doors:
   - {rooms: [sitting, kitchenette], at: [5.0, 2.0], width_m: 1.0}
   - {rooms: [sitting, bedroom], at: [3.2, 4.0], width_m: 1.0}
@@ -49,6 +49,9 @@ places:
   table@kitchenette:
     {room: kitchenette, kind: surface, name: {en: small table, ko: 식탁}, aliases: {en: [table], ko: [작은 식탁]},
      pos: [5.6, 3.4], yaw_deg: 90, height_m: 0.75, clutter: low, capacity: 4, tags: []}
+  kitchen_sink@kitchenette:
+    {room: kitchenette, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [6.5, 1.2], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
   bed@bedroom:
     {room: bedroom, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [care bed], ko: [환자 침대]},
      pos: [1.9, 6.7], yaw_deg: 180, height_m: 0.6, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 7.0]}
@@ -69,13 +72,13 @@ places:
   medicine_cabinet@bathroom:
     {room: bathroom, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: medicine cabinet, ko: 약 수납장}, aliases: {en: [bathroom cabinet], ko: [수납장]},
-     pos: [5.9, 6.0], yaw_deg: 90, height_m: 1.3, clutter: medium, capacity: 6, tags: []}
+     pos: [5.9, 6.0], yaw_deg: 90, height_m: 1.3, clutter: medium, capacity: 6, tags: [], hard_nav: true}
 objects:
   - {id: cup_1, cls: cup, attrs: {color: white}, at: side_table@sitting, alt: [nightstand@bedroom, table@kitchenette]}
   - {id: cup_2, cls: cup, attrs: {color: blue}, at: counter@kitchenette, alt: [table@kitchenette]}
   - {id: water_bottle_1, cls: water_bottle, attrs: {color: blue}, at: fridge@kitchenette, alt: [nightstand@bedroom, side_table@sitting]}
   - {id: juice_1, cls: juice, attrs: {color: orange}, at: fridge@kitchenette, alt: [table@kitchenette]}
-  - {id: banana_1, cls: banana, attrs: {color: yellow}, at: table@kitchenette, alt: [side_table@sitting]}
+  - {id: banana_1, cls: banana, attrs: {color: yellow}, at: table@kitchenette, alt: [counter@kitchenette]}
   - {id: bowl_1, cls: bowl, attrs: {color: white}, at: counter@kitchenette, alt: [table@kitchenette]}
   - {id: spoon_1, cls: spoon, attrs: {color: gray}, at: drawer@kitchenette, alt: [table@kitchenette]}
   - {id: medicine_bottle_1, cls: medicine_bottle, attrs: {color: white}, at: medicine_cabinet@bathroom, alt: [nightstand@bedroom]}

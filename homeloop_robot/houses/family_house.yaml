@@ -4,11 +4,11 @@ house: family_house
 version: 1
 name: {en: Family house, ko: 가족 주택}
 rooms:
-  living:  {name: {en: living room, ko: 거실}, rect: [0, 0, 6, 5], floor: {pos: [3.0, 2.8], tags: [exit_path]}}
-  kitchen: {name: {en: kitchen, ko: 주방}, rect: [6, 0, 10, 5], floor: {pos: [7.6, 2.4]}}
-  master:  {name: {en: master bedroom, ko: 안방}, rect: [0, 5, 4, 9], floor: {pos: [2.4, 6.6], tags: [carpet]}}
-  kids:    {name: {en: kids room, ko: 아이 방}, rect: [4, 5, 7, 9], floor: {pos: [5.6, 6.6], tags: [carpet]}}
-  study:   {name: {en: study, ko: 서재}, rect: [7, 5, 10, 9], floor: {pos: [8.4, 6.4]}}
+  living:  {type: [living], name: {en: living room, ko: 거실}, rect: [0, 0, 6, 5], floor: {pos: [3.0, 2.8], tags: [exit_path]}}
+  kitchen: {type: [kitchen, dining], name: {en: kitchen, ko: 주방}, rect: [6, 0, 10, 5], floor: {pos: [7.2, 2.0]}}
+  master:  {type: [bedroom], name: {en: master bedroom, ko: 안방}, rect: [0, 5, 4, 9], floor: {pos: [2.4, 6.6], tags: [carpet]}}
+  kids:    {type: [bedroom], name: {en: kids room, ko: 아이 방}, rect: [4, 5, 7, 9], floor: {pos: [5.6, 6.6], tags: [carpet]}}
+  study:   {type: [study], name: {en: study, ko: 서재}, rect: [7, 5, 10, 9], floor: {pos: [8.4, 6.4]}}
 doors:
   - {rooms: [living, kitchen], at: [6.0, 2.5], width_m: 1.0}
   - {rooms: [living, master], at: [2.0, 5.0], width_m: 0.8}
@@ -30,7 +30,7 @@ places:
   shoe_cabinet@living:
     {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
-     pos: [5.2, 0.7], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path]}
+     pos: [5.2, 0.7], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path], hard_nav: true}
   dock@living:
     {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
      pos: [1.4, 3.6], yaw_deg: 90, height_m: 0.0, clutter: low, capacity: 0, tags: []}
@@ -59,6 +59,9 @@ places:
   dining_table@kitchen:
     {room: kitchen, kind: surface, name: {en: dining table, ko: 식탁}, aliases: {en: [table], ko: []},
      pos: [8.0, 2.6], yaw_deg: 0, height_m: 0.75, clutter: medium, capacity: 8, tags: []}
+  kitchen_sink@kitchen:
+    {room: kitchen, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [8.0, 1.5], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
   bed@master:
     {room: master, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [parents' bed], ko: [안방 침대]},
      pos: [2.0, 8.3], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 8.5]}

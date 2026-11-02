@@ -72,7 +72,7 @@ skills:
     effects: ["hand_empty()", "not holding(*)"]
     verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
     interruptible: true
-    errors: [dropped, grasp_failed, unreachable, blocked, hw_fault, estop, cancelled, software]
+    errors: [dropped, absent, unreachable, blocked, hw_fault, estop, cancelled, software]
     version: "1.0"
   - name: put_in
     action: PutIn
@@ -87,7 +87,7 @@ skills:
     effects: ["hand_empty()", "not holding(*)"]
     verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
     interruptible: true
-    errors: [dropped, grasp_failed, unreachable, blocked, hw_fault, estop, cancelled, software]
+    errors: [dropped, absent, unreachable, blocked, hw_fault, estop, cancelled, software]
     version: "1.0"
   - name: open
     action: Open
@@ -102,7 +102,7 @@ skills:
     effects: ["opened(?inputs)"]
     verify: [{kind: symbolic}]
     interruptible: true
-    errors: [unreachable, blocked, grasp_failed, hw_fault, estop, cancelled, software]
+    errors: [unreachable, blocked, hw_fault, estop, cancelled, software]
     version: "1.0"
   - name: close
     action: Close
@@ -117,7 +117,7 @@ skills:
     effects: ["not opened(?inputs)"]
     verify: [{kind: symbolic}]
     interruptible: true
-    errors: [unreachable, blocked, grasp_failed, hw_fault, estop, cancelled, software]
+    errors: [unreachable, blocked, hw_fault, estop, cancelled, software]
     version: "1.0"
   - name: handover
     action: Handover

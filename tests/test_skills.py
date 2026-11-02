@@ -38,7 +38,7 @@ def test_pick_place_flow_ideal():
     assert go(ep, "move", target="coffee_table@living").ok
     assert go(ep, "place", target="coffee_table@living").ok
     assert w.objects["mug_1"].at == "coffee_table@living" and w.robot.holding is None
-    assert go(ep, "place", target="coffee_table@living").code == F.GRASP_FAILED
+    assert go(ep, "place", target="coffee_table@living").code == F.ABSENT          # nothing held
     assert ep.clock.t > 0 and all(t["injected"] is False for t in ep.robot.trace)
 
 
@@ -212,5 +212,7 @@ def test_messages_classify_to_their_codes():
                       ("protective stop: person in the way (blocked)", "blocked"),
                       ("handover timed out: grandma did not take mug_1", "timeout"),
                       ("cannot reach mug_1: fridge@kitchen is only partly open", "unreachable"),
-                      ("fridge@kitchen is closed: blocked", "blocked"), ("no free spot on x", "blocked")]:
+                      ("fridge@kitchen is closed: blocked", "blocked"), ("no free spot on x", "blocked"),
+                      ("nothing to place: no object held (not found in the hand)", "absent"),
+                      ("cannot reach the handle of fridge@kitchen", "unreachable")]:
         assert classify_legacy_failure(msg).value == code, msg

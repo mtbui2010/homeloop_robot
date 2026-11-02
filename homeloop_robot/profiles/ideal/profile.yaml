@@ -7,5 +7,4 @@ rules:
   - {match: {role: [failure, user_noise, safety_noise]}, set: zero}   # every probability / rate -> 0
   - {param: pose.sigma_m, set: 0.0}                                    # exact pose readings
   - {param: user.motion.rate_per_h, set: 0.0}                          # people do not move
-  - {param: user.answer.mix, set: {correct: 1.0, not_sure: 0.0, wrong: 0.0}}   # answers always correct
 note: "No failures, no noise, static people; durations and safety formulas unchanged."

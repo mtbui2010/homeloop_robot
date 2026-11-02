@@ -26,7 +26,7 @@ from .world import dist
 F = FailureCode
 PRECONDITION_S = 1.0          # simulated time of a call that fails a true-state precondition (design choice)
 HANDOVER_RANGE_M = 3.0        # handover("") looks for the nearest person within this distance
-HANDOVER_TIMEOUT_DEFAULT_S = 60.0   # when the profile has no handover.timeout_s (user part not installed)
+HANDOVER_TIMEOUT_DEFAULT_S = 60.0   # time spent when a handover is not taken and the user model gives no latency
 POSE_AT_TOL_M = 0.3           # pose() reports `at` within this distance of an approach pose
 HIGH_SHELF_REACH_M = 1.5      # a high_shelf place higher than this is out of the arm's reach
 WAIT_CLEARS_S = 5.0           # a wait at least this long may clear a camera fault
@@ -570,9 +570,14 @@ class Robot:
             if isinstance(oid, list):
                 res.data["candidates"] = oid
             return res.fail(F.ABSENT, f"{obj} not found", dur=PRECONDITION_S)
-        if oid not in r.perceived:
-            return res.fail(F.ABSENT, f"{oid} not found here (find it first)", dur=PRECONDITION_S)
         o = w.objects[oid]
+        if oid not in r.perceived:
+            # not found yet: the grasp camera looks for it first (a find with the same miss rate)
+            if r.at is None or oid not in w.visible_at(r.at):
+                return res.fail(F.ABSENT, f"{oid} not found here", dur=PRECONDITION_S, event="not_here")
+            if u[U.WRONG] < float(self._p("find.p_miss")):
+                return res.fail(F.ABSENT, f"{oid} not found", injected=True, dur=PRECONDITION_S, event="miss")
+            r.perceived.add(oid)
         if oid in r.phantoms or r.at is None or o.at != r.at:
             r.perceived.discard(oid)
             r.phantoms.discard(oid)
@@ -631,7 +636,8 @@ class Robot:
         nominal = _uniform(u[U.DUR], (a / 2, b / 2))
         frac = _uniform(u[U.FAILTIME], self._p("move.fail_time_frac"))
         if r.holding is None:
-            return res.fail(F.GRASP_FAILED, "nothing in the gripper", dur=PRECONDITION_S)
+            return res.fail(F.ABSENT, f"nothing to {skill.replace('_', ' ')}: no object held (not found in the hand)",
+                            dur=PRECONDITION_S)
         if w.resolve_place(target, None) is None and w.resolve_person(target, None) is not None:
             return res.fail(F.UNREACHABLE, f"cannot reach {target}: a person, use handover", dur=PRECONDITION_S)
         pid = self._resolve_place_or_fail(res, target)
@@ -712,7 +718,7 @@ class Robot:
             if not sticky:
                 w.faults[ckey] = FaultState(device=ckey, code=out.code, since_t=t0, clears_on="retry",
                                             p_clear=float(self._p("open.p_retry_success")[container_class(ctype)]))
-            msg = f"{pid} will not open (blocked)" if out.code == F.BLOCKED else f"could not grasp the handle of {pid}"
+            msg = f"{pid} will not open (blocked)" if out.code == F.BLOCKED else f"cannot reach the handle of {pid}"
             return res.fail(out.code, msg, injected=True, dur=nominal * frac, event="open_fail")
         w.faults.pop(ckey, None)
         res.dur = nominal
@@ -753,7 +759,7 @@ class Robot:
             if not sticky:
                 w.faults[ckey] = FaultState(device=ckey, code=out.code, since_t=t0, clears_on="retry",
                                             p_clear=float(self._p("close.p_retry_success")[container_class(ctype)]))
-            msg = f"{pid} will not close (blocked)" if out.code == F.BLOCKED else f"could not grasp the handle of {pid}"
+            msg = f"{pid} will not close (blocked)" if out.code == F.BLOCKED else f"cannot reach the handle of {pid}"
             return res.fail(out.code, msg, injected=True, dur=nominal * frac, event="close_fail")
         w.faults.pop(ckey, None)
         res.dur = nominal
@@ -797,7 +803,7 @@ class Robot:
             return res
         taken, latency = self.user.take_handover(pid, oid, t0 + res.dur)
         if not taken:
-            res.dur += float(self.profile.get("handover.timeout_s", HANDOVER_TIMEOUT_DEFAULT_S))
+            res.dur += float(latency) if latency else HANDOVER_TIMEOUT_DEFAULT_S
             return res.fail(F.TIMEOUT, f"handover timed out: {pid} did not take {oid}", injected=True,
                             event="not_taken")
         if u[U.EXTRA] < float(self._p("handover.p_drop")):
@@ -846,6 +852,9 @@ class Robot:
         if not heard:
             res.dur += timeout
             return res.fail(F.TIMEOUT, "no reply: nobody in hearing range", event="nobody")
+        helped = [k for k in sorted(w.faults) if w.faults[k].p_help > 0]
+        if helped:
+            self.user.help_request(str(question), t0)      # before answer(): the user model's contract
         reply, h = self.user.answer(str(question), lang or self.lang, self._xy(), t0 + res.dur)
         if reply.kind == "no_answer" or h.event == "not_heard" or not str(h.text).strip():
             res.dur += timeout
@@ -854,9 +863,7 @@ class Robot:
         res.dur += float(reply.latency_s)
         res.data.update({"answer": h.text, "answer_lang": lang or self.lang})
         res.truth.update({"reply": reply.text, "reply_kind": reply.kind, "asr": h.event})
-        helped = [k for k in sorted(w.faults) if w.faults[k].p_help > 0]
         if helped:
-            self.user.help_request(str(question), t0)
             for k in helped:
                 if u[U.FAIL] < w.faults[k].p_help:
                     del w.faults[k]
