@@ -172,10 +172,11 @@ def test_ask_reaches_the_user_through_the_app_from_another_room():
     assert go(ep, "move", target="bed@bedroom").ok
     xy = tuple(w.robot.pose[:2])
     assert not ep.user.hears(ep.user.user_id, xy, ep.clock.t, False)
-    r = go(ep, "ask", question="Where is the remote control?")
+    ep.user.set_wants({"all": [{"pred": "on", "args": ["remote_1", "coffee_table@living"]}]})
+    r = go(ep, "ask", question="Where should I put the remote control?")
     assert r.ok and r.truth["reply_kind"] == "correct" and "coffee table" in r.data["answer"].lower()
     assert w.utterances[-1].skill == "ask" and w.utterances[-1].heard_by == (ep.user.user_id,)
     # the robot's own speaker (voice): nobody in hearing range, the ask times out
     ep.user.dialog_channel = "voice"
-    r = go(ep, "ask", question="Where is the remote control?")
+    r = go(ep, "ask", question="Where should I put the remote control?")
     assert not r.ok and r.code == F.TIMEOUT and "hearing range" in r.msg

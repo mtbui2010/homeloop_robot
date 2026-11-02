@@ -64,8 +64,25 @@ path only when the user is reachable.
      candidates -> the intended answer (`spec.answer`);
    - a scripted resolution (safety clarification, confirming a refused request): any wh or yes/no question ->
      `spec.answer`;
+   - a question about the user's own request (when the runner has told the user model what was asked for,
+     `SimUser.set_wants(goal)`; `dialog.compose_from_goal`): the user restates what they asked for, never more:
+     - "where should I put / bring X?" (EN put, place, bring, take, leave, move, go ...; KO 어디에 두/놓/넣/가져/갖다 ...)
+       about an object of the request -> where it goes: "On the sink, please." / "싱크대 위에 놔 주세요.",
+       "Bring it to me, please." / "저한테 갖다 주세요.", "Give it to the husband, please."; with "where is it" in the
+       same question, its place first;
+     - a choice between objects that names the requested one -> "The blue mug."; a choice between places that names
+       a place of the request (a destination, the container to open, a place to go, where the person to tell is)
+       -> "The sink."; "should I put X on A or B?" / "bring it to you or put it somewhere?" -> where X goes;
+     - "where is <a household member>?" -> where they are now ("Grandpa is at the bed."), unless the user does not
+       know (`user.p_location_unknown`);
+     - a yes / no read-back of the plan ("I will ... Is that right?", "...겠습니다. 맞죠?") -> "Yes, that's right."
+       when it states every part of the request (each object with its destination, the containers, the places, the
+       person to tell; for "bring it to me" the user's own seat or "you" counts), else "No, " + the first part it
+       gets wrong or leaves out ("No, put the blue mug on the sink."); a yes / no question about one part of the
+       request is judged on that part only;
+     - open questions ("What should I do?", "What else?") are not answered from the request;
    - "where is X?" about one object -> its true place ("It's on the counter." / "조리대 위에 있어요."), unless the
-     user does not know (`user.p_location_unknown`);
+     user does not know (`user.p_location_unknown`); "where should I put X?" is not read as "where is X?";
    - otherwise "I'm not sure what you mean." / "무슨 말씀인지 잘 모르겠어요." (the generic user: "I don't know.").
 5. **Correctness mix** on informative answers: wrong with `user.answer.p_wrong` = 0.173 (another candidate,
    a flipped yes/no, another place, or `spec.wrong_answer`; when no alternative exists the user is unsure

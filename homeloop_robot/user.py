@@ -110,6 +110,8 @@ class SimUser:
         self.dialog_channel = str(g("user.dialog_channel"))
         if self.dialog_channel not in ("app", "voice"):
             raise ValueError(f"user.dialog_channel must be app or voice, not {self.dialog_channel!r}")
+        # the goal atoms the user asked for ({"all": [...]}); set by the runner (set_wants), None = unknown
+        self.wants: dict | None = None
         self.asr = _asr.ASRRates(profile)
         users = sorted(pid for pid, p in world.people.items() if getattr(p, "role", "") == "user")
         self.user_id = users[0] if users else (sorted(world.people)[0] if world.people else None)
@@ -259,6 +261,10 @@ class SimUser:
             return None
         return (self.user_id,) if self.reachable(robot_xy, t) else ()
 
+    def set_wants(self, goal: dict | None) -> None:
+        """What the user asked for (goal atoms), so they can answer questions about their own request."""
+        self.wants = {"all": list((goal or {}).get("all") or [])} if goal else None
+
     # ------------------------------------------------------------------ dialog
     def hear_instruction(self, text: str, lang: str) -> Heard:
         """What the robot hears of the task instruction (spoken near: from the approach distance)."""
@@ -300,8 +306,11 @@ class SimUser:
             places = sorted(pid for pid, pl in self.world.house.places.items()
                             if getattr(pl, "kind", "") in ("surface", "container"))
             other = places[rng.randrange(len(places))] if places else None
+            gv = None
+            if self.wants:
+                gv = dialog.GoalView(self.world, self.wants, uid, lambda pid: self.place_of(pid, t)[0])
             c = dialog.compose(question, L, self.spec, self.world, knows_location=knows, other_place=other,
-                               user_place=self.place_of(uid, t))
+                               user_place=self.place_of(uid, t), goal=gv)
             kind, text, rule = c.kind, c.text, c.rule
             if c.informative:
                 u = rng.random()

@@ -135,3 +135,88 @@ def test_where_are_you_with_a_candidate_is_a_clarification():
     c = compose("Where are you, and do you mean the blue mug?", "en", SPEC, w, knows_location=True,
                 user_place=("sofa@living", False))
     assert c.rule != "self_position"
+
+
+# ── answers from what the user asked for (GoalView) ───────────────────────────────────────────────────
+WANTS = {"all": [{"pred": "on", "args": ["mug_2", "sink@kitchen"]},
+                 {"pred": "held_by", "args": ["phone_1", "grandma"]},
+                 {"pred": "open", "args": ["fridge@kitchen"]},
+                 {"pred": "unmoved", "args": ["knife_1"]}]}
+
+
+def _gv(w, wants=WANTS):
+    from homeloop_robot.dialog import GoalView
+    return GoalView(w, wants, "grandma", lambda pid: {"grandma": "armchair@living", "child": "bed@bedroom"}[pid])
+
+
+def _ans(q, lang="en", spec=None, **kw):
+    w = FakeWorld()
+    return compose(q, lang, spec, w, knows_location=True, goal=_gv(w, **kw))
+
+
+def test_goal_destination_question():
+    c = _ans("Where should I put the blue mug?")
+    assert (c.kind, c.text, c.rule, c.informative) == ("correct", "On the sink, please.", "goal_destination", True)
+    assert _ans("파란 머그컵을 어디에 두면 될까요?", "ko").text == "싱크대 위에 놔 주세요."
+    assert _ans("Where should I bring the phone?").text == "Bring it to me, please."
+    assert _ans("휴대폰은 어디에 가져다 드릴까요?", "ko").text == "저한테 갖다 주세요."
+    # where it is AND where it goes
+    c = _ans("Where is the blue mug located, and where should I bring it?")
+    assert c.text == "It's on the counter. On the sink, please."
+    # "Where is X?" alone is still a location question
+    assert _ans("Where is the blue mug?").text == "It's on the counter."
+    # a question about an object the user did not ask about is not answered from the request
+    assert _ans("Where should I put the fork?").rule == "generic_user"
+
+
+def test_goal_alternatives_and_choices():
+    assert _ans("Should I put the blue mug on the counter or the sink?").text == "On the sink, please."
+    assert _ans("Should I bring the phone to you or put it somewhere?").text == "Bring it to me, please."
+    c = _ans("Which one do you want: the red mug or the blue mug?")
+    assert (c.text, c.rule, c.wrong_text) == ("The blue mug.", "goal_object", "The red mug.")
+    c = _ans("Which place do you mean: counter in the kitchen or sink in the kitchen?")
+    assert (c.text, c.rule) == ("The sink.", "goal_place")
+    # a task's own clarification candidates still come first
+    assert _ans("Which mug, the red one or the blue one?", spec=SPEC).rule == "clarify_answer"
+
+
+def test_goal_read_back():
+    ok = "I will put the blue mug on the sink in the kitchen, then bring the phone to you, then open the fridge. Is that right?"
+    c = _ans(ok)
+    assert (c.kind, c.text, c.rule) == ("yes", "Yes, that's right.", "goal_confirm") and c.wrong_text == "No."
+    # the robot's plan keys are read as words; the user's own seat counts as "to me"
+    c = _ans("I will put the blue mug on the sink@kitchen, then put the phone on the armchair, then open the "
+             "fridge@kitchen. Is that right?")
+    assert c.kind == "yes"
+    c = _ans("I will put the blue mug on the counter in the kitchen, then bring the phone to you, then open the "
+             "fridge. Is that right?")
+    assert (c.kind, c.text, c.rule) == ("no", "No, put the blue mug on the sink.", "goal_correct")
+    c = _ans("I will put the blue mug on the sink. Is that right?")          # forgot the phone and the fridge
+    assert c.text == "No, bring the phone to me."
+    c = _ans("파란 머그컵을 조리대에 두겠습니다. 맞죠?", "ko")
+    assert c.kind == "no" and c.text == "아니요, 파란 머그컵은 싱크대 위에 놔 주세요."
+    # a yes / no question about one part of the request
+    assert _ans("Do you want me to put the blue mug on the sink?").kind == "yes"
+    assert _ans("Should I open the fridge?").kind == "yes"
+    # nothing of the request in the question: not answered from it
+    assert _ans("Is it raining?").rule == "generic_user"
+
+
+def test_goal_person_location_and_navigation():
+    c = _ans("Where is the child?")
+    assert (c.text, c.rule) == ("Child is at the bed.", "person_location")
+    assert _ans("아이는 어디에 있어요?", "ko").text == "아이는 침대에 있어요."
+    nav = {"all": [{"any": [{"pred": "robot_at", "args": ["bed@bedroom"]},
+                            {"pred": "robot_at", "args": ["shelf@bedroom"]}]}]}
+    c = _ans("Which place do you mean: bed in the bedroom or shelf in the bedroom or floor in the living room?",
+             wants=nav)
+    assert c.text == "The bed."
+    assert _ans("I will go to the shelf in the bedroom. Is that right?", wants=nav).kind == "yes"
+    assert _ans("I will go to the counter. Is that right?", wants=nav).text == "No, go to the bed."
+
+
+def test_goal_rules_are_off_without_a_goal():
+    w = FakeWorld()
+    # a destination question is not read as "where is it?" (the user does not know what was asked)
+    assert compose("Where should I put the blue mug?", "en", None, w, knows_location=True).rule == "generic_user"
+    assert compose("Where is the blue mug?", "en", None, w, knows_location=True).text == "It's on the counter."
