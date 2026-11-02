@@ -38,16 +38,13 @@ def load_entries() -> dict:
     return copy.deepcopy(_entries())
 
 
-def _zero(v):
-    if isinstance(v, bool):
-        return False
-    if isinstance(v, (int, float)):
-        return 0 * v
-    if isinstance(v, dict):
-        return {k: _zero(x) for k, x in v.items()}
-    if isinstance(v, list):
-        return [_zero(x) for x in v]
-    return v
+def _zero(e: dict):
+    """The core's zero rule (profiles.zero_value): prob, prob_map and rate_per_h go to 0; other kinds keep."""
+    if e["kind"] in ("prob", "rate_per_h"):
+        return 0.0
+    if e["kind"] == "prob_map":
+        return {k: 0.0 for k in e["value"]}
+    return copy.deepcopy(e["value"])
 
 
 def load_params(name: str = "real", **overrides) -> dict:
@@ -56,7 +53,7 @@ def load_params(name: str = "real", **overrides) -> dict:
     if name == "ideal":
         for k, e in entries.items():
             if e["role"] in NOISE_ROLES:
-                vals[k] = _zero(vals[k])
+                vals[k] = _zero(e)
         vals["user.motion.rate_per_h"] = 0.0
     elif name != "real":
         raise ValueError(name)

@@ -4,7 +4,7 @@ profile: real
 part: safety
 params:
   safety.mode:
-    kind: categorical
+    kind: value
     role: nominal
     keys: [monitored, static]
     value: monitored
@@ -138,10 +138,16 @@ params:
     note: "Probability per person and 1 s window that the person detector misses the person; the monitor then uses the last detected position. No person-detection benchmark for home robots was opened (research gap 5)."
   safety.t_r_jitter_s:
     kind: duration_s
-    role: safety_noise
+    role: nominal
     value: 0.1
     assumed: true
-    note: "Extra sensing latency per tick, uniform in [0, 0.1 s], on top of T_r; the monitor sees the person where they were that long ago. No source (research gap 5)."
+    note: "Size of the extra sensing latency: uniform in [0, 0.1 s] on top of T_r; the monitor sees the person where they were that long ago. No source (research gap 5)."
+  safety.p_latency_jitter:
+    kind: prob
+    role: safety_noise
+    value: 1.0
+    assumed: true
+    note: "Share of monitor ticks that carry the extra latency (every tick in real, none in ideal through the zero rule). No source (research gap 5)."
   safety.personal_zone_m:
     kind: distance_m
     role: nominal

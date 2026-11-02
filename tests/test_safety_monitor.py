@@ -111,8 +111,7 @@ def test_people_in_other_rooms_ignored():
 
 def test_arm_traverse_needs_duration_and_stretches():
     m, w = mon("ideal")
-    with pytest.raises(ValueError):
-        m.traverse("pick", [(3.5, 1.5)], 0.4, 0.0, nobody, part="arm")
+    assert m.traverse("pick", [(3.5, 1.5)], 0.4, 0.0, nobody, part="arm").duration_s == 0.0  # no nominal_s
     tr = m.traverse("pick", [(3.5, 1.5)], 0.4, 0.0, nobody, part="arm", nominal_s=8.0)
     assert tr.duration_s == pytest.approx(0.0)  # arm: duration_s is the EXTRA time (types.Traverse)
     w.people["grandma"].pos = (3.5, 2.8)  # 1.3 m away: slow zone for the arm (S_p(0.4) = 1.38 m)
@@ -198,3 +197,11 @@ def test_s_p_numbers_used_by_houses():
     s0 = protective_separation(p["safety.v_h_margin"], 0.0, p["safety.T_r"], p["safety.a_max_base"], p["safety.C"],
                                p["safety.Z_d"], p["safety.Z_r"])
     assert s0 <= 1.20
+
+
+def test_arm_without_nominal_still_stops_and_aborts():
+    m, w = mon("ideal")
+    w.people["grandma"].pos = (3.5, 2.2)  # 0.7 m from the arm: inside S_p(0)
+    ppl = lambda t: static_people(w)  # noqa: E731
+    tr = m.traverse("pick", [(3.5, 1.5)], 0.4, 0.0, ppl, part="arm")
+    assert tr.aborted and tr.stopped_s > 0

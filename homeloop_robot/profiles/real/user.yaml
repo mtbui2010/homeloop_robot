@@ -114,14 +114,14 @@ params:
     anchor: https://arxiv.org/abs/2403.02421
     note: "Probability per episode that the user tells the robot to stop. No per-task rate exists (gap 2). Anchor: older adults interrupted the assistant in 21 of 2,552 turns (0.82 %), rounded to 1 % per task."
   user.interrupt_after_calls:
-    kind: count
+    kind: range
     role: nominal
     value: [1, 6]
     assumed: true
     note: "Inclusive range of motion calls after which a random stop arrives (uniform). A modelling choice that places the stop inside a typical short household task."
   # ----------------------------------------------------------------------------------------- motion
   user.gait_mps_men:
-    kind: speed_mps
+    kind: map
     role: nominal
     keys: ["20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-99"]
     value: {"20-29": 1.36, "30-39": 1.43, "40-49": 1.43, "50-59": 1.43, "60-69": 1.34, "70-79": 1.26, "80-99": 0.97}
@@ -130,7 +130,7 @@ params:
     note: "Comfortable walking speed of healthy men by decade (meta-analysis of 41 studies, 23,111 subjects). Used for adult persons under 65, by age group."
     assumed: false
   user.gait_mps_women:
-    kind: speed_mps
+    kind: map
     role: nominal
     keys: ["20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-99"]
     value: {"20-29": 1.34, "30-39": 1.34, "40-49": 1.39, "50-59": 1.31, "60-69": 1.24, "70-79": 1.13, "80-99": 0.94}
@@ -153,7 +153,7 @@ params:
     assumed: true
     note: "No child gait source was opened. 1.0 m/s is a round value below the young-adult norms (about 1.35 m/s) for a child walking indoors."
   user.indoor_gait_factor:
-    kind: factor
+    kind: value
     role: nominal
     value: 0.7
     assumed: true
@@ -213,7 +213,7 @@ params:
     assumed: false
   user.asr_on_instruction:
     kind: flag
-    role: user_noise
+    role: nominal
     value: true
     assumed: true
-    note: "Whether the spoken instruction itself goes through ASR noise. A benchmark design choice: on in real, off in ideal (zero rule)."
+    note: "Whether the spoken instruction itself goes through ASR noise. A benchmark design choice; in ideal the ASR rates are zero, so the instruction is heard exactly."

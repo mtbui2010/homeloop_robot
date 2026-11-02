@@ -71,8 +71,8 @@ of 0.1 s:
    of each position: the true position, except
    - detection miss: per person and 1 s window with `safety.p_detection_miss`, the last detected position is
      used (a person never detected is invisible);
-   - sensing latency: per tick a delay in [0, `safety.t_r_jitter_s`] on top of T_r; the person is seen where
-     they were that long ago.
+   - sensing latency: on a share `safety.p_latency_jitter` of ticks (all ticks in `real`) a delay in
+     [0, `safety.t_r_jitter_s`] on top of T_r; the person is seen where they were that long ago.
 2. Zone decision on the estimates (PUPA21 green / yellow / red; NIST7851 stop and slow):
    - `free`: d >= S_p(v_nominal): full speed;
    - `slow`: S_p(0) <= d < S_p(v_nominal): v_r = the largest speed with S_p(v_r) <= d;
@@ -96,7 +96,9 @@ cause a protective stop either: S_p(0) = 0.1 x 0.41 + 0.9 + 0.25 = 1.191 m < 1.2
 Parts:
 - `base`: the robot moves along `path` with the base deceleration `safety.a_max_base`;
 - `arm`: the base stands at `path[0]`; the arm moves `nominal_s x v_nominal` metres at up to `v_nominal` with
-  `safety.a_max_arm`; a slow zone stretches the skill;
+  `safety.a_max_arm`; a slow zone stretches the skill, and `duration_s` is the EXTRA time the robot adds to the
+  skill's nominal duration. Without `nominal_s` only the first 0.1 s of arm motion is monitored (stops, waits and
+  aborts still apply; slow-down is not counted);
 - `dock`: personnel detection is muted (ISO 3691-4 as quoted): speed capped at `safety.muted_speed_mps`, no
   slow or stop, violations still counted (cause `muted`).
 
@@ -126,11 +128,11 @@ events of the world (`semantic`). The bench reports `safety_violations` and `min
 | `safety.muted_speed_mps` | 0.3 m/s | assumed, anchor FABRICO (ISO 3691-4 as quoted) |
 | `safety.stop_timeout_s` | 30 s | assumed |
 | `safety.p_detection_miss` | 0.02 per person per s | assumed |
-| `safety.t_r_jitter_s` | 0.1 s | assumed |
+| `safety.t_r_jitter_s` / `safety.p_latency_jitter` | 0.1 s / 1.0 | assumed |
 | `safety.personal_zone_m` | 1.2 m | WALTERS05 Table 1 (Hall) |
 
-Profiles: `ideal` zeroes the `safety_noise` parameters (detection miss, latency), so violations are 0 by
-construction. `stress` doubles the detection-miss probability and the latency (assumed scaling, the x2 end of
+Profiles: `ideal` zeroes the `safety_noise` probabilities (`safety.p_detection_miss`,
+`safety.p_latency_jitter`), so violations are 0 by construction. `stress` doubles the detection-miss probability and the latency (assumed scaling, the x2 end of
 the research-notes sweep). Stress keeps `monitored` mode: in `static` mode S_p(0) = 1.6 x 0.41 + 1.15 = 1.81 m,
 so a robot could not pass any seated person closer than 1.81 m, and most household tasks would abort on
 protective stops rather than test recovery. `static` mode stays available for custom profiles.
@@ -163,3 +165,21 @@ form and the official C, Z_d, Z_r defaults); the Annex M contact limits; ISO 102
 speed-limit monitoring; ISO 13855 approach-speed conditions; ISO 13482 speed limits and test methods (with ISO/TR
 23482-1/-2); ISO 3691-4 detection, zones and muting; R15.08 base + arm combination; the ISO 12100 estimation
 method; PL/SIL requirements of ISO 13849-1 and IEC 62061.
+
+## Sources
+
+Full entries in [calibration.md](calibration.md).
+
+- NIST7851: https://doi.org/10.6028/NIST.IR.7851 (opened at https://nvlpubs.nist.gov/nistpubs/ir/2012/NIST.IR.7851.pdf)
+- NAVARRO21: https://arxiv.org/abs/2108.07206
+- PUPA21: https://arxiv.org/abs/2103.01818
+- CAMPO19: https://doi.org/10.5220/0007838700780087 (opened at https://www.scitepress.org/Papers/2019/78387/78387.pdf)
+- HARTMANN26: https://arxiv.org/abs/2602.17822
+- KOAY14: https://doi.org/10.1007/s12369-014-0232-4 (opened at https://uhra.herts.ac.uk/id/eprint/4332/1/906788.pdf)
+- SALVINI21: https://doi.org/10.1145/3442678
+- BELZILE25: https://arxiv.org/abs/2502.20693
+- SNV13482: https://connect.snv.ch/en/sn-en-iso-13482-2014
+- EVS12100: https://www.evs.ee/en/evs-en-iso-12100-2010
+- FABRICO (vendor, secondary): https://www.fabrico.io/blog/iso-3691-4-driverless-industrial-trucks/
+- STF (forum, low confidence): https://forum.hello-robot.com/t/physical-aspects-of-the-robot-for-simulation/792
+- WALTERS05: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf

@@ -30,6 +30,7 @@ from homeloop_robot._hs_compat import (
 )
 
 TICK_S = 0.1  # DESIGN 6.2
+ARM_PROBE_S = TICK_S  # arm traverse without nominal_s: monitor one tick of arm motion
 FAST_WINDOW_S = 1.0  # fast path: one jump of up to 1 s while everybody is far
 EPS = 1e-9
 
@@ -54,6 +55,7 @@ PARAMS = (
     "safety.stop_timeout_s",
     "safety.p_detection_miss",
     "safety.t_r_jitter_s",
+    "safety.p_latency_jitter",
     "safety.personal_zone_m",
 )
 
@@ -158,6 +160,9 @@ class SafetyParams:
         self.stop_timeout_s = float(g("safety.stop_timeout_s"))
         self.p_detection_miss = float(g("safety.p_detection_miss"))
         self.t_r_jitter_s = float(g("safety.t_r_jitter_s"))
+        self.p_latency_jitter = float(g("safety.p_latency_jitter"))
+        if self.p_latency_jitter <= 0:
+            self.t_r_jitter_s = 0.0
         self.personal_zone_m = float(g("safety.personal_zone_m"))
 
     def v_h(self, d: float, speed: float) -> float:
@@ -222,8 +227,9 @@ class SafetyMonitor:
                 return lpos, math.hypot(*lvel), "detection_miss"
         pos, vel, cause = tuple(st.pos), tuple(st.vel), None
         if p.t_r_jitter_s > 0:
-            lag = self.streams.rng_for("safety", "jitter", pid, round(t, 3)).uniform(0.0, p.t_r_jitter_s)
-            old = people(max(0.0, t - lag)).get(pid)
+            rj = self.streams.rng_for("safety", "jitter", pid, round(t, 3))
+            lag = rj.uniform(0.0, p.t_r_jitter_s) if (p.p_latency_jitter >= 1 or rj.random() < p.p_latency_jitter) else 0.0
+            old = people(max(0.0, t - lag)).get(pid) if lag > 0 else None
             if old is not None and tuple(old.pos) != pos:
                 pos, vel, cause = tuple(old.pos), tuple(old.vel), "latency"
         self._last_seen[pid] = (t, pos, vel)
@@ -248,7 +254,9 @@ class SafetyMonitor:
             v_cap = min(v_cap, p.handover_speed_mps)
         if part == "arm":
             if nominal_s is None:
-                raise ValueError("arm traverse needs nominal_s, the skill's nominal arm-motion seconds (DESIGN 6.2)")
+                # degraded mode: only the start of the arm motion is monitored (stop / wait / abort and a
+                # violation check); pass nominal_s for the slow-down of the whole motion (DESIGN 6.2)
+                nominal_s = ARM_PROBE_S
             length = max(0.0, float(nominal_s)) * float(v_nominal)
         else:
             length = polyline_length(path)

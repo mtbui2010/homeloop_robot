@@ -65,4 +65,5 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 | `safety.stop_timeout_s` | 30 s | no source |
 | `safety.p_detection_miss` | 0.02 / person / s | no home person-detection benchmark opened |
 | `safety.t_r_jitter_s` | 0-0.1 s | no source |
+| `safety.p_latency_jitter` | 1.0 (every tick) | no source; the zeroable switch of the latency noise |
 <!-- END user-safety sources -->

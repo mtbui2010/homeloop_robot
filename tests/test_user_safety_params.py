@@ -8,8 +8,8 @@ from _hs_helpers import FRAGMENTS, NOISE_ROLES, ROOT, load_entries, load_params
 from homeloop_robot import asr, safety, user
 
 SOURCE_RE = re.compile(r"^(https?://\S+|doi:10\.\S+|arXiv:\d{4}\.\d{4,5})$")
-KINDS = {"prob", "prob_map", "split", "range_s", "duration_s", "speed_mps", "accel_mps2", "distance_m", "mass_kg",
-         "rate_per_h", "count", "lognormal", "normal", "categorical", "flag", "factor"}
+KINDS = {"prob", "prob_map", "split", "range_s", "range", "duration_s", "speed_mps", "accel_mps2", "distance_m",
+         "mass_kg", "rate_per_h", "count", "lognormal", "normal", "categorical", "flag", "words_per_s", "value", "map"}
 ROLES = {"failure", "recovery", "nominal", "user_noise", "safety_noise"}
 CAL = ROOT / "docs" / "calibration.md"
 
@@ -44,10 +44,18 @@ def test_entry_is_well_formed(name):
     v = e["value"]
     if e["kind"] == "prob":
         assert 0.0 <= v <= 1.0
-    if e["kind"] in ("duration_s", "speed_mps", "accel_mps2", "factor") and not isinstance(v, dict):
-        assert v > 0 or (e["role"] == "safety_noise" and v >= 0)
-    if e["kind"] == "range_s":
-        assert v[0] <= v[1]
+    if e["kind"] in ("duration_s", "speed_mps", "accel_mps2"):
+        assert isinstance(v, (int, float)) and v > 0
+    if e["kind"] in ("distance_m", "rate_per_h"):
+        assert isinstance(v, (int, float)) and v >= 0
+    if e["kind"] == "count":
+        assert isinstance(v, int) and not isinstance(v, bool) and v >= 0
+    if e["kind"] in ("range_s", "range"):
+        assert len(v) == 2 and v[0] <= v[1]
+    if e["kind"] in ("map", "prob_map", "categorical"):
+        assert isinstance(v, dict) and v
+    if e["kind"] == "flag":
+        assert isinstance(v, bool)
     if e["kind"] == "lognormal":
         assert v["median"] > 0 and v["sigma"] > 0 and v["min"] >= 0
     if e["kind"] == "normal":
@@ -83,9 +91,11 @@ def test_ideal_derivation_zeroes_noise():
     entries = load_entries()
     for k, e in entries.items():
         if e["role"] in NOISE_ROLES:
-            v = ideal[k]
-            flat = list(v.values()) if isinstance(v, dict) else (v if isinstance(v, list) else [v])
-            assert all(x == 0 or x is False for x in flat), k
+            # the core's zero rule only zeroes these kinds, so every noise parameter must be one of them
+            assert e["kind"] in ("prob", "prob_map", "rate_per_h"), k
+            if e["kind"] in ("prob", "prob_map", "rate_per_h"):
+                v = ideal[k]
+                assert all(x == 0 for x in (v.values() if isinstance(v, dict) else [v])), k
         elif k != "user.motion.rate_per_h":
             assert ideal[k] == real[k], k
     assert ideal["user.motion.rate_per_h"] == 0
