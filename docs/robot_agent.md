@@ -30,6 +30,15 @@ goals that compiled to MoveTo + WaitForUnload with an empty gripper, and its ext
 refuse more tasks); Observe / Verify raise `Unbindable` (they are sensor skills
 used by verify, not plan steps).
 
+## People as places (delivery)
+
+robot_agent's planners name a person as the place to bring something to (`on(mug -> grandma)`). `env_for`
+adds an ENV entry per person (names and aliases) located at the support surface that person can reach, and
+`bind` translates `MoveTo` / `Place` of a person to the nearest reachable support surface with room
+(`adapter.person_spot`, homeloop_robot.reach) where they are now. With no such surface, `MoveTo` goes to the
+person and `Place` becomes `handover` to them. This only translates names and positions; robot_agent is not
+changed. A reach-mode delivery ([reach.md](reach.md)) is then reachable with sage's existing `on` goals.
+
 ## How the bench drives it
 
 `homeloop_bench`'s robot_agent adapter sets the backend to an episode-bound proxy (its `call` goes

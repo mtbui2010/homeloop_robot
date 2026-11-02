@@ -247,3 +247,31 @@ def test_claimed_done_on_a_seat_is_not_success():
     for c in oracle.solve(ep.world, {"all": [{"pred": "on", "args": ["mug_1", "armchair@living"]}]}):
         assert ep.robot.call(c.skill, **c.args).ok
     assert not G.evaluate({"all": [dl("mug_1", "grandma", "reach")]}, ep.world).holds
+
+
+# ── robot_agent adapter: "near the person" resolves to a real reachable surface ──────────────────────────
+
+@pytest.mark.skipif(not HAS_RA, reason="robot_agent not importable")
+def test_adapter_person_place_resolves_to_reachable_surface():
+    from homeloop_robot.configs.adapter import make_adapter
+    from homeloop_robot.configs.backend import reset_backend, set_backend
+    from homeloop_robot.configs.tasks import env_for
+    ep = episode("senior_flat")
+    set_backend(ep.robot)
+    try:
+        ad = make_adapter()
+        assert ad.bind({"action": "MoveTo", "object": "grandma"}) == ("move", {"inputs": "side_table@living"})
+        assert ad.bind({"action": "Place", "object": "grandma"}) == ("place", {"inputs": "side_table@living"})
+        env = env_for(ep.world)
+        assert env["grandma"]["loc"]["x"] == ep.world.place("side_table@living").pos[0]
+    finally:
+        reset_backend()
+    ep = episode("family_house")
+    ep.world.people_now = {"mom": {"pos": tuple(ep.world.place("bed@master").person_pos), "moving": False}}
+    set_backend(ep.robot)
+    try:
+        ad = make_adapter()
+        assert ad.bind({"action": "Place", "object": "mom"}) == ("handover", {"inputs": "mom"})
+        assert ad.bind({"action": "MoveTo", "object": "mom"}) == ("move", {"inputs": "mom"})
+    finally:
+        reset_backend()

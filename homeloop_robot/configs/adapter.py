@@ -95,7 +95,19 @@ class Adapter:
         if not obj:
             raise Unbindable(f"{action} needs an argument")
         kind = "object" if spec.action in OBJECT_ACTIONS else "place"
-        return spec.name, {"inputs": self._resolve(obj, kind)}
+        target = self._resolve(obj, kind)
+        w = self._world()
+        if kind == "place" and spec.action in ("MoveTo", "Place") and w is not None and target in w.people:
+            # "near the person" (sage's on(obj -> person)): the support surface beside them that they can reach
+            # from where they are now; with none, putting it "at the person" is a handover
+            spot = person_spot(w, target)
+            if spot is not None:
+                return spec.name, {"inputs": spot}
+            if spec.action == "Place":
+                hand = self.manifest.skill_for("Handover")
+                if hand is not None:
+                    return hand.name, {"inputs": target}
+        return spec.name, {"inputs": target}
 
     @property
     def plannable_actions(self) -> set:
@@ -162,6 +174,14 @@ class Adapter:
             return b.health()
         except Exception:                               # noqa: BLE001
             return {"ok": None}
+
+
+def person_spot(world, pid: str):
+    """The nearest support surface with room that person ``pid`` can reach from where they are now
+    (homeloop_robot.reach), or None."""
+    from ..reach import reachable_surfaces
+    spots = reachable_surfaces(world, pid, free_only=True)
+    return spots[0] if spots else None
 
 
 def make_adapter() -> Adapter:
