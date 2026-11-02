@@ -14,7 +14,7 @@ PYTHONPATH=/path/to/robot_agent python -m robot_agent.contract.check_manifest --
 | `skills_config.py` | literal `SKILL_CONFIGS`: every skill -> `homeloop_robot.configs.ra_skills.<name>` |
 | `ra_skills.py` | plain `def name(node, inputs=..., **params) -> dict` functions: `get_backend().call(...)` -> `SkillResult.to_legacy()`; find adds `ins: {id: {pose_3d}}`, pose returns a tuple, ask returns `text`, grasp_check's `isdone` = holding |
 | `backend.py` | `get_backend()` / `set_backend(robot)` / `reset_backend()`; without a backend a default robot on `senior_flat` (ideal) |
-| `tasks.py` | `env_for(world)`: robot_agent ENV per place `{loc: {x, y, rz}, height, default_mode, aliases, openable}`; `ENV` of the default house |
+| `tasks.py` | `env_for(world)`: robot_agent ENV per place `{loc: {x, y, rz}, height, default_mode, aliases, openable}`; `ENV` of the default house. Aliases: EN / KO names and aliases, the room-qualified name, and for an id with `_` its spelling with spaces (`bath cabinet@bathroom`), because robot_agent reads a key the LLM copies through its word normalizer and would otherwise ground it to the whole room |
 | `adapter.py` | `Adapter` (`manifest`, `geometry`, `i18n` en / ko incl. `cannot_do`, `bind`, `observe`, `reconcile`, `pose`, `container_states`, `health`, `quiet_skills`) and `make_adapter()` |
 
 ## bind

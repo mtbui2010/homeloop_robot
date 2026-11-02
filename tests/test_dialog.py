@@ -102,3 +102,36 @@ def test_not_understood_and_generic():
     w = FakeWorld()
     assert compose("I will go now.", "en", SPEC, w, knows_location=True).text == TEXT["not_sure"]["en"]
     assert compose("Which one?", "en", None, w, knows_location=True).text == TEXT["dont_know"]["en"]
+
+
+def test_where_are_you_gives_the_users_place():
+    from homeloop_robot.dialog import asks_user_position
+    w = FakeWorld()
+    for q in ("Where are you? Which place should I bring it to?", "Where are you now?"):
+        assert asks_user_position(q)
+        c = compose(q, "en", None, w, knows_location=True, user_place=("sofa@living", False))
+        assert (c.kind, c.text, c.informative, c.rule) == ("correct", "I'm at the sofa.", False, "self_position")
+    c = compose("지금 어디에 계세요?", "ko", SPEC, w, knows_location=True, user_place=("sofa@living", False))
+    assert c.text == "소파에 있어요." and c.rule == "self_position"
+    c = compose("어디 계세요?", "ko", None, w, knows_location=True, user_place=("bed@bedroom", True))
+    assert c.text == "침대로 가고 있어요."
+    c = compose("Where are you?", "ko", None, w, knows_location=True, user_place=("armchair@living", True))
+    assert c.text == "안락의자로 가고 있어요."
+    # not a question about the user: the old rules
+    assert not asks_user_position("Where is the phone?")
+    assert compose("Where should I put it?", "en", None, w, knows_location=True,
+                   user_place=("sofa@living", False)).rule == "generic_user"
+    # without a known position (no user) the question is not understood
+    assert compose("Where are you?", "en", None, w, knows_location=True).rule == "generic_user"
+
+
+def test_korean_directional_particle():
+    from homeloop_robot.dialog import _ro
+    assert _ro("소파") == "로" and _ro("거실") == "로" and _ro("부엌") == "으로" and _ro("") == "로"
+
+
+def test_where_are_you_with_a_candidate_is_a_clarification():
+    w = FakeWorld()
+    c = compose("Where are you, and do you mean the blue mug?", "en", SPEC, w, knows_location=True,
+                user_place=("sofa@living", False))
+    assert c.rule != "self_position"

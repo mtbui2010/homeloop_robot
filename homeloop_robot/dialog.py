@@ -30,7 +30,12 @@ TEXT = {
     "robot": {"en": "You are holding it.", "ko": "지금 들고 있잖아요."},
     "person": {"en": "{person} has it.", "ko": "{person}한테 있어요."},
     "candidate": {"en": "The {mention}.", "ko": "{mention}요."},
+    "self_at": {"en": "I'm at the {place}.", "ko": "{place}에 있어요."},
+    "self_going": {"en": "I'm going to the {place}.", "ko": "{place}{ro} 가고 있어요."},
 }
+# "where are you?": the robot asks the user's own position (e.g. to bring something to them)
+SELF_WHERE = {"en": (r"\bwhere are you\b", r"\bwhere you are\b", r"\bwhere are you now\b"),
+              "ko": (r"어디\s*에?\s*계", r"어디\s*세요", r"어디\s*계신")}
 
 
 @dataclass(frozen=True)
@@ -161,6 +166,30 @@ def location_text(world: Any, oid: str, lang: str) -> str:
     return TEXT[key][lang].format(place=place_name(world, at, lang))
 
 
+def asks_user_position(question: str) -> bool:
+    """Does the question ask where the user is ("Where are you?", "지금 어디에 계세요?")?"""
+    q = unicodedata.normalize("NFC", str(question or "")).lower()
+    return any(re.search(rx, q) for lg in ("en", "ko") for rx in SELF_WHERE[lg])
+
+
+def _ro(word: str) -> str:
+    """Korean directional particle: 로 after a vowel or ㄹ final, else 으로."""
+    if not word:
+        return "로"
+    c = ord(word[-1]) - 0xAC00
+    if not 0 <= c <= 11171:
+        return "로"
+    final = c % 28
+    return "로" if final in (0, 8) else "으로"
+
+
+def self_position_text(world: Any, place: str, moving: bool, lang: str) -> str:
+    name = place_name(world, place, lang)
+    if moving:
+        return TEXT["self_going"][lang].format(place=name, ro=_ro(name))
+    return TEXT["self_at"][lang].format(place=name)
+
+
 def candidate_text(cand: dict, lang: str) -> str:
     m = (cand.get("mentions") or {}).get(lang) or [cand.get("id", "")]
     return TEXT["candidate"][lang].format(mention=m[0])
@@ -168,11 +197,12 @@ def candidate_text(cand: dict, lang: str) -> str:
 
 # ------------------------------------------------------------------------------------ answer content
 def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, knows_location: bool,
-            other_place: str | None = None) -> Content:
+            other_place: str | None = None, user_place: tuple | None = None) -> Content:
     """Answer content for ``question`` (DESIGN 5.2 rules 3-4), before the correctness mix.
 
     ``knows_location``: whether the user knows where an asked-about object is (drawn by the caller);
-    ``other_place``: a place id used for a wrong location answer.
+    ``other_place``: a place id used for a wrong location answer;
+    ``user_place``: ``(place_id, moving)`` of the answering user, for "where are you?".
     """
     qtype = classify(question)
     L = answer_lang
@@ -183,6 +213,13 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
     def in_any_lang(phrases: dict) -> bool:
         return any(mentions(question, p, lg) for lg in ("en", "ko") for p in (phrases or {}).get(lg, []))
 
+    # "where are you?" (naming no candidate): the user says where they are (or where they are walking to); people
+    # do not get their own position wrong, so the answer is not informative in the correctness-mix sense (ASR
+    # still applies)
+    if user_place is not None and qtype == "wh" and asks_user_position(question) and \
+            not any(in_any_lang(c.get("mentions")) for c in cands):
+        return Content("correct", self_position_text(world, user_place[0], bool(user_place[1]), L), False, None,
+                       "self_position")
     # clarification with candidates
     if cands and ans:
         intended = spec.get("intended")

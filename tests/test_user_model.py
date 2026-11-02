@@ -210,3 +210,16 @@ def test_consistency_detects_a_wrong_rate():
     from homeloop_robot._hs_compat import binomial_row
     assert not binomial_row("x", 0.1, 300, 2000)["ok"]
     assert binomial_row("x", 0.1, 200, 2000)["ok"]
+
+
+def test_where_are_you_through_user():
+    u = user("ideal", spec=None)
+    r, _ = u.answer("Where are you?", "en", NEAR, 0.0)
+    seat = u.world.people[u.user_id].seat
+    from homeloop_robot.dialog import place_name
+    assert r.kind == "correct" and r.text == f"I'm at the {place_name(u.world, seat, 'en')}." and u.log[-1]["why"] == "self_position"
+    w = user("real", seed=3, **{"user.motion.rate_per_h": 20.0})
+    pid = "grandma"
+    walk = w.walks(pid)[0]
+    assert w.place_of(pid, (walk["t0"] + walk["t1"]) / 2) == (walk["to"], True)
+    assert w.place_of(pid, walk["t1"] + 0.5) == (walk["to"], False)

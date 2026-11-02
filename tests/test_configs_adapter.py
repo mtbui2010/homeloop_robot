@@ -73,3 +73,21 @@ def test_adapter_bind_and_codes():
         assert "cannot_do" in ad.i18n.phrases and ad.i18n.text("cannot_do", "ko")
     finally:
         reset_backend()
+
+
+def test_env_aliases_resolve_copied_keys():
+    from homeloop_robot.world import from_house
+    env = env_for(from_house("studio_flat", 0))
+    al = env["bath_cabinet@bathroom"]["aliases"]
+    assert "bath cabinet@bathroom" in al
+    assert not any(a.lower().startswith("bathroom bathroom") for k in env for a in env[k]["aliases"])
+
+
+@pytest.mark.skipif(not HAS_RA, reason="robot_agent not importable")
+def test_robot_agent_grounds_a_copied_key():
+    from robot_agent.core.planning.assist_loop import Places
+    from homeloop_robot.world import from_house
+    places = Places(env_for(from_house("studio_flat", 0)))
+    task = "Could you stash that gray towel in the bathroom cabinet?"
+    assert places.candidates("bath_cabinet@bathroom", task) == ["bath_cabinet@bathroom"]
+    assert places.ground("kitchen_sink@main", task) == "kitchen_sink@main"

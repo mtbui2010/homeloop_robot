@@ -206,6 +206,17 @@ class SimUser:
         return PersonState(pid, (r6(pos[0]), r6(pos[1])), (r6(vel[0]), r6(vel[1])), room,
                            pid not in self.asleep)
 
+    def place_of(self, pid: str, t: float) -> tuple:
+        """(place id, moving): the seat a person is at, or the one they are walking to."""
+        place = self.world.people[pid].seat
+        for (t0, t1, _path, dest) in self._sched[pid]:
+            if t < t0:
+                break
+            if t < t1:
+                return dest, True
+            place = dest
+        return place, False
+
     def people_at(self, t: float) -> dict:
         return {pid: self._state(pid, t) for pid in sorted(self.world.people)}
 
@@ -264,7 +275,8 @@ class SimUser:
             places = sorted(pid for pid, pl in self.world.house.places.items()
                             if getattr(pl, "kind", "") in ("surface", "container"))
             other = places[rng.randrange(len(places))] if places else None
-            c = dialog.compose(question, L, self.spec, self.world, knows_location=knows, other_place=other)
+            c = dialog.compose(question, L, self.spec, self.world, knows_location=knows, other_place=other,
+                               user_place=self.place_of(uid, t))
             kind, text, rule = c.kind, c.text, c.rule
             if c.informative:
                 u = rng.random()

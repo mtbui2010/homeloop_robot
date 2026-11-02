@@ -36,6 +36,10 @@ seed give the same answers, walks and ASR errors.
    name, colour + name) are matched in both languages after normalization (case, punctuation; Korean spaces
    ignored).
 4. **Content**, first rule that applies:
+   - "where are you?" (EN where are you / where you are; KO 어디(에) 계세요, 어디세요), naming no candidate -> the
+     user's own place: "I'm at the sofa." / "소파에 있어요.", or while walking "I'm going to the bed." /
+     "침대로 가고 있어요." (`SimUser.place_of`). People do not misstate where they are, so the correctness mix of
+     rule 5 does not apply; ASR does;
    - clarification with candidates: a yes/no question naming one candidate -> "Yes, that one." / "네, 맞아요."
      if it is the intended one, else "No, " + the intended answer; a wh question or one naming two or more
      candidates -> the intended answer (`spec.answer`);
