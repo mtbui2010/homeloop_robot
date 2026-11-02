@@ -1,0 +1,75 @@
+from pathlib import Path
+
+import pytest
+
+from helpers import HAS_RA, episode
+from homeloop_robot.configs import ra_skills
+from homeloop_robot.configs.backend import reset_backend, set_backend
+from homeloop_robot.configs.tasks import ENV, env_for
+
+PKG = Path(__file__).resolve().parents[1] / "homeloop_robot"
+
+
+def test_env_shape():
+    assert "counter@kitchen" in ENV
+    e = ENV["fridge@kitchen"]
+    assert set(e) == {"loc", "height", "default_mode", "aliases", "openable"} and e["openable"] is True
+    assert "냉장고" in e["aliases"]
+    assert set(env_for(episode("family_house").world)) >= {"dock@living", "fridge@kitchen"}
+
+
+def test_ra_skills_legacy_dicts():
+    ep = episode()
+    set_backend(ep.robot)
+    try:
+        assert ra_skills.move(None, inputs="counter@kitchen")["isdone"] is True
+        f = ra_skills.find(None, inputs="red mug")
+        assert f["isdone"] and "mug_1" in f["ins"]
+        assert ra_skills.pick(None, inputs="mug_1")["isdone"]
+        assert ra_skills.grasp_check(None)["isdone"] is True
+        p = ra_skills.pose(None)
+        assert isinstance(p["pose"], tuple) and len(p["pose"]) == 3
+        bad = ra_skills.place(None, inputs="fridge@kitchen")
+        assert bad["isdone"] is False and bad["code"] == "unreachable"
+        a = ra_skills.ask(None, inputs="Where?", retries=1)
+        assert a["isdone"] is False and a["text"] == "" and a["code"] == "timeout"
+        assert ra_skills.wait(None, inputs="3")["isdone"]
+    finally:
+        reset_backend()
+
+
+@pytest.mark.skipif(not HAS_RA, reason="robot_agent not importable")
+def test_check_manifest_strict():
+    from robot_agent.contract.check_manifest import assert_manifest_matches
+    assert_manifest_matches(PKG, strict=True)
+
+
+@pytest.mark.skipif(not HAS_RA, reason="robot_agent not importable")
+def test_adapter_bind_and_codes():
+    from robot_agent.contract import FailureCode, Unbindable
+    from homeloop_robot.configs.adapter import make_adapter
+    ep = episode()
+    set_backend(ep.robot)
+    try:
+        ad = make_adapter()
+        assert ad.bind({"action": "MoveTo", "object": "KitchenCounter"}) == ("move", {"inputs": "counter@kitchen"})
+        assert ad.bind({"action": "MoveTo", "object": "dock"}) == ("move", {"inputs": "dock@living"})
+        assert ad.bind({"action": "Pick", "object": "red mug"}) == ("pick", {"inputs": "mug_1"})
+        assert ad.bind({"action": "PutIn", "object": "fridge"}) == ("put_in", {"inputs": "fridge@kitchen"})
+        assert ad.bind({"action": "Say", "object": "hi"}) == ("say", {"inputs": "hi"})
+        assert ad.bind({"action": "Wait", "object": "3"}) == ("wait", {"inputs": "3"})
+        assert ad.bind({"action": "Dock"}) == ("dock", {"inputs": "dock"})
+        assert ad.bind({"action": "WaitForUnload"})[0] == "handover"
+        for a in ("Observe", "Verify", "Fly"):
+            with pytest.raises(Unbindable):
+                ad.bind({"action": a, "object": "x"})
+        name, params = ad.bind({"action": "Pick", "object": "mug_1"})
+        out = getattr(ra_skills, name)(None, **params)
+        assert FailureCode.parse(out["code"]) == FailureCode.ABSENT
+        obs = ad.observe()
+        assert obs.arrived == "dock@living" and obs.hands == {"right": None}
+        assert ad.pose()["x"] == pytest.approx(ep.world.robot.pose[0])
+        assert ad.health()["ok"] is True
+        assert "cannot_do" in ad.i18n.phrases and ad.i18n.text("cannot_do", "ko")
+    finally:
+        reset_backend()

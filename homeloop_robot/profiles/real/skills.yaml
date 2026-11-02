@@ -1,0 +1,376 @@
+# The `real` profile, skills part: every stochastic parameter of the robot's skills.
+# Each entry: kind, role, value, note; sourced entries have source (URL) + where (page / table / figure),
+# and the source is listed in docs/calibration.md. Unsourced entries have assumed: true and a note
+# that says why the number was chosen (docs/calibration.md, Assumptions).
+profile: real
+part: skills
+params:
+  # ── hardware faults, e-stop ──────────────────────────────────────────────────────────────────────────
+  hw.p_per_motion_call:
+    kind: prob
+    role: failure
+    value: 0.01875
+    source: https://arxiv.org/abs/2401.12202
+    where: "Sec. III-D (failure analysis)"
+    note: "OK-Robot: robot hardware failure in 7.5 % of 171 home trials. A trial is navigate, pick, navigate, drop = 4 motion primitives, so per motion call 0.075 / 4 = 0.01875."
+  hw.p_per_sensor_call:
+    kind: prob
+    role: failure
+    value: 0.002
+    assumed: true
+    anchor: https://arxiv.org/abs/2212.00922
+    note: "No per-call camera/speaker fault rate was found. NAV Table S3 attributes 5 of 6 real navigation failures to depth errors but gives no per-call rate; we assume 0.002 per sensor call, an order of magnitude below the motion-call rate."
+  hw.p_persistent:
+    kind: prob
+    role: failure
+    value: 0.94
+    source: https://digitalcommons.usf.edu/etd/980
+    where: "Abstract"
+    note: "Carlson (2004): in the cited field study 94 % of failures suspended the task until repair. Field UGVs, not household robots; read at abstract level only. Used as the share of hardware faults that persist for the episode."
+  estop.rate_per_h:
+    kind: rate_per_h
+    role: failure
+    value: 0.000667
+    source: https://arxiv.org/abs/1604.04384
+    where: "Sec. 6 text, Table 1"
+    note: "STRANDS 2015: 1 of 7 run terminations was a user intervention (a person powered the robot off) in 1,499 h of cumulative runs, 1 / 1499 = 0.000667 per hour. Proxy for a person stopping the robot; the robot cannot reset it."
+  # ── navigation ────────────────────────────────────────────────────────────────────────────────────
+  move.p_fail:
+    kind: prob_map
+    role: failure
+    keys: [low, medium, high]
+    value: {low: 0.04, medium: 0.12, high: 0.15}
+    source: https://arxiv.org/abs/2401.12202
+    where: "Sec. III-C, Fig. 6"
+    note: "OK-Robot navigation error by clutter level: high cleanup 4 %, low cleanup 12 %, no cleanup 15 % of trials. Our target clutter low / medium / high = their high / low / no cleanup."
+  move.split:
+    kind: split
+    role: failure
+    keys: [blocked, unreachable]
+    value: {blocked: 0.666667, unreachable: 0.333333}
+    source: https://arxiv.org/abs/2511.22364
+    where: "Sec. IV-D, Fig. 7"
+    note: "BINDER: of 6 navigation failures, 4 were conservative collision-risk stops (blocked) and 2 localization / target-not-found (unreachable): 4/6 and 2/6."
+  move.p_retry_clears_blocked:
+    kind: prob
+    role: recovery
+    value: 0.416
+    source: https://arxiv.org/abs/1604.04384
+    where: "Table 2"
+    note: "STRANDS: 707 successful of 1,700 recovery attempts after a navigation failure (no valid path): 707 / 1700 = 0.416 per retry of a blocked move."
+  move.p_help_clears_blocked:
+    kind: prob
+    role: recovery
+    value: 0.545
+    source: https://arxiv.org/abs/1604.04384
+    where: "Table 2"
+    note: "STRANDS: 177 successful of 325 bumper recoveries that asked a person for help: 177 / 325 = 0.545 per help request while a path is blocked."
+  move.p_stuck_retry_success:
+    kind: prob
+    role: recovery
+    value: 0.061
+    source: https://arxiv.org/abs/1604.04384
+    where: "Table 2"
+    note: "STRANDS: 16 successful of 263 recoveries when stuck on carpet: 16 / 263 = 0.061 per retry. Used for blocked moves to places tagged carpet."
+  move.p_false_arrival_hard:
+    kind: prob
+    role: failure
+    value: 0.038
+    source: https://www.ri.cmu.edu/pub_files/2013/12/ijrr_longterm_autonomy_cobot.pdf
+    where: "Sec. 4 (Results), Fig. 12"
+    note: "CoBot: localization error in the worst region, 10 errors in 263 visits = 0.038 per visit. Applied to targets marked hard_nav (doorways, tight spots): the move reports success but the robot is off the pose."
+  move.p_false_arrival_normal:
+    kind: prob
+    role: failure
+    value: 0.01
+    assumed: true
+    anchor: https://www.ri.cmu.edu/pub_files/2013/12/ijrr_longterm_autonomy_cobot.pdf
+    note: "CoBot gives only the worst-region rate (0.038); other regions are lower but no number is given in the text. We assume 0.01 for ordinary targets."
+  move.false_arrival_offset_m:
+    kind: distance_m
+    role: nominal
+    value: 0.6
+    assumed: true
+    note: "Pose error of a false arrival. Chosen above the 0.3 m arrive tolerance of the robot_agent core geometry so that a pose check can detect it."
+  move.speed_mps:
+    kind: speed_mps
+    role: nominal
+    value: 0.3
+    source: https://forum.hello-robot.com/t/physical-aspects-of-the-robot-for-simulation/792
+    where: "post body"
+    note: "Stretch base maximum velocity 0.3 m/s from a Hello Robot forum post (2023-08-24); low confidence, the post does not name the Stretch model and is not a datasheet."
+  move.timeout_s:
+    kind: duration_s
+    role: nominal
+    value: 300
+    source: https://www.ri.cmu.edu/pub_files/2013/12/ijrr_longterm_autonomy_cobot.pdf
+    where: "Sec. 5 (Failures)"
+    note: "CoBot asks for help after 5 minutes stopped without progress: a 300 s no-progress watchdog. A timed-out move spends this time."
+  move.p_timeout:
+    kind: prob
+    role: failure
+    value: 0.005
+    assumed: true
+    note: "No paper reports the share of navigation calls that end in a timeout (research gap). We assume 0.005 per move so that timeouts exist but are rare."
+  move.fail_time_frac:
+    kind: range
+    role: nominal
+    value: [0.3, 1.0]
+    assumed: true
+    note: "A failed move spends a uniform fraction of its nominal time before it reports the failure; no source gives this, the range is a modelling choice."
+  move.person_standoff_m:
+    kind: distance_m
+    role: nominal
+    value: 1.2
+    source: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
+    where: "Table 1"
+    note: "A move to a person stops 1.2 m from the person: the lower bound of the social zone (1.2-3.6 m) after Hall, as tabulated by Walters et al. 2005."
+  # ── perception ────────────────────────────────────────────────────────────────────────────────────
+  perception.p_unavailable:
+    kind: prob
+    role: failure
+    value: 0.01
+    assumed: true
+    anchor: https://arxiv.org/abs/2212.00922
+    note: "No per-call camera dropout rate was found. NAV reports 5 of 60 real episodes ended by depth-sensor errors (Table S3), a per-episode number; per call we assume 1 %."
+  perception.p_clear_on_wait:
+    kind: prob
+    role: recovery
+    value: 0.5
+    assumed: true
+    note: "Chance that an unavailable camera / detector is back after a wait of at least 5 s. No source; 0.5 makes one or two waits the typical recovery."
+  find.p_miss:
+    kind: prob
+    role: failure
+    value: 0.093
+    source: https://arxiv.org/abs/2401.12202
+    where: "Sec. III-D"
+    note: "OK-Robot: semantic-memory retrieval failure (object not found or ambiguous) in 9.3 % of 171 trials, the first-ranked failure cause. Used per find call when the object is visible."
+  find.p_false_positive:
+    kind: prob
+    role: failure
+    value: 0.045
+    source: https://arxiv.org/abs/2305.05658
+    where: "Table 7, Sec. 4.5"
+    note: "TidyBot: CLIP category recognition 95.5 % on 222 egocentric images, so 4.5 % misclassification. Applied when the object is absent but another object is at the place: find reports it found."
+  find.p_wrong_instance:
+    kind: prob_map
+    role: failure
+    keys: [few, many]
+    value: {few: 0.10, many: 0.389}
+    source: https://arxiv.org/abs/2410.06237
+    where: "failure analysis, Fig. 6"
+    note: "BUMBLE: wrong object picked 10.0 % with 5-10 distractors vs 38.9 % with 20-25. Place clutter low/medium -> few, high -> many; only when a confusable object is visible at the place."
+  find.duration_s:
+    kind: range_s
+    role: nominal
+    value: [3.0, 6.0]
+    assumed: true
+    note: "No find-skill duration distribution was found (research gap: only point values). We assume a uniform 3-6 s for one detection query at a place."
+  look.duration_s:
+    kind: range_s
+    role: nominal
+    value: [3.0, 5.0]
+    assumed: true
+    note: "No source for a scene-description duration; we assume 3-5 s, similar to a find."
+  # ── manipulation ──────────────────────────────────────────────────────────────────────────────────
+  pick.p_fail:
+    kind: prob_map
+    role: failure
+    keys: [low, medium, high]
+    value: {low: 0.13, medium: 0.16, high: 0.25}
+    source: https://arxiv.org/abs/2401.12202
+    where: "Sec. III-C, Fig. 6"
+    note: "OK-Robot manipulation error by clutter level: high cleanup 13 %, low cleanup 16 %, no cleanup 25 %. Our place clutter low / medium / high = their high / low / no cleanup."
+  pick.p_fail_class:
+    kind: prob_map
+    role: failure
+    keys: [deformable, light_deformable]
+    value: {deformable: 0.16, light_deformable: 0.08}
+    source: https://arxiv.org/abs/2409.05865
+    where: "Table 1 (App. A.1)"
+    note: "Robot Utility Models: bag pick-up 42/50 and tissue pick-up 46/50 in unseen homes, so failure 0.16 (bags, towels, clothes) and 0.08 (light items such as tissues, socks). Their numbers include self-critique retries, so these are lower bounds per attempt."
+  pick.split:
+    kind: split
+    role: failure
+    keys: [absent, unreachable, blocked, grasp_failed]
+    value: {absent: 0.3, unreachable: 0.2, blocked: 0.3, grasp_failed: 0.2}
+    source: https://arxiv.org/abs/2511.22364
+    where: "Sec. IV-D, Fig. 7"
+    note: "BINDER grasp-stage failures, 12 minus the 2 drops = 10: 3 not detected (absent), 2 no valid pose (unreachable), 3 collisions (blocked), 2 failed grasps (grasp_failed)."
+  pick.p_retry_success:
+    kind: prob
+    role: recovery
+    value: 0.376
+    source: https://arxiv.org/abs/2103.14127
+    where: "Table I, Sec. IV-C"
+    note: "Contact-GraspNet: 84.31 % first-attempt and 90.20 % within two attempts, so P(success on a retry | first failed) = (0.902 - 0.843) / (1 - 0.843) = 0.376."
+  pick_place.duration_s:
+    kind: range_s
+    role: nominal
+    value: [15.0, 20.0]
+    source: https://arxiv.org/abs/2305.05658
+    where: "Sec. 4.5"
+    note: "TidyBot: 15-20 s per object for a pick plus a place. A pick and a place each take half of a uniform draw from this range (the half split is our assumption)."
+  verify.p_false_success:
+    kind: prob
+    role: failure
+    value: 0.048
+    source: https://arxiv.org/abs/2409.05865
+    where: "Sec. 3.6, Fig. 11"
+    note: "Robot Utility Models: the MLLM success detector reported success on 4.8 % of failed trajectories. Used as the share of silent failures: a pick that reports ok with an empty hand, a place whose object falls, an open that is only partial."
+  carry.p_drop:
+    kind: prob
+    role: failure
+    value: 0.0175
+    source: https://arxiv.org/abs/2511.22364
+    where: "Fig. 7, Sec. IV-D"
+    note: "BINDER: 2 drops after pickup in 114 grasps = 0.0175. No source isolates drops in transit, so this is used per move while holding (proxy)."
+  carry.payload_kg:
+    kind: mass_kg
+    role: nominal
+    value: 1.0
+    source: https://arxiv.org/abs/2401.12202
+    where: "Sec. V-E"
+    note: "OK-Robot (Stretch) payload limit of 1 kg: heavier objects cannot be picked (catalog.PAYLOAD_KG)."
+  place.p_drop:
+    kind: prob
+    role: failure
+    value: 0.0196
+    source: https://arxiv.org/abs/2511.22364
+    where: "Fig. 7, Sec. IV-D"
+    note: "BINDER: 2 drops during placing in 102 place attempts = 0.0196 per place / put_in; the object ends on the floor."
+  handover.p_drop:
+    kind: prob
+    role: failure
+    value: 0.0196
+    assumed: true
+    anchor: https://arxiv.org/abs/2511.22364
+    note: "No handover drop rate was found; we reuse the BINDER drop-during-placing rate (2/102) because a handover releases the object like a place."
+  handover.duration_s:
+    kind: range_s
+    role: nominal
+    value: [4.0, 8.0]
+    assumed: true
+    note: "Arm extension and release for a handover, without the person's take latency (that comes from the user model). No source; similar to half a pick-and-place."
+  open.p_fail:
+    kind: prob_map
+    role: failure
+    keys: [door, drawer]
+    value: {door: 0.21, drawer: 0.167}
+    source: https://arxiv.org/abs/2311.16098
+    where: "Table 2 (door-opening and drawer-opening rows summed)"
+    note: "Dobb-E in 10 homes, no retries: door opening 79/100, drawer opening 50/60, so failure 0.21 and 0.167. door = cabinet / fridge / appliance / box lids, drawer = drawers."
+  open.p_retry_success:
+    kind: prob_map
+    role: recovery
+    keys: [door, drawer]
+    value: {door: 0.714, drawer: 0.64}
+    source: https://arxiv.org/abs/2409.05865
+    where: "Table 1"
+    note: "Robot Utility Models with self-critique retries open doors 47/50 and drawers 47/50 (0.94). With Dobb-E's first-try success (arXiv 2311.16098, Table 2: 0.79 doors, 0.833 drawers) the retry success is (0.94 - 0.79) / 0.21 = 0.714 and (0.94 - 0.833) / 0.167 = 0.64. Two different systems: an approximation."
+  open.split:
+    kind: split
+    role: failure
+    keys: [blocked, grasp_failed]
+    value: {blocked: 0.5, grasp_failed: 0.5}
+    assumed: true
+    note: "No source splits articulated-object failures by cause; we assume half 'will not open' (blocked) and half handle-grasp failures."
+  open.duration_s:
+    kind: range_s
+    role: nominal
+    value: [5.0, 10.0]
+    assumed: true
+    anchor: https://arxiv.org/abs/2311.16098
+    note: "Dobb-E demonstrations last 3.82 s on average (Sec. 3.2.3, Fig. 13), a lower bound for a short articulated skill; with approach and handle grasp we assume 5-10 s."
+  close.p_fail:
+    kind: prob_map
+    role: failure
+    keys: [door, drawer]
+    value: {door: 0.0, drawer: 0.058}
+    source: https://arxiv.org/abs/2311.16098
+    where: "Table 2 (door-closing and drawer-closing rows summed)"
+    note: "Dobb-E in 10 homes: door closing 50/50 and drawer closing 113/120, so failure 0.0 and 7/120 = 0.058."
+  close.p_retry_success:
+    kind: prob_map
+    role: recovery
+    keys: [door, drawer]
+    value: {door: 0.714, drawer: 0.64}
+    assumed: true
+    note: "No close-specific retry data; we reuse the open retry success (open.p_retry_success)."
+  close.split:
+    kind: split
+    role: failure
+    keys: [blocked, grasp_failed]
+    value: {blocked: 0.5, grasp_failed: 0.5}
+    assumed: true
+    note: "No source; same split as open (half blocked, half grasp failures)."
+  close.duration_s:
+    kind: range_s
+    role: nominal
+    value: [4.0, 8.0]
+    assumed: true
+    anchor: https://arxiv.org/abs/2311.16098
+    note: "Same anchor as open.duration_s (Dobb-E 3.82 s mean demonstration); closing needs no handle search, so slightly shorter: 4-8 s."
+  # ── checks ────────────────────────────────────────────────────────────────────────────────────────
+  vlm.p_false_yes:
+    kind: prob
+    role: failure
+    value: 0.048
+    source: https://arxiv.org/abs/2409.05865
+    where: "Sec. 3.6, Fig. 11"
+    note: "Robot Utility Models: MLLM success detector false positives on 4.8 % of trajectories; used as P(yes | the queried condition is false)."
+  vlm.p_false_no:
+    kind: prob
+    role: failure
+    value: 0.05
+    assumed: true
+    note: "No false-negative rate of a VLM success check was found; we assume 0.05, close to the false-positive rate."
+  vlm.duration_s:
+    kind: range_s
+    role: nominal
+    value: [2.0, 4.0]
+    assumed: true
+    note: "One VLM query on the current image; no source, we assume 2-4 s."
+  grasp_check.p_wrong:
+    kind: prob
+    role: failure
+    value: 0.02
+    assumed: true
+    note: "Gripper sensor reports the wrong holding state. No source; we assume 0.02 so the check is informative but not perfect."
+  grasp_check.duration_s:
+    kind: duration_s
+    role: nominal
+    value: 1.0
+    assumed: true
+    note: "Reading the gripper state; no source, we assume 1 s."
+  pose.sigma_m:
+    kind: distance_m
+    role: failure
+    value: 0.05
+    assumed: true
+    note: "Standard deviation of the reported base position. No home localization noise was found; we assume 5 cm."
+  pose.duration_s:
+    kind: duration_s
+    role: nominal
+    value: 0.5
+    assumed: true
+    note: "Reading the localization pose; no source, we assume 0.5 s."
+  say.words_per_s:
+    kind: words_per_s
+    role: nominal
+    value: 2.5
+    assumed: true
+    note: "Robot text-to-speech rate (also per Korean word / eojeol). No source opened; we assume 2.5 words per second (150 words per minute)."
+  ask.timeout_s:
+    kind: duration_s
+    role: nominal
+    value: 15.0
+    assumed: true
+    note: "How long the robot waits for an answer before ask fails with a timeout. No source; a design choice above the user answer latency median."
+  dock.duration_s:
+    kind: range_s
+    role: nominal
+    value: [20.0, 40.0]
+    assumed: true
+    note: "Final docking manoeuvre at the dock; no source, we assume 20-40 s."

@@ -1,0 +1,115 @@
+# A shared flat: three private rooms, a shared living area, kitchen and bathroom. Three roommates:
+# "whose item" ambiguity (objects carry an owner).
+house: shared_flat
+version: 1
+name: {en: Shared flat, ko: 셰어하우스}
+rooms:
+  living:   {name: {en: living room, ko: 거실}, rect: [0, 0, 8, 3], floor: {pos: [4.0, 2.0], tags: [exit_path]}}
+  kitchen:  {name: {en: kitchen, ko: 주방}, rect: [8, 0, 11, 3], floor: {pos: [9.6, 1.6]}}
+  room_a:   {name: {en: room A, ko: A 방}, rect: [0, 3, 3, 7], floor: {pos: [1.8, 4.6]}}
+  room_b:   {name: {en: room B, ko: B 방}, rect: [3, 3, 6, 7], floor: {pos: [4.4, 4.6], tags: [carpet]}}
+  room_c:   {name: {en: room C, ko: C 방}, rect: [6, 3, 9, 7], floor: {pos: [7.0, 4.6]}}
+  bathroom: {name: {en: bathroom, ko: 욕실}, rect: [9, 3, 11, 6], floor: {pos: [9.8, 4.4]}}
+doors:
+  - {rooms: [living, kitchen], at: [8.0, 1.5], width_m: 1.0}
+  - {rooms: [living, room_a], at: [1.5, 3.0], width_m: 0.8}
+  - {rooms: [living, room_b], at: [4.5, 3.0], width_m: 0.8}
+  - {rooms: [living, room_c], at: [7.0, 3.0], width_m: 0.8}
+  - {rooms: [kitchen, bathroom], at: [10.0, 3.0], width_m: 0.7}
+places:
+  sofa@living:
+    {room: living, kind: seat, name: {en: sofa, ko: 소파}, aliases: {en: [couch], ko: [쇼파]},
+     pos: [2.6, 1.0], yaw_deg: 270, height_m: 0.45, clutter: medium, capacity: 3, tags: []}
+  shared_shelf@living:
+    {room: living, kind: surface, name: {en: shared shelf, ko: 공용 선반}, aliases: {en: [shelf], ko: [선반]},
+     pos: [6.6, 1.0], yaw_deg: 270, height_m: 1.45, clutter: medium, capacity: 6, tags: [high_shelf]}
+  side_table@living:
+    {room: living, kind: surface, name: {en: side table, ko: 사이드 테이블}, aliases: {en: [], ko: [협탁]},
+     pos: [4.0, 0.8], yaw_deg: 270, height_m: 0.5, clutter: high, capacity: 5, tags: [electrical]}
+  shoe_cabinet@living:
+    {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
+     pos: [0.7, 0.7], yaw_deg: 180, height_m: 1.0, clutter: low, capacity: 6, tags: [exit_path]}
+  dock@living:
+    {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
+     pos: [5.4, 1.0], yaw_deg: 270, height_m: 0.0, clutter: low, capacity: 0, tags: []}
+  counter@kitchen:
+    {room: kitchen, kind: surface, name: {en: counter, ko: 조리대}, aliases: {en: [kitchen counter], ko: [싱크대]},
+     pos: [9.0, 0.6], yaw_deg: 270, height_m: 0.9, clutter: high, capacity: 6, tags: [food_prep, wet]}
+  stove@kitchen:
+    {room: kitchen, kind: surface, name: {en: stove, ko: 가스레인지}, aliases: {en: [cooktop], ko: [레인지]},
+     pos: [10.4, 0.6], yaw_deg: 270, height_m: 0.9, clutter: low, capacity: 2, tags: [heat_source]}
+  fridge@kitchen:
+    {room: kitchen, kind: container, container: {type: fridge, openable: true, opened: false},
+     name: {en: fridge, ko: 냉장고}, aliases: {en: [refrigerator, shared fridge], ko: [공용 냉장고]},
+     pos: [10.4, 2.0], yaw_deg: 0, height_m: 1.2, clutter: high, capacity: 10, tags: [food_storage]}
+  microwave@kitchen:
+    {room: kitchen, kind: container, container: {type: appliance, openable: true, opened: false},
+     name: {en: microwave, ko: 전자레인지}, aliases: {en: [], ko: []},
+     pos: [8.7, 2.4], yaw_deg: 90, height_m: 1.0, clutter: low, capacity: 1, tags: [electrical]}
+  drawer@kitchen:
+    {room: kitchen, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: kitchen drawer, ko: 주방 서랍}, aliases: {en: [drawer], ko: [서랍]},
+     pos: [9.7, 1.4], yaw_deg: 270, height_m: 0.8, clutter: medium, capacity: 6, tags: []}
+  desk@room_a:
+    {room: room_a, kind: surface, name: {en: desk in room A, ko: A 방 책상}, aliases: {en: [], ko: []},
+     pos: [1.9, 6.0], yaw_deg: 90, height_m: 0.75, clutter: medium, capacity: 6, tags: [electrical]}
+  desk_chair@room_a:
+    {room: room_a, kind: seat, name: {en: chair in room A, ko: A 방 의자}, aliases: {en: [], ko: []},
+     pos: [2.2, 5.0], yaw_deg: 180, height_m: 0.45, clutter: low, capacity: 1, tags: []}
+  closet@room_a:
+    {room: room_a, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: closet in room A, ko: A 방 옷장}, aliases: {en: [], ko: []},
+     pos: [0.8, 3.8], yaw_deg: 180, height_m: 1.8, clutter: medium, capacity: 6, tags: []}
+  bed@room_b:
+    {room: room_b, kind: seat, name: {en: bed in room B, ko: B 방 침대}, aliases: {en: [], ko: []},
+     pos: [4.1, 6.3], yaw_deg: 0, height_m: 0.5, clutter: medium, capacity: 3, tags: []}
+  dresser@room_b:
+    {room: room_b, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: dresser in room B, ko: B 방 서랍장}, aliases: {en: [], ko: []},
+     pos: [3.8, 4.0], yaw_deg: 180, height_m: 0.9, clutter: low, capacity: 5, tags: []}
+  desk@room_c:
+    {room: room_c, kind: surface, name: {en: desk in room C, ko: C 방 책상}, aliases: {en: [], ko: []},
+     pos: [7.0, 6.0], yaw_deg: 90, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
+  closet@room_c:
+    {room: room_c, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: closet in room C, ko: C 방 옷장}, aliases: {en: [], ko: []},
+     pos: [8.4, 4.0], yaw_deg: 0, height_m: 1.8, clutter: medium, capacity: 6, tags: []}
+  sink@bathroom:
+    {room: bathroom, kind: surface, name: {en: bathroom sink, ko: 세면대}, aliases: {en: [sink], ko: []},
+     pos: [10.3, 5.3], yaw_deg: 90, height_m: 0.85, clutter: medium, capacity: 5, tags: [wet]}
+  bath_cabinet@bathroom:
+    {room: bathroom, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: bathroom cabinet, ko: 욕실 수납장}, aliases: {en: [], ko: [수납장]},
+     pos: [10.4, 3.8], yaw_deg: 0, height_m: 1.2, clutter: medium, capacity: 6, tags: []}
+objects:
+  - {id: mug_1, cls: mug, attrs: {color: red, owner: roommate_a}, at: counter@kitchen, alt: [desk@room_a]}
+  - {id: mug_2, cls: mug, attrs: {color: blue, owner: roommate_b}, at: counter@kitchen, alt: [side_table@living]}
+  - {id: mug_3, cls: mug, attrs: {color: green, owner: roommate_c}, at: desk@room_c, alt: [counter@kitchen]}
+  - {id: plate_1, cls: plate, attrs: {color: white}, at: counter@kitchen, alt: [side_table@living]}
+  - {id: milk_1, cls: milk, attrs: {color: white, owner: roommate_a}, at: fridge@kitchen, alt: []}
+  - {id: milk_2, cls: milk, attrs: {color: blue, owner: roommate_c}, at: fridge@kitchen, alt: []}
+  - {id: canned_soup_1, cls: canned_soup, attrs: {color: red}, at: shared_shelf@living, alt: [counter@kitchen]}
+  - {id: snack_1, cls: snack, attrs: {color: yellow}, at: side_table@living, alt: [desk@room_c]}
+  - {id: kitchen_knife_1, cls: knife, attrs: {color: black}, at: drawer@kitchen, alt: [counter@kitchen]}
+  - {id: foil_1, cls: foil, attrs: {color: gray}, at: drawer@kitchen, alt: [counter@kitchen]}
+  - {id: laptop_charger_1, cls: charger, attrs: {color: black, owner: roommate_a}, at: desk@room_a, alt: [side_table@living]}
+  - {id: phone_1, cls: phone, attrs: {color: black, owner: roommate_b}, at: side_table@living, alt: [bed@room_b]}
+  - {id: book_1, cls: book, attrs: {color: red, owner: roommate_a}, at: desk@room_a, alt: [sofa@living]}
+  - {id: book_2, cls: book, attrs: {color: green, owner: roommate_c}, at: desk@room_c, alt: [sofa@living]}
+  - {id: towel_1, cls: towel, attrs: {color: white, owner: roommate_a}, at: bath_cabinet@bathroom, alt: [closet@room_a]}
+  - {id: towel_2, cls: towel, attrs: {color: gray, owner: roommate_b}, at: sink@bathroom, alt: [dresser@room_b]}
+  - {id: shirt_1, cls: shirt, attrs: {color: black, owner: roommate_c}, at: closet@room_c, alt: [bed@room_b]}
+  - {id: cleaning_spray_1, cls: cleaning_spray, attrs: {color: green}, at: bath_cabinet@bathroom, alt: [sink@bathroom]}
+  - {id: keys_1, cls: keys, attrs: {color: gray, owner: roommate_a}, at: shoe_cabinet@living, alt: [desk@room_a]}
+  - {id: keys_2, cls: keys, attrs: {color: yellow, owner: roommate_b}, at: shoe_cabinet@living, alt: [side_table@living]}
+  - {id: lighter_1, cls: lighter, attrs: {color: blue}, at: side_table@living, alt: [shared_shelf@living]}
+  - {id: dumbbell_1, cls: dumbbell, attrs: {color: black}, at: bed@room_b, alt: []}
+people:
+  - {id: roommate_a, role: user, name: {en: roommate A, ko: A 룸메이트}, aliases: {en: [me], ko: [나]},
+     age_group: "20-29", sex: female, child: false, seat: desk_chair@room_a, pos: [0.5, 6.5], alt_seats: []}
+  - {id: roommate_b, role: other, name: {en: roommate B, ko: B 룸메이트}, aliases: {en: [], ko: []},
+     age_group: "20-29", sex: male, child: false, seat: bed@room_b, pos: [5.5, 6.5], alt_seats: []}
+  - {id: roommate_c, role: other, name: {en: roommate C, ko: C 룸메이트}, aliases: {en: [], ko: []},
+     age_group: "30-39", sex: female, child: false, seat: desk@room_c, pos: [8.5, 6.5], alt_seats: []}
+robot: {start: dock@living, dock: dock@living}
