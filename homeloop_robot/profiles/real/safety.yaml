@@ -1,0 +1,152 @@
+# Human-aware safety parameters of the `real` profile (robot-human-safety stream).
+# No ISO/ANSI standard text was opened; every standard value is as quoted by the source given (docs/safety.md).
+profile: real
+part: safety
+params:
+  safety.mode:
+    kind: categorical
+    role: nominal
+    keys: [monitored, static]
+    value: monitored
+    assumed: true
+    anchor: https://arxiv.org/abs/2108.07206
+    note: "SSM mode. monitored: the human speed in S_p is the tracked speed plus safety.v_h_margin; static: the human is not tracked and 1.6 / 2.0 m/s is used. Using monitored for a home robot with a person tracker is a design choice."
+  safety.v_h_far:
+    kind: speed_mps
+    role: nominal
+    value: 1.6
+    source: https://arxiv.org/abs/2108.07206
+    where: "Sec. II, text after Eq. (1), PDF p. 4: v_h = 1.6 m/s if not monitored"
+    note: "Human approach speed when the person is not tracked (static mode), as quoted from ISO/TS 15066 / ISO 13855 by the survey; also Campomaggiore et al. 2019 Sec. 2 for d > 0.5 m."
+    assumed: false
+  safety.v_h_near:
+    kind: speed_mps
+    role: nominal
+    value: 2.0
+    source: https://doi.org/10.5220/0007838700780087
+    where: "Sec. 2, Eq. (1), p. 79: max operator speed 2.0 m/s unless d > 0.5 m (then 1.6 m/s)"
+    note: "Human approach speed close to the robot in static mode, ISO 13855 as quoted. NIST IR 7851 Sec. 5 uses the same 2.0 m/s as the ISO 13855 worst case."
+    assumed: false
+  safety.v_h_switch_m:
+    kind: distance_m
+    role: nominal
+    value: 0.5
+    assumed: true
+    anchor: https://doi.org/10.5220/0007838700780087
+    note: "Separation at which static mode switches from 2.0 to 1.6 m/s. The 0.5 m is the quoting source's wording; in the standard the condition is on the computed distance, which we could not check (research gap 3)."
+  safety.v_h_margin:
+    kind: speed_mps
+    role: nominal
+    value: 0.1
+    assumed: true
+    note: "Margin added to the tracked human speed in monitored mode. Chosen so that a seated person gives S_p(0) = 0.1 x 0.41 + 0.9 + 0.25 = 1.191 m, inside the 1.20 m path clearance the houses keep (DESIGN 6.3)."
+  safety.T_r:
+    kind: duration_s
+    role: nominal
+    value: 0.41
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9 parameter list, printed p. 13: T_R = 0.41 s"
+    note: "Robot reaction time of a laser-scanner SSM (detect + issue stop), measured on the NIST testbed. Used for base and arm."
+    assumed: false
+  safety.a_max_arm:
+    kind: accel_mps2
+    role: nominal
+    value: 5.0
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9, printed p. 13: A = 5.0 m/s^2"
+    note: "Worst-case deceleration of the arm for the stopping time and distance (T_s = v/A, S_s = v^2/2A); NIST value for an industrial 7-axis arm."
+    assumed: false
+  safety.a_max_base:
+    kind: accel_mps2
+    role: nominal
+    value: 1.0
+    assumed: true
+    note: "Braking deceleration of the mobile base. No source opened (research gap 4); 1.0 m/s^2 is a conservative round value for a small indoor base."
+  safety.C:
+    kind: distance_m
+    role: nominal
+    value: 0.9
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9, printed p. 13: C_H = 0.9 m (human region incl. position and size uncertainty)"
+    note: "Intrusion distance C. NIST's C_H already includes the human's position uncertainty and body size, so the distance d is centre to centre and no radius is subtracted."
+    assumed: false
+  safety.Z_d:
+    kind: distance_m
+    role: nominal
+    value: 0.0
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9, printed p. 13: C_H includes position and dimension uncertainty"
+    note: "Human position uncertainty Z_d is set to 0 because it is already inside C = C_H = 0.9 m (no double counting)."
+    assumed: false
+  safety.Z_r:
+    kind: distance_m
+    role: nominal
+    value: 0.25
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9, printed p. 13: C_R = 0.25 m"
+    note: "Robot region term (robot position uncertainty and body) taken from NIST's C_R."
+    assumed: false
+  safety.severe_m:
+    kind: distance_m
+    role: nominal
+    value: 1.15
+    source: https://doi.org/10.6028/NIST.IR.7851
+    where: "Sec. 9, printed p. 13: contact threshold C_R + C_H = 1.15 m; the SSM fails if the distance falls below it while the robot moves"
+    note: "A separation violation is severe when the true centre distance is below 1.15 m while the robot moves (NIST's SSM failure criterion)."
+    assumed: false
+  safety.arm_speed_mps:
+    kind: speed_mps
+    role: nominal
+    value: 0.4
+    source: https://forum.hello-robot.com/t/physical-aspects-of-the-robot-for-simulation/792
+    where: "post body: arm 0.4 m/s"
+    note: "Arm speed v_r for arm skills. Low confidence: a vendor forum post that does not name the robot model, not a datasheet."
+    assumed: false
+  safety.handover_distance_m:
+    kind: distance_m
+    role: nominal
+    value: 0.5
+    source: https://doi.org/10.1007/s12369-014-0232-4
+    where: "Abstract; Sec. 2.2.4 p. 9 (Front Close pose 0.5 m), open-access copy uhra.herts.ac.uk eprint 4332"
+    note: "The base stops 0.5 m from the receiving person; participants were comfortable with this closest implemented distance. Consistent with the 0.57 m - 0.07 m handover distance of Oskoei et al. 2010."
+    assumed: false
+  safety.handover_speed_mps:
+    kind: speed_mps
+    role: nominal
+    value: 0.25
+    assumed: true
+    anchor: https://arxiv.org/abs/2602.17822
+    note: "Speed cap of the final approach and arm extension during a handover. Borrowed from the ISO 10218-1:2025 Class I speed bound 250 mm/s as quoted by Hartmann et al. (p. 11); it is not a handover rule of any standard."
+  safety.muted_speed_mps:
+    kind: speed_mps
+    role: nominal
+    value: 0.3
+    assumed: true
+    anchor: https://www.fabrico.io/blog/iso-3691-4-driverless-industrial-trucks/
+    note: "Speed cap while personnel detection is muted (docking). ISO 3691-4 value as quoted by a vendor blog only (secondary, low reliability), so assumed."
+  safety.stop_timeout_s:
+    kind: duration_s
+    role: nominal
+    value: 30
+    assumed: true
+    note: "A protective stop longer than this aborts the skill with code blocked. No source; a modelling choice (a person standing in the way for 30 s)."
+  safety.p_detection_miss:
+    kind: prob
+    role: safety_noise
+    value: 0.02
+    assumed: true
+    note: "Probability per person and 1 s window that the person detector misses the person; the monitor then uses the last detected position. No person-detection benchmark for home robots was opened (research gap 5)."
+  safety.t_r_jitter_s:
+    kind: duration_s
+    role: safety_noise
+    value: 0.1
+    assumed: true
+    note: "Extra sensing latency per tick, uniform in [0, 0.1 s], on top of T_r; the monitor sees the person where they were that long ago. No source (research gap 5)."
+  safety.personal_zone_m:
+    kind: distance_m
+    role: nominal
+    value: 1.2
+    source: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
+    where: "Table 1: Hall's zones, personal 0.45-1.2 m, social 1.2-3.6 m"
+    note: "Comfort accounting only: time the moving robot spends inside a person's personal zone (centre distance < 1.2 m) is reported; it is not a safety violation."
+    assumed: false
