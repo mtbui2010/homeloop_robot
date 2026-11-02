@@ -280,7 +280,10 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 
 | key | source | link | what was taken (where) | params |
 |---|---|---|---|---|
-| WHISPER | Radford et al., "Robust Speech Recognition via Large-Scale Weak Supervision", ICML 2023 | https://arxiv.org/abs/2212.04356 | Whisper large-v2 zero-shot WER: FLEURS en 4.4 %, CHiME-6 25.5 %, AMI IHM 16.9 %, AMI SDM1 36.4 % (Table 2) | `asr.en.near_wer`, `asr.en.far_wer`; anchor of `asr.ko.far_cer` (SDM1/IHM ratio 2.154); stress `asr.en.far_wer` |
+| WHISPER | Radford et al., "Robust Speech Recognition via Large-Scale Weak Supervision", ICML 2023 | https://arxiv.org/abs/2212.04356 | Whisper large-v2 zero-shot WER: FLEURS en 4.4 %, CHiME-6 25.5 %, AMI IHM 16.9 %, AMI SDM1 36.4 % (Table 2); FLEURS Korean WER 14.3 % (App. D.2, Table 13) | `asr.en.near_wer`, `asr.en.far_wer`, `asr.en.app_wer`; anchor of `asr.ko.far_cer` (SDM1/IHM ratio 2.154); stress `asr.en.far_wer` |
+| SMASSIVE | Lee et al., "Speech-MASSIVE: A Multilingual Speech Dataset for SLU and Beyond", Interspeech 2024 | https://arxiv.org/abs/2408.03900 | Whisper large-v3 zero-shot on ko-KR (short voice-assistant commands, read by crowd workers on their own devices): test WER 26.42 % / CER 8.04 % (2,970 utt), dev 25.29 % / 7.13 % (Table 1, Sec. 2.1, 3.1) | anchor of `asr.ko.app_cer` |
+| KSPON | Bang et al., "KsponSpeech: Korean Spontaneous Speech Corpus for Automatic Speech Recognition", Appl. Sci. 10, 6936, 2020 | https://ksp.etri.re.kr/ksp/article/file/62525.pdf | headset (close-talk) recordings, Shure WH20, quiet office (Sec. 2.1.2); Transformer baseline eval-clean CER 8.0 / WER 21.9 / sWER 14.2 %, eval-other CER 9.0 % (Table 3) | the spacing share of Korean word errors in `asr.ko.app_cer` (sWER / WER = 0.648) |
+| SLURP | Bastianelli et al., "SLURP: A Spoken Language Understanding Resource Package", EMNLP 2020 | https://arxiv.org/abs/2011.13205 | English home-assistant commands, test WER 16.2-24.7 % (Table 5); ~60 % of utterances transcribed perfectly and ~73 % with all entities right by the better of two systems (Sec. 3.2, Fig. 2) | check of the simulated entity-changed share (docs/user_model.md) |
 | KMETEO | Park, Cho, Choo, "Evaluating Automatic Speech Recognition Systems for Korean Meteorological Experts", 2025 (v3) | https://arxiv.org/abs/2410.18444 | KsponSpeech eval-clean CER: Whisper large-v2 zero-shot 14.66 % (Table 3, group 1), fine-tuned 10.48 % (Table 3, group 2) | `asr.ko.near_cer`; stress `asr.ko.near_cer` |
 | OLDERVA | Mahmood, Wang, Huang, "Situated Understanding of Errors in Older Adults' Interactions with Voice Assistants: A Month-Long, In-Home Study" | https://arxiv.org/abs/2403.02421 | 2,552 turns of 15 older-adult households: not listened 69, partially listened 29 (Table 2, Sec. 4.1); interruptions 21 (Table 6) | `asr.p_not_heard`, `asr.p_partial`; anchor of `user.p_interrupt_stop` |
 | ZOU | Zou, Kanoulas, Liu, "An Empirical Study of Clarifying Question-Based Systems", CIKM 2020 | https://arxiv.org/abs/2008.00279 | answers correct 73.1 % / not sure 9.6 % / incorrect 17.3 % (Table 1, Sec. 3.4); answer time min 1.75 s, mean 7.1 s, median 4.98 s (Sec. 3.3); questions answered before stopping, median 7 (Sec. 3.3, Fig. 2) | `user.answer.p_wrong`, `user.answer.p_not_sure`, `user.latency`, `user.patience_questions`; anchor of `user.p_no_answer` |
@@ -309,6 +312,7 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 | param | value | why this number |
 |---|---|---|
 | `asr.ko.far_cer` | 0.2257 | no Korean far-field number; near CER x English AMI SDM1/IHM ratio 2.154 (WHISPER Table 2) |
+| `asr.ko.app_cer` | 0.0521 | no meaning-only Korean near-field rate; SMASSIVE ko-KR CER 8.04 % x KSPON sWER/WER 14.2/21.9 = 0.648 (spacing errors removed) |
 | `asr.far_threshold_m` | 1.2 m | outer edge of Hall's personal zone (WALTERS05 Table 1) used as the near/far microphone switch |
 | `asr.op_shares` | sub 0.6, del 0.3, ins 0.1 | error-type shares not reported; substitutions taken as the majority |
 | `user.p_no_answer` | 0.05 | no silence rate measured; about half of ZOU's not-sure share |
@@ -336,6 +340,47 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 | `safety.t_r_jitter_s` | 0-0.1 s | no source |
 | `safety.p_latency_jitter` | 1.0 (every tick) | no source; the zeroable switch of the latency noise |
 <!-- END user-safety sources -->
+
+## Near-field ASR (app channel, round 2)
+
+With `user.dialog_channel = app` (the `real` default) the user gives the task, and answers the robot's
+questions, by speaking into their own phone or tablet: near-field speech a hand's length from the
+microphone. Until round 2 this channel used `asr.*.near_*`, which is the robot's own microphone within
+1.2 m; for Korean that is a CER of 10.48 % per syllable (KMETEO), and with the bench's long instructions
+(30 Hangul syllables on average) 88.5 % of the Korean dev instructions reached the planner changed. Round 2
+gives the app channel its own rates (`asr.en.app_wer`, `asr.ko.app_cer`, condition `app` in `asr.py`):
+
+- **English, 4.4 % WER per word** (`asr.en.app_wer`, sourced): Whisper large-v2 on FLEURS en, read speech
+  close to the microphone (WHISPER Table 2). Close-talk *spontaneous* meetings are harder (AMI IHM 16.9 %)
+  and SLURP's home-assistant commands, recorded with mixed far / close microphones, give 16.2-24.7 % WER
+  (SLURP Table 5); LibriSpeech test-clean is 2.7 % (WHISPER Table 2).
+- **Korean, 5.21 % CER per syllable, meaning-changing errors only** (`asr.ko.app_cer`, `assumed: true`):
+  Whisper large-v3 zero-shot on Speech-MASSIVE ko-KR, short voice-assistant commands recorded on the
+  speakers' own devices, CER 8.04 % (SMASSIVE Table 1), times the share of Korean word errors that are not
+  spacing errors on the close-talk KsponSpeech corpus, sWER 14.2 / WER 21.9 = 0.648 (KSPON Table 3). Raw CER
+  also counts spacing and number-notation differences that do not change the request (KSPON Sec. 3,
+  SMASSIVE Sec. 3.1), while the simulator's corruption always replaces, drops or adds syllables. Cross-check
+  (model card, not peer-reviewed): Whisper large-v3 on FLEURS Korean CER 5.31 %
+  (https://huggingface.co/BuzzASR/korean). No close-talk Korean number for short spoken commands was found,
+  hence `assumed`.
+- `asr.p_not_heard` / `asr.p_partial` (OLDERVA) apply unchanged.
+
+**Share of instructions that reach the planner changed** (`python -m homeloop_robot.report asr-share --tasks
+<bench>/homeloop_bench/data/tasks/dev.jsonl`, profile real, seed 0, the 1,000 dev tasks, each heard once):
+
+| lang | mean length | channel | any change (corrupted / partial / not heard) | an entity (object, place, person name) changed |
+|---|---|---|---|---|
+| EN | 18.1 words | app (round 2) | 58.1 % (54.2 / 1.1 / 2.8) | 18.8 % |
+| KO | 30.1 syllables | app (round 2) | 76.5 % (73.1 / 1.0 / 2.4) | 35.1 % |
+| KO | 30.1 syllables | old (near, 10.48 % CER) | 91.9 % (88.5 / 1.0 / 2.4) | 56.9 % |
+
+"Any change" includes harmless ones (a function word substituted, "the" inserted). Errors are drawn
+independently per token, an assumption that overstates the share of changed sentences when real errors
+cluster; no sentence-level near-field rate was found to check it, apart from SLURP's ~27 % of English
+commands with an entity wrong under the better of two 2020 systems with mixed microphones (Sec. 3.2), which the
+English entity-changed share (18.8 %, near-field, a stronger recogniser) stays below. Utterance length matters:
+shorter utterances have a higher WER (Li et al. 2023, https://arxiv.org/abs/2305.16065 Sec. 4.3, qualitative
+only), which the per-token model does not represent.
 
 ## Human reach (delivery to a person, round 2)
 

@@ -100,7 +100,7 @@ def test_token_error_rate():
 def test_consistency_rows_pass():
     from homeloop_robot.asr import consistency
     rows = consistency(load_params("real"), n=4000, seed=2)
-    assert len(rows) == 6 and all(r["ok"] for r in rows), rows
+    assert len(rows) == 8 and all(r["ok"] for r in rows), rows
     rows = consistency(load_params("ideal"), n=300, seed=2)
     assert all(r["ok"] and r["observed"] == 0 for r in rows), rows
 
@@ -119,3 +119,20 @@ def test_english_substitutions_are_real_words():
         h = corrupt(EN, "en", "far", random.Random(i), r)
         orig = set(EN.split())
         assert all(tok in real or tok in orig for tok in h.text.split()), h.text
+
+
+def test_app_near_field_rates_and_corruption_share():
+    from homeloop_robot.asr import ASRRates, corruption_share, corrupt
+    from homeloop_robot.profiles import load_profile
+    real = load_profile("real")
+    r = ASRRates(real)
+    assert r.rate[("ko", "app")] == 0.0521 and r.rate[("en", "app")] == 0.044
+    assert r.rate[("ko", "app")] < r.rate[("ko", "near")]
+    assert ASRRates(load_profile("ideal")).rate[("ko", "app")] == 0.0
+    import random
+    assert corrupt("컵 가져다 주세요", "ko", "app", random.Random(0), ASRRates(load_profile("ideal"))).event == "ok"
+    texts = ["빨간 머그컵을 거실 탁자에 가져다 주세요"] * 400
+    near = corruption_share(texts, "ko", real, "near", seed=1)
+    app = corruption_share(texts, "ko", real, "app", seed=1, entities=[[["머그컵"]]] * 400)
+    assert app["changed"] < near["changed"] and 0.0 < app["entity_changed"] < app["changed"]
+    assert corruption_share(texts, "ko", real, "app", seed=1) == corruption_share(texts, "ko", real, "app", seed=1)

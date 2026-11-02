@@ -22,6 +22,8 @@ PARAMS = (
     "asr.en.far_wer",
     "asr.ko.near_cer",
     "asr.ko.far_cer",
+    "asr.en.app_wer",
+    "asr.ko.app_cer",
     "asr.p_not_heard",
     "asr.p_partial",
     "asr.far_threshold_m",
@@ -155,7 +157,9 @@ class ASRRates:
     def __init__(self, profile: Any):
         g = lambda n: param(profile, n)  # noqa: E731
         self.rate = {("en", "near"): float(g("asr.en.near_wer")), ("en", "far"): float(g("asr.en.far_wer")),
-                     ("ko", "near"): float(g("asr.ko.near_cer")), ("ko", "far"): float(g("asr.ko.far_cer"))}
+                     ("ko", "near"): float(g("asr.ko.near_cer")), ("ko", "far"): float(g("asr.ko.far_cer")),
+                     # near-field: the user's phone / tablet (user.dialog_channel = app)
+                     ("en", "app"): float(g("asr.en.app_wer")), ("ko", "app"): float(g("asr.ko.app_cer"))}
         self.p_not_heard = float(g("asr.p_not_heard"))
         self.p_partial = float(g("asr.p_partial"))
         self.far_threshold_m = float(g("asr.far_threshold_m"))
@@ -178,11 +182,12 @@ def _op(rng: random.Random, ops: dict) -> str:
 
 
 def corrupt(text: str, lang: str, condition: str, rng: random.Random, rates: ASRRates) -> Heard:
-    """What the robot's ASR hears for ``text`` spoken in ``lang`` under ``condition`` (near | far)."""
+    """What the robot's ASR hears for ``text`` spoken in ``lang`` under ``condition`` (near | far: the robot's
+    microphone within / beyond asr.far_threshold_m; app: near-field, the user's phone or tablet)."""
     if lang not in ("en", "ko"):
         raise ValueError(f"lang must be en or ko, not {lang!r}")
-    if condition not in ("near", "far"):
-        raise ValueError(f"condition must be near or far, not {condition!r}")
+    if condition not in ("near", "far", "app"):
+        raise ValueError(f"condition must be near, far or app, not {condition!r}")
     if not text.strip():
         return Heard("", "not_heard")
     u = rng.random()
@@ -261,7 +266,7 @@ def consistency(profile: Any, n: int = 20000, seed: int = 0) -> list[dict]:
     rows.append(binomial_row("asr.p_partial", r.p_partial, pa, n, "per utterance (>= 2 tokens)"))
     token = {"en": "mug", "ko": "컵"}
     for lang, key in (("en", "wer"), ("ko", "cer")):
-        for cond in ("near", "far"):
+        for cond in ("near", "far", "app"):
             hits = heard = 0
             for i in range(n):
                 h = corrupt(token[lang], lang, cond, rng_for(seed, "asr-consistency", lang, cond, i), r)
@@ -272,3 +277,32 @@ def consistency(profile: Any, n: int = 20000, seed: int = 0) -> list[dict]:
             rows.append(binomial_row(f"asr.{lang}.{cond}_{key}", r.rate[(lang, cond)], hits, heard,
                                      f"per {'word' if lang == 'en' else 'syllable'}, heard tokens"))
     return rows
+
+
+def corruption_share(texts: list, lang: str, profile: Any, condition: str = "app", seed: int = 0,
+                     entities: list | None = None) -> dict:
+    """Share of instructions that reach the planner changed: {"n", "ok", "corrupted", "partial", "not_heard",
+    "changed"} (changed = corrupted + partial + not_heard), each instruction heard once with its own stream.
+    With ``entities`` (per text: a list of entity groups, each a list of accepted spellings) also
+    "entity_changed": the share of instructions where some entity group no longer appears in what was heard."""
+    from homeloop_robot._hs_compat import rng_for
+
+    r = ASRRates(profile)
+    c = {"ok": 0, "corrupted": 0, "partial": 0, "not_heard": 0}
+    ent_bad = ent_n = 0
+    for i, t in enumerate(texts):
+        h = corrupt(t, lang, condition, rng_for(seed, "asr-share", lang, i), r)
+        c[h.event] += 1
+        groups = entities[i] if entities is not None and i < len(entities) else None
+        if groups:
+            ent_n += 1
+            low = h.text.lower()
+            if any(not any(str(x).lower() in low for x in g) for g in groups if g):
+                ent_bad += 1
+    n = max(1, len(texts))
+    out = {"n": len(texts), **{k: round(v / n, 4) for k, v in c.items()}}
+    out["changed"] = round((c["corrupted"] + c["partial"] + c["not_heard"]) / n, 4)
+    if entities is not None:
+        out["entity_changed"] = round(ent_bad / max(1, ent_n), 4)
+        out["n_with_entities"] = ent_n
+    return out

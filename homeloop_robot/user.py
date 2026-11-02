@@ -267,10 +267,11 @@ class SimUser:
 
     # ------------------------------------------------------------------ dialog
     def hear_instruction(self, text: str, lang: str) -> Heard:
-        """What the robot hears of the task instruction (spoken near: from the approach distance)."""
+        """What the robot hears of the task instruction: app = near-field (the user's phone / tablet); voice =
+        spoken at the robot from the approach distance."""
         if not self.asr_on_instruction:
             return Heard(text, "ok")
-        cond = self.asr.condition(self.approach_distance_m)
+        cond = "app" if self.dialog_channel == "app" else self.asr.condition(self.approach_distance_m)
         return _asr.corrupt(text, lang, cond, self.streams.rng_for("user", "instruction"), self.asr)
 
     def help_request(self, question: str, t: float) -> None:
@@ -325,7 +326,7 @@ class SimUser:
         latency = lognormal(rng, lat["median"], lat["sigma"], lat["min"])
         st = self._state(uid, t)
         # app: spoken into the user's own device, the near condition of the instruction; voice: robot-user distance
-        cond = self.asr.condition(self.approach_distance_m if self.dialog_channel == "app" else dist(robot_xy, st.pos))
+        cond = "app" if self.dialog_channel == "app" else self.asr.condition(dist(robot_xy, st.pos))
         heard = _asr.corrupt(text, L, cond, self.streams.rng_for("user", "asr", k), self.asr)
         self.log.append({"t": r6(t), "q": question, "kind": kind, "why": rule, "text": text, "heard": heard.text,
                          "asr": heard.event, "cond": cond, "latency_s": r6(latency)})

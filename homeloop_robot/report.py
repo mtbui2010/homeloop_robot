@@ -173,6 +173,37 @@ def _fmt_rates(t: dict) -> str:
     return "\n".join(lines)
 
 
+def asr_share(tasks_path: str, profile: str = "real", condition: str = "app", seed: int = 0) -> dict:
+    """Share of instructions that reach the planner changed by ASR (docs/user_model.md, near-field): each task's
+    EN and KO text heard once under ``condition``. ``tasks_path``: a JSONL with ``text.en`` / ``text.ko`` (and
+    ``meta.entities`` for the entity-changed share)."""
+    from .asr import corruption_share
+    from .profiles import load_profile
+    texts = {"en": [], "ko": []}
+    ents = {"en": [], "ko": []}
+    with open(tasks_path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rec = json.loads(line)
+                t = rec.get("text") or {}
+                e = ((rec.get("meta") or {}).get("entities") or {})
+                for lg in texts:
+                    if t.get(lg):
+                        texts[lg].append(t[lg])
+                        # keep only entity groups the text actually contains (paraphrases may reword them)
+                        ents[lg].append([g for g in (e.get(lg) or [])
+                                         if any(str(x).lower() in t[lg].lower() for x in g)])
+    prof = load_profile(profile)
+    out = {"profile": profile, "condition": condition, "seed": seed}
+    for lg, xs in texts.items():
+        r = corruption_share(xs, lg, prof, condition, seed, entities=ents[lg])
+        units = [len(x.split()) if lg == "en" else sum(1 for ch in x if "\uac00" <= ch <= "\ud7a3") for x in xs]
+        r["mean_units"] = round(sum(units) / max(1, len(units)), 2)
+        r["unit"] = "words" if lg == "en" else "hangul syllables"
+        out[lg] = r
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m homeloop_robot.report", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -188,7 +219,15 @@ def main(argv=None) -> int:
     k.add_argument("--profile", default="real", choices=["ideal", "real", "stress"])
     k.add_argument("--seed", type=int, default=0)
     k.add_argument("--trials", type=int, default=300)
+    s = sub.add_parser("asr-share", help="share of instructions changed by ASR (near-field app channel)")
+    s.add_argument("--tasks", required=True, help="JSONL with text.en / text.ko (e.g. the bench's dev split)")
+    s.add_argument("--profile", default="real", choices=["ideal", "real", "stress"])
+    s.add_argument("--condition", default="app", choices=["app", "near", "far"])
+    s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args(argv)
+    if a.cmd == "asr-share":
+        print(json.dumps(asr_share(a.tasks, a.profile, a.condition, a.seed), sort_keys=True, indent=1))
+        return 0
     if a.cmd == "okrobot":
         print(json.dumps(okrobot_trials(a.seed, a.trials, a.profile), sort_keys=True, indent=1))
         return 0

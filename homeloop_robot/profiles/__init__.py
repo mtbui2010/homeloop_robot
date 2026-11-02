@@ -95,6 +95,8 @@ PARAM_REGISTRY: dict = {
     "asr.en.far_wer": _p("prob", "user_noise"),
     "asr.ko.near_cer": _p("prob", "user_noise"),
     "asr.ko.far_cer": _p("prob", "user_noise"),
+    "asr.en.app_wer": _p("prob", "user_noise"),
+    "asr.ko.app_cer": _p("prob", "user_noise"),
     "asr.p_not_heard": _p("prob", "user_noise"),
     "asr.p_partial": _p("prob", "user_noise"),
     "asr.far_threshold_m": _p("distance_m", "nominal"),

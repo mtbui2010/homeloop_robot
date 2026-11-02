@@ -106,16 +106,16 @@ def test_far_answer_uses_far_asr():
     assert r.text == "The blue one." and h.event == "corrupted" and u.log[-1]["cond"] == "far"
 
 
-def test_app_channel_reaches_the_user_anywhere_with_near_asr():
+def test_app_channel_reaches_the_user_anywhere_with_near_field_asr():
     u = user("real", **{"user.p_no_answer": 0.0, "asr.en.far_wer": 1.0, "asr.p_not_heard": 0.0,
                         "asr.p_partial": 0.0, "user.answer.p_wrong": 0.0, "user.answer.p_not_sure": 0.0,
-                        "asr.en.near_wer": 0.0})
+                        "asr.en.near_wer": 1.0, "asr.en.app_wer": 0.0})
     assert u.dialog_channel == "app"
     far = (9.5, 4.5)                                 # kitchen, 8.5 m away: out of hearing range
     assert not u.hears("grandma", far, 0.0) and u.reachable(far, 0.0)
     assert u.ask_audience(far, 0.0) == ("grandma",)
     r, h = u.answer("Which mug, the red one or the blue one?", "en", far, 0.0)
-    assert r.text == "The blue one." and h.event == "ok" and u.log[-1]["cond"] == "near"
+    assert r.text == "The blue one." and h.event == "ok" and u.log[-1]["cond"] == "app"
     asleep = user("ideal", spec=dict(SPEC, asleep=["grandma"]))
     assert not asleep.reachable(NEAR, 0.0) and asleep.ask_audience(NEAR, 0.0) == ()
     assert user("ideal", **{"user.dialog_channel": "voice"}).ask_audience(far, 0.0) is None
@@ -124,7 +124,12 @@ def test_app_channel_reaches_the_user_anywhere_with_near_asr():
 def test_instruction_asr():
     u = user("ideal")
     assert u.hear_instruction("Bring the mug.", "en").text == "Bring the mug."
-    u = user("real", **{"asr.en.near_wer": 1.0, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0})
+    u = user("real", **{"asr.en.app_wer": 1.0, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0})
+    assert u.hear_instruction("Bring the red mug please.", "en").event == "corrupted"
+    u = user("real", **{"asr.en.app_wer": 0.0, "asr.en.near_wer": 1.0, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0})
+    assert u.hear_instruction("Bring the red mug please.", "en").event == "ok"      # app = near-field rate
+    u = user("real", **{"asr.en.near_wer": 1.0, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0,
+                        "user.dialog_channel": "voice"})
     assert u.hear_instruction("Bring the red mug please.", "en").event == "corrupted"
 
 

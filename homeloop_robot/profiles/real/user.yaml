@@ -36,6 +36,21 @@ params:
     assumed: true
     anchor: https://arxiv.org/abs/2212.04356
     note: "No Korean far-field household number found. Derived: near CER 0.1048 x English far/near ratio on the same AMI meetings, SDM1 36.4 % / IHM 16.9 % = 2.154 (Whisper Table 2), giving 0.2257. Assumes the ratio transfers across languages."
+  asr.en.app_wer:
+    kind: prob
+    role: user_noise
+    value: 0.044
+    source: https://arxiv.org/abs/2212.04356
+    where: "Table 2, FLEURS en row, Whisper large-v2 zero-shot: 4.4 % WER"
+    note: "Near-field (app channel): the user speaks into their phone / tablet a hand's length away. Read sentences near a microphone (FLEURS) are the closest opened English condition; close-talk spontaneous meetings are harder (AMI IHM 16.9 %, same table) and SLURP home-assistant commands with mixed far / close mics give 16.2-24.7 % (arXiv:2011.13205 Table 5). Used per word for the instruction and the user's answers when user.dialog_channel = app."
+    assumed: false
+  asr.ko.app_cer:
+    kind: prob
+    role: user_noise
+    value: 0.0521
+    assumed: true
+    anchor: https://arxiv.org/abs/2408.03900
+    note: "Near-field (app channel) Korean, per Hangul syllable, meaning-changing errors only. Derived: Whisper large-v3 zero-shot on Speech-MASSIVE ko-KR (short voice-assistant commands recorded on the speakers' own devices) test CER 8.04 % (arXiv:2408.03900 Table 1) x the share of Korean word errors that are not spacing errors on KsponSpeech eval-clean, sWER 14.2 / WER 21.9 = 0.648 (Bang et al. 2020, https://ksp.etri.re.kr/ksp/article/file/62525.pdf Table 3, close-talk headset recordings) = 0.0521. Raw CER also counts spacing and number-notation differences that do not change what was asked; the simulator's corruptions always change syllables, so only the meaning-changing share is applied. Cross-check (not peer-reviewed): Whisper large-v3 on FLEURS Korean CER 5.31 % (https://huggingface.co/BuzzASR/korean). Assumes the word-level spacing share transfers to syllables."
   asr.p_not_heard:
     kind: prob
     role: user_noise

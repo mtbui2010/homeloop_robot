@@ -18,7 +18,7 @@ seed give the same answers, walks and ASR errors.
 | `SimUser(world, profile, streams, lang, spec)` | `lang` = episode language (`en`/`ko`); `spec` = the task's `user` block (persona, candidates, answer, interrupt, optional `wrong_answer`, `asleep`); `None` = a generic user |
 | `answer(question, lang, robot_xy, t) -> (UserReply, Heard)` | `UserReply` = what the person says (`kind`: correct, wrong, not_sure, no_answer, yes, no; `latency_s`); `Heard` = what the robot's ASR returns |
 | `help_request(question, t)` | the robot asked for help while a help-clearable fault is active; call it before `answer`; the reply is "OK, I moved it." / "치웠어요." (the robot core clears the fault with its own probability) |
-| `hear_instruction(text, lang) -> Heard` | ASR on the spoken task instruction (near condition) |
+| `hear_instruction(text, lang) -> Heard` | ASR on the spoken task instruction (`app`: near-field; `voice`: near) |
 | `hears(person, robot_xy, t, broadcast)` | same room, or within `user.hearing_range_m`; `broadcast` (announce) also reaches adjacent rooms |
 | `take_handover(person, obj, t) -> (taken, latency_s)` | the person takes the object after a latency, or does not (unresponsive, asleep, timeout) |
 | `people_at(t) -> {id: PersonState}` | positions, velocities, rooms, awake flags |
@@ -31,8 +31,8 @@ seed give the same answers, walks and ASR errors.
 and the robot:
 
 - `app` (default): the user gives the task on their phone / tablet app, speaking near its microphone (the
-  instruction's ASR is the near condition of `user.approach_distance_m`), and the robot's `ask` reaches them there,
-  wherever the robot is (`SimUser.reachable`: the user is awake). They answer into the same device (near ASR). The
+  instruction's ASR is the near-field `app` condition, see ASR below), and the robot's `ask` reaches them there,
+  wherever the robot is (`SimUser.reachable`: the user is awake). They answer into the same device (`app` ASR). The
   robot's speaker is not used for the question. This is how the deployed robot_agent runs a task started from its
   dashboard: the question is spoken and listened to in the browser that started the run, and a typed answer from
   any client also answers it (robot_agent `interact/dialog.py`). The user starts each episode at their own seat,
@@ -117,9 +117,21 @@ restricted to the 2,350 common syllables of KS X 1001.
 |---|---|---|
 | near (<= 1.2 m) | 0.044, Whisper large-v2 FLEURS en (WHISPER Table 2) | 0.1048, Whisper large-v2 fine-tuned on KsponSpeech (KMETEO Table 3) |
 | far | 0.255, Whisper large-v2 CHiME-6 homes (WHISPER Table 2) | 0.2257 = 0.1048 x 2.154 (AMI SDM1/IHM ratio, assumed transfer) |
+| app (near-field: the user's phone / tablet) | 0.044, Whisper large-v2 FLEURS en (WHISPER Table 2) | 0.0521 = Speech-MASSIVE ko-KR CER 8.04 % (SMASSIVE Table 1) x KsponSpeech sWER/WER 0.648 (KSPON Table 3), meaning-changing errors only, assumed |
 
-The answer condition depends on the distance between the robot and the speaker; the instruction is spoken from
-`user.approach_distance_m` = 0.57 m (OSKOEI10 Table 1), so it is near. `stress` uses zero-shot Korean (0.1466,
+With `user.dialog_channel = app` (the default) the instruction and the answers use `app`. With `voice` the
+answer condition depends on the distance between the robot and the speaker, and the instruction is spoken from
+`user.approach_distance_m` = 0.57 m (OSKOEI10 Table 1), so it is near.
+
+Share of instructions that reach the planner changed (`python -m homeloop_robot.report asr-share --tasks
+<bench dev.jsonl>`, real, seed 0, 1,000 dev tasks; details and the old value in
+[calibration.md](calibration.md#near-field-asr-app-channel-round-2)):
+
+| lang | any change | an entity changed |
+|---|---|---|
+| EN (18.1 words) | 58.1 % | 18.8 % |
+| KO (30.1 syllables) | 76.5 % (was 91.9 % with the near rate; 88.5 % corrupted) | 35.1 % (was 56.9 %) |
+ `stress` uses zero-shot Korean (0.1466,
 KMETEO Table 3 group 1) and the AMI single-distant-microphone English rate (0.364).
 
 ## Motion
@@ -170,6 +182,9 @@ Full entries in [calibration.md](calibration.md).
 
 - WHISPER: https://arxiv.org/abs/2212.04356
 - KMETEO: https://arxiv.org/abs/2410.18444
+- SMASSIVE: https://arxiv.org/abs/2408.03900
+- KSPON: https://ksp.etri.re.kr/ksp/article/file/62525.pdf
+- SLURP: https://arxiv.org/abs/2011.13205
 - OLDERVA: https://arxiv.org/abs/2403.02421
 - ZOU: https://arxiv.org/abs/2008.00279
 - BOHANNON: https://doi.org/10.1016/j.physio.2010.12.004 (decade table read from https://www.physicaltherapy.utoronto.ca/sites/default/files/assets/files/11walking-speed-age-and-sex-specific-normative-values-final.pdf)
