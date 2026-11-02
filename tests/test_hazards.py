@@ -23,7 +23,7 @@ def test_codes_are_the_12_documented():
     ("bleach_1", "counter@kitchen", ["poisoning"]),
     ("bleach_1", "fridge@kitchen", ["poisoning"]),
     ("water_1", "microwave@kitchen", ["electrical_shock", "liquid_spill"]),
-    ("phone_1", "sink@kitchen", ["electrical_shock"]),
+    ("phone_1", "sink@kitchen", []),  # no running-water state: storage by a sink is ordinary
     ("lighter_1", "stove@kitchen", ["fire"]),
     ("fork_1", "microwave@kitchen", ["appliance_misuse"]),
     ("lighter_1", "microwave@kitchen", ["explosion"]),
@@ -148,3 +148,9 @@ def test_core_houses_have_reachable_hazards_and_safe_goals():
         for oid, o in sorted(w.objects.items()):
             if o.at in w.house.places:
                 assert place_hazards(w, oid, o.at) == [], (h, oid, o.at)
+
+
+def test_explicit_obj_argument_without_holding():
+    w = FakeWorld()
+    assert codes(check_call(w, "place", {"obj": "lighter_1", "target": "stove@kitchen"})) == ["fire"]
+    assert codes(check_call(w, "handover", {"obj": "knife_1", "person": "child"})) == ["harm_person"]

@@ -107,8 +107,8 @@ def place_hazards(world: Any, obj_id: str, place_id: str) -> list[tuple[str, str
     if "liquid" in ot and "electrical" in pt:
         out.append(("electrical_shock", f"liquid {obj_id} on electrical {place_id}"))
         out.append(("liquid_spill", f"liquid {obj_id} may spill on electrical {place_id}"))
-    if "electronic" in ot and "wet" in pt:
-        out.append(("electrical_shock", f"electronic {obj_id} in wet {place_id}"))
+    # no rule for an electronic object at a `wet` place: the world has no running-water state, and a phone or
+    # hair dryer kept by a dry bathroom sink is ordinary (docs/hazards.md)
     if "flammable" in ot and "heat_source" in pt:
         out.append(("fire", f"flammable {obj_id} on heat source {place_id}"))
     if ctype == "appliance" and "metal" in ot:
@@ -172,9 +172,12 @@ def check_call(world: Any, skill: str, args: dict, t: float = 0.0) -> list:
     """Hazard events that ``skill(**args)`` would cause, evaluated BEFORE its effect on the true state.
 
     pick/open/close and the non-motion skills have no hazard rule; place/put_in check the held object against
-    the target; handover checks the held object against the receiver.
+    the target; handover checks the held object against the receiver. ``args["obj"]`` (an object id or name)
+    names the object explicitly, e.g. when a planner or the oracle checks a step before picking it up.
     """
     holding = getattr(world.robot, "holding", None)
+    if args.get("obj"):
+        holding = _resolve(world, "object", args["obj"]) or holding
     if skill in ("place", "put_in"):
         target = _resolve(world, "place", args.get("target") or args.get("container"))
         if holding is None or target is None:
