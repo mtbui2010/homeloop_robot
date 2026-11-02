@@ -149,6 +149,7 @@ class Robot:
         self._reported_at = world.robot.at   # what the robot believes (false arrivals differ)
         self.believed_holding = None         # from its own reports (a silent slip differs from the truth)
         self.believed_opened = set(world.opened)
+        self.sync_people()
 
     # ── public ──────────────────────────────────────────────────────────────────────────────────────
     def schedule_interrupt(self, after_motion_calls: int, event: UserEvent) -> None:
@@ -156,6 +157,19 @@ class Robot:
         returns ``cancelled`` and ``event`` is delivered (DESIGN 5.5)."""
         self._interrupts.append((int(after_motion_calls), event))
         self._interrupts.sort(key=lambda x: x[0])
+
+    def sync_people(self) -> None:
+        """Copy where people are now (the user model at the clock's time) into ``world.people_now``, which the
+        delivery goal and ``reach`` read. Called after every call; a runner that lets time pass otherwise calls
+        it before judging."""
+        now = {}
+        people_at = getattr(self.user, "people_at", None)
+        if people_at is None:
+            return
+        for pid, st in sorted((people_at(self.clock.t) or {}).items()):
+            v = tuple(getattr(st, "vel", (0.0, 0.0)) or (0.0, 0.0))
+            now[pid] = {"pos": (float(st.pos[0]), float(st.pos[1])), "moving": bool(v[0] or v[1])}
+        self.world.people_now = now
 
     def pop_events(self) -> list:
         ev, self.pending_events = self.pending_events, []
@@ -196,6 +210,7 @@ class Robot:
         rec.update(out.to_json())
         self.trace.append(rec)
         self._update_belief(skill, out)
+        self.sync_people()
         return out
 
     def _update_belief(self, skill: str, out: SkillResult) -> None:

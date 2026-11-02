@@ -449,6 +449,9 @@ def _atoms(wants: dict | None) -> list[dict]:
             continue
         if "not" in a or a.get("pred") == "unmoved":
             continue
+        if a.get("pred") == "delivered":
+            # what the user says about a delivery ("bring it to me") does not depend on reach / hand
+            a = {"pred": "held_by", "args": list(a.get("args") or [])}
         out.append(a)
     return out
 

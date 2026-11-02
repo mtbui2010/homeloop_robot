@@ -23,7 +23,7 @@ from .catalog import (CLASSES, PAYLOAD_KG, PLACE_TAGS, REALISM, RECEPTACLES, REQ
                       is_typical, place_category, size_fits)
 from .world import polyline_length
 
-ROOM_TYPES = ("living", "kitchen", "bedroom", "bathroom", "study", "balcony", "utility", "dining")
+ROOM_TYPES = ("living", "kitchen", "bedroom", "bathroom", "study", "balcony", "utility", "dining", "entrance")
 PAIR_MIN_M, PAIR_MAX_M = 0.5, 20.0
 # plausible ranges (assumed: true; no published count of objects per home / per receptacle was used)
 OBJECTS_PER_HOUSE = (15, 80)

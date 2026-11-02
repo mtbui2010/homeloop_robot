@@ -213,12 +213,14 @@ RECEPTACLES: dict = {
               "note": "AI2-THOR Chair is not a receptacle: nothing is kept on it"},
     "Wardrobe": {"thor": False, "room_types": ("bedroom",), "capacity_size_class": "l",
                  "note": "assumed: no AI2-THOR wardrobe type (clothes / towels storage in bedrooms)"},
-    "ShoeCabinet": {"thor": False, "room_types": ("living",), "capacity_size_class": "l",
+    "ShoeCabinet": {"thor": False, "room_types": ("living", "entrance"), "capacity_size_class": "l",
                     "note": "assumed: the entryway shoe cabinet of Korean homes (신발장); no AI2-THOR type"},
     "DryingRack": {"thor": False, "room_types": ("balcony", "utility"), "capacity_size_class": "xl",
                    "note": "assumed: the clothes drying rack on a Korean balcony (빨래 건조대); no AI2-THOR type"},
     "Floor": {"thor": True, "room_types": ("*",), "capacity_size_class": "xl"},
     "Dock": {"thor": False, "room_types": ("*",), "capacity_size_class": None, "note": "the robot's dock"},
+    "Stand": {"thor": False, "room_types": ("*",), "capacity_size_class": None,
+              "note": "a spot where a person stands (front door, hallway); holds nothing"},
 }
 
 # fixtures a room type must have (R-h); a combined room has several types
@@ -238,7 +240,7 @@ PLACE_CATEGORY: dict = {
     "tv_stand": "TVStand", "wardrobe": "Wardrobe", "closet": "Wardrobe", "shoe_cabinet": "ShoeCabinet",
     "sofa": "Sofa", "armchair": "ArmChair", "recliner": "ArmChair", "reading_chair": "ArmChair", "bed": "Bed",
     "kids_bed": "Bed", "desk_chair": "Chair", "toy_box": "Box", "drying_rack": "DryingRack", "floor": "Floor",
-    "dock": "Dock", "kitchen_sink": "SinkBasin",
+    "dock": "Dock", "kitchen_sink": "SinkBasin", "front_door": "Stand", "hallway": "Stand",
 }
 
 # cls -> (category, size_class, provenance, typical)

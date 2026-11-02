@@ -40,6 +40,15 @@ class _Plan:
     def __init__(self, world: World, lang: str, people_pos: Optional[dict] = None):
         self.w = world.copy()
         self.people_pos = dict(people_pos or {})
+        if people_pos:
+            # the delivery goal and reach read people_now: plan from where people are now
+            now = dict(self.w.people_now)
+            for pid, xy in people_pos.items():
+                if pid in self.w.people:
+                    old = now.get(pid) or {}
+                    moving = bool(old.get("moving")) and tuple(old.get("pos", ())) == tuple(xy)
+                    now[pid] = {"pos": (float(xy[0]), float(xy[1])), "moving": moving}
+            self.w.people_now = now
         self.calls: list = []
         self.cost = 0.0
         self.lang = lang
@@ -174,7 +183,8 @@ def _place_hazard(world, oid, pid) -> bool:
 
 
 def _atom_objs(a) -> list:
-    return [x for x in a.get("args", [])[:1]] if a.get("pred") in ("on", "in", "held_by", "holding") else []
+    return [x for x in a.get("args", [])[:1]] if a.get("pred") in ("on", "in", "held_by", "delivered", "holding") \
+        else []
 
 
 def _apply(plan: _Plan, a: dict):
@@ -238,6 +248,27 @@ def _apply(plan: _Plan, a: dict):
         plan.calls.append(Call("handover", {"person": person}))
         o = w.objects[oid]
         o.at, r.holding = f"person:{person}", None
+    elif p == "delivered":
+        # the atom's mode is the oracle's own choice (see _own_modes), never the task's label
+        oid, person = args
+        if person not in w.people:
+            raise Unsolvable(f"{person} is not in the house")
+        if r.holding not in (None, oid):
+            plan.stow_held()
+        surface = None
+        if a.get("mode") == "reach":
+            for s in _reach().reachable_surfaces(w, person, free_only=True):
+                if not _place_hazard(w, oid, s):
+                    surface = s
+                    break
+        plan.fetch(oid)
+        if surface is not None:
+            plan.put(surface)
+        else:
+            plan.move_person(person)
+            plan.calls.append(Call("handover", {"person": person}))
+            o = w.objects[oid]
+            o.at, r.holding = f"person:{person}", None
     elif p == "holding":
         plan.fetch(args[0])
     elif p == "hand_empty":
@@ -284,7 +315,7 @@ def _order(world: World, atoms: list) -> list:
         p = base.get("pred")
         if "any" in a:
             obj_atoms.append(a)
-        elif p in ("on", "in", "held_by") and "not" not in a:
+        elif p in ("on", "in", "held_by", "delivered") and "not" not in a:
             obj_atoms.append(a)
         elif p == "holding" and "not" not in a:
             hold.append(a)
@@ -324,19 +355,58 @@ def _order(world: World, atoms: list) -> list:
     return out + msg + art + final + hold
 
 
+def _reach():
+    from . import reach
+    return reach
+
+
+def delivery_modes(world: World, goal: dict, *, text: str = "", lang: str = "en",
+                   people_pos: Optional[dict] = None) -> dict:
+    """{(obj, person): "reach" | "hand"} for every delivery atom of ``goal``, chosen the way a robot would from
+    what it observes when it gets the request (``reach.choose_mode``: the words, the house profile, the
+    furniture around the person where they are). The atoms' own ``mode`` labels are never read. A runner calls
+    this once at the start and passes the result to every ``solve`` of the episode."""
+    w = _Plan(world, lang, people_pos).w
+    out = {}
+    for a in G.iter_preds(goal):
+        if a.get("pred") == "delivered" and len(a.get("args") or []) == 2 and a["args"][1] in w.people:
+            out[(a["args"][0], a["args"][1])] = _reach().choose_mode(w, a["args"][1], text, lang).mode
+    return out
+
+
+def _own_modes(atom: dict, modes: dict):
+    """A copy of ``atom`` whose delivery atoms carry the oracle's mode instead of the task's label."""
+    if "not" in atom:
+        return {"not": _own_modes(atom["not"], modes)}
+    if "any" in atom:
+        return {"any": [_own_modes(x, modes) for x in atom["any"]]}
+    if atom.get("pred") == "delivered":
+        args = list(atom.get("args") or [])
+        return {"pred": "delivered", "args": args, "mode": modes.get(tuple(args), "hand")}
+    return atom
+
+
 def solve(world: World, goal: dict, *, avoid_hazards: bool = True, max_calls: int = 60,
-          lang: str = "en", people_pos: Optional[dict] = None) -> Optional[list]:
+          lang: str = "en", people_pos: Optional[dict] = None, text: Optional[str] = None,
+          modes: Optional[dict] = None) -> Optional[list]:
     """Calls that reach ``goal`` from the true state of ``world``; None when it cannot be reached.
     ``people_pos`` ({person: (x, y)}, e.g. from ``user.people_at(t)``) overrides the start positions
-    of people who have moved."""
+    of people who have moved. Deliveries: ``modes`` ({(obj, person): reach | hand}, from
+    :func:`delivery_modes` at the start of the episode) or, when not given, :func:`delivery_modes` on the
+    request ``text`` now. Reach: put the object on the nearest reachable support surface with room (a
+    handover when there is none any more); hand: a handover. The goal's ``mode`` labels are never read."""
     try:
         return _solve(world, goal, avoid_hazards=avoid_hazards, max_calls=max_calls, lang=lang,
-                      people_pos=people_pos)
+                      people_pos=people_pos, text=text, modes=modes)
     except Unsolvable:
         return None
 
 
-def _solve(world, goal, *, avoid_hazards, max_calls, lang, people_pos=None) -> list:
+def _solve(world, goal, *, avoid_hazards, max_calls, lang, people_pos=None, text=None, modes=None) -> list:
+    if any(a.get("pred") == "delivered" for a in G.iter_preds(goal)):
+        if modes is None:
+            modes = delivery_modes(world, goal, text=text or "", lang=lang, people_pos=people_pos)
+        goal = dict(goal, all=[_own_modes(a, modes) for a in goal.get("all") or []])
     if G.validate(goal, world):
         raise Unsolvable("invalid goal: " + "; ".join(G.validate(goal, world)))
     if avoid_hazards:
@@ -359,10 +429,11 @@ def _solve(world, goal, *, avoid_hazards, max_calls, lang, people_pos=None) -> l
     return plan.calls
 
 
-def explain_unsolvable(world: World, goal: dict, *, avoid_hazards: bool = True, max_calls: int = 60) -> str:
+def explain_unsolvable(world: World, goal: dict, *, avoid_hazards: bool = True, max_calls: int = 60,
+                       text: Optional[str] = None, lang: str = "en") -> str:
     """Why ``solve`` returns None ("" when the goal is solvable)."""
     try:
-        _solve(world, goal, avoid_hazards=avoid_hazards, max_calls=max_calls, lang="en")
+        _solve(world, goal, avoid_hazards=avoid_hazards, max_calls=max_calls, lang=lang, text=text)
     except Unsolvable as e:
         return str(e)
     return ""
@@ -391,7 +462,7 @@ def recovery_call(code: Optional[str], skill: str, world: World, user, t: float,
 
 
 def rollout(episode, goal: dict, *, max_calls: int = 60, max_time_s: float = 1800.0, max_attempts: int = 3,
-            lang: str = "en") -> dict:
+            lang: str = "en", text: Optional[str] = None) -> dict:
     """Closed-loop oracle on an episode (reference behaviour, docs/oracle.md): re-solve from the true
     world after every call; at most ``max_attempts`` consecutive failures of the same call; the follow-up of
     :func:`recovery_call` (wait 5 s before retrying perception_unavailable / blocked; ask for help with a
@@ -399,11 +470,13 @@ def rollout(episode, goal: dict, *, max_calls: int = 60, max_time_s: float = 180
     w, robot = episode.world, episode.robot
     fails: dict = {}
     n = 0
+    people = {pid: st.pos for pid, st in episode.user.people_at(episode.clock.t).items()}
+    modes = delivery_modes(w, goal, text=text or "", lang=lang, people_pos=people)
     while n < max_calls and episode.clock.t < max_time_s:
         if G.evaluate(goal, w).holds:
             return {"success": True, "calls": n, "status": "done"}
         people = {pid: st.pos for pid, st in episode.user.people_at(episode.clock.t).items()}
-        plan = solve(w, goal, lang=lang, people_pos=people)
+        plan = solve(w, goal, lang=lang, people_pos=people, modes=modes)
         if not plan:
             return {"success": False, "calls": n, "status": "give_up"}
         c = plan[0]

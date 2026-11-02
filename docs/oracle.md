@@ -24,6 +24,11 @@ Plan construction (deterministic, ties by id):
 - `on(o, p)`: (open o's container if closed) move, find, pick, move p, place;
 - `in(o, c)`: open c first (it needs an empty hand), then fetch o, move c, put_in; a partly open
   container is closed and opened again;
+- `delivered(o, person)`: the mode comes from `delivery_modes` / `reach.choose_mode` (the request's words,
+  the house profile, the furniture around the person), never from the atom's `mode` label (`_own_modes` replaces
+  it before planning). reach: fetch, move to the nearest reachable support surface with room, place; with none
+  left (the person moved), or mode hand: fetch, move to the person, handover. Pass `text=` (the request) or
+  `modes=` (from `delivery_modes` at the episode start) to `solve`; `rollout(..., text=)` fixes the modes once;
 - `held_by(o, person)`: fetch, move to the person, handover; `said_to(person, key)`: move to the person,
   say the key's canonical sentence (`catalog.MESSAGE_TEXT`) in `lang`;
 - a held object no goal needs is put back where it started, or on the nearest free surface.

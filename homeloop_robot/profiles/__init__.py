@@ -143,6 +143,13 @@ PARAM_REGISTRY: dict = {
     "safety.p_latency_jitter": _p("prob", "safety_noise"),
     "safety.personal_zone_m": _p("distance_m", "nominal"),
     # END user-safety
+    "reach.grip_reach_m": _p("distance_m", "nominal"),
+    "reach.body_offset_m": _p("distance_m", "nominal"),
+    "reach.lean_seated_m": _p("distance_m", "nominal"),
+    "reach.lean_standing_m": _p("distance_m", "nominal"),
+    "reach.lean_standing_frail_m": _p("distance_m", "nominal"),
+    "reach.band_seated_m": _p("range", "nominal"),
+    "reach.band_standing_m": _p("range", "nominal"),
 }
 
 

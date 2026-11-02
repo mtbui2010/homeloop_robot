@@ -336,3 +336,29 @@ HTTP 403). Every standard value below is as quoted by the secondary source named
 | `safety.t_r_jitter_s` | 0-0.1 s | no source |
 | `safety.p_latency_jitter` | 1.0 (every tick) | no source; the zeroable switch of the latency noise |
 <!-- END user-safety sources -->
+
+## Human reach (delivery to a person, round 2)
+
+Sources of `profiles/real/reach.yaml` (docs/reach.md). All were opened (page / table noted).
+
+| key | source | link | what was taken (where) | params |
+|---|---|---|---|---|
+| CITYU | Online Anthropometry, Ch. 2, forward grip reach (City University of Hong Kong course pages; the underlying survey is not named on the page) | https://personal.cityu.edu.hk/meachan/Online%20Anthropometry/Chapter2/Ch2-34_36.htm | forward grip reach, back of the shoulder blades to the centre of a grasped rod, arm forward at shoulder level, "easy reach without excessive stretch": women 5th / 50th / 95th percentile Hong Kong 580 / 635 / 690 mm, US 655 / 710 / 765 mm, Japanese 570 / 620 / 670 mm (table) | `reach.grip_reach_m` (580 mm) |
+| ADEMILUYI24 | Ademiluyi & Aruin, "The effect of advanced age and stool modification on reaching distance in sitting", J Phys Ther Sci 36(11):685-691, 2024 | https://doi.org/10.1589/jpts.36.685 | reach beyond the arm held at ~90 deg, seated, 12 older (70 +/- 4 y) and 12 young adults: forward FlatS old 22.4 / young 26.2 cm, lateral FlatS old 16.8 / young 18.8 cm, footrest forward old 27.9 cm (Table 2). Opened at https://www.jstage.jst.go.jp/article/jpts/36/11/36_2024-013/_article/-char/en | `reach.lean_seated_m` (16.8 cm) |
+| BOHANNON17 | Bohannon, Wolfson & White, Physiotherapy 103(4):387-391, 2017 | https://pmc.ncbi.nlm.nih.gov/articles/PMC5628099 | standing Functional Reach Test, older adults, pooled 27.2 cm (95 % CI 25.5-28.9), percentiles 5th 19.4 / 50th 27.2 / 95th 35.0 cm (Table 3) | `reach.lean_standing_m` (19.4 cm) |
+| ROSA19 | Rosa, Perracini & Ricci (meta-analysis of the Functional Reach Test), Arch Gerontol Geriatr 81:149-170, 2019 (abstract page) | https://ifp.nyu.edu/?p=1395018 | FRT community-dwelling 26.6 cm (95 % CI 25.14-28.06), non-community (institutional) 15.4 cm (13.47-17.42) | `reach.lean_standing_frail_m` (15.4 cm) |
+| ADA | U.S. Access Board, 2010 ADA Standards for Accessible Design | https://www.access-board.gov/ada/ | 308.2.1 forward reach 380-1220 mm above the floor; 308.2.2 high reach over a 510-635 mm deep obstruction 1120 mm max; 902.3 work surfaces 710-865 mm | `reach.band_seated_m` [0.38, 1.12], `reach.band_standing_m` [0.38, 1.22] |
+| ICED15 | ICED 2015 reach-envelope paper (arXiv) | https://arxiv.org/abs/1607.04653 | arm length 719 (SD 41.5) mm of 40 adults; reach envelope as an arc of arm length about the shoulder (Table 1, Sec. 4.2) | check of `reach.grip_reach_m` (no parameter) |
+
+`reach.body_offset_m` (0.12 m, from the back of the shoulder blades to the body centre) is **assumed**: no
+torso-depth source was opened. Resulting radii: seated 0.58 - 0.12 + 0.168 = **0.628 m**, standing 0.654 m,
+standing and frail 0.614 m. The ADA bands are design values for wheelchair users (the seated, reach-limited
+case); no standing band for older adults was found, so the ADA band is used for standing people too.
+
+Place-or-hand evidence (motivates mode `reach` as the default, no parameter): in a Stretch user study, all
+25 participants who were busy preferred the object placed on their table to a handover, and 77 % when not busy
+(Phan & Cosgun, Sensors 25(7):2140, 2025, Table 3, https://pmc.ncbi.nlm.nih.gov/articles/PMC11991642/);
+RoboCup@Home 2018 Restaurant: "The robot must place the order on the table. If the robot is not able to do this,
+the robot is allowed to hand over the order" (Sec. 6.4, https://athome.robocup.org/wp-content/uploads/2018/10/2018_rulebook.pdf);
+OK-Robot drops onto named receptacles in 10 real homes, no handover (https://arxiv.org/abs/2401.12202).
+`prefers_handover` (house profile, care_home_suite resident only) has no source: it is a house setting.

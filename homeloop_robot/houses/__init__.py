@@ -18,7 +18,10 @@ HOUSE_DIR = Path(__file__).resolve().parent
 APPROACH_CLEARANCE_M = 1.30
 PATH_CLEARANCE_M = 1.20
 
-PLACE_KINDS = ("surface", "container", "seat", "floor", "dock")
+PLACE_KINDS = ("surface", "container", "seat", "floor", "dock", "stand")
+# the robot sets an object down at most this far from its approach pose (geometry check of `top`, not a
+# calibrated value: about the horizontal reach of a mobile manipulator arm plus the base front)
+TOP_MAX_FROM_POSE_M = 0.9
 CONTAINER_TYPES = ("drawer", "cabinet", "fridge", "appliance", "box")
 CLUTTER = ("low", "medium", "high")
 
@@ -59,7 +62,8 @@ def parse_house(d: dict) -> House:
             container=Container(type=c["type"], openable=bool(c.get("openable", True)),
                                 opened=bool(c.get("opened", False))) if c else None,
             person_pos=_t(p["person_pos"]) if p.get("person_pos") is not None else None,
-            category=p.get("category"))
+            category=p.get("category"),
+            top=_t(p["top"]) if p.get("top") is not None else None)
     objects = [ObjSpec(id=o["id"], cls=o["cls"], attrs=dict(o.get("attrs") or {}), at=o["at"],
                        alt=list(o.get("alt") or [])) for o in d.get("objects") or []]
     people = [PersonSpec(id=p["id"], role=p.get("role", "other"), name=dict(p["name"]),
@@ -68,7 +72,9 @@ def parse_house(d: dict) -> House:
                          alt_seats=list(p.get("alt_seats") or []),
                          aliases={"en": list((p.get("aliases") or {}).get("en") or []),
                                   "ko": list((p.get("aliases") or {}).get("ko") or [])},
-                         frail=bool(p.get("frail", False)))
+                         frail=bool(p.get("frail", False)),
+                         prefers_handover=bool(p.get("prefers_handover", False)),
+                         walks_to=list(p.get("walks_to") or []))
               for p in d.get("people") or []]
     rb = d.get("robot") or {}
     return House(house=d["house"], version=int(d.get("version", 1)), name=dict(d.get("name") or {}),
@@ -97,7 +103,7 @@ def seat_positions(house: House) -> list:
     out = []
     for p in house.people:
         out.append((p.id, p.seat, tuple(p.pos)))
-        for s in p.alt_seats:
+        for s in list(p.alt_seats) + list(p.walks_to):
             pl = house.places.get(s)
             if pl is not None and pl.person_pos is not None:
                 out.append((p.id, s, tuple(pl.person_pos)))
@@ -153,6 +159,19 @@ def validate_house(house: House) -> list:
         for lg in ("en", "ko"):
             if not p.name.get(lg):
                 E(f"place {pid}: name.{lg} missing")
+        if p.top is not None:
+            if p.kind != "surface":
+                E(f"place {pid}: top on a {p.kind} (only surfaces have a top)")
+            elif not rooms[p.room].contains(p.top):
+                E(f"place {pid}: top {p.top} outside room {p.room}")
+            elif dist(p.top, p.pos) > TOP_MAX_FROM_POSE_M + 1e-9:
+                E(f"place {pid}: top {p.top} is {dist(p.top, p.pos):.2f} m from its approach pose "
+                  f"(> {TOP_MAX_FROM_POSE_M})")
+        if p.kind == "stand":
+            if p.person_pos is None:
+                E(f"place {pid}: a stand spot needs person_pos")
+            if p.capacity != 0:
+                E(f"place {pid}: a stand spot holds nothing (capacity 0)")
     # objects
     ids = [o.id for o in house.objects]
     if len(ids) != len(set(ids)):
@@ -183,6 +202,9 @@ def validate_house(house: House) -> list:
         for s in p.alt_seats:
             if s in places and places[s].person_pos is None:
                 E(f"person {p.id}: alt seat {s} has no person_pos")
+        for s in p.walks_to:
+            if s not in places or places[s].kind not in ("seat", "stand") or places[s].person_pos is None:
+                E(f"person {p.id}: walks_to {s} must be a seat / stand spot with person_pos")
         if not any(r.contains(p.pos) for r in rooms.values()):
             E(f"person {p.id}: pos outside every room")
     # robot

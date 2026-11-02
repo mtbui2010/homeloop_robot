@@ -25,7 +25,7 @@ places:
      pos: [6.6, 1.0], yaw_deg: 270, height_m: 1.45, clutter: medium, capacity: 6, tags: [high_shelf]}
   side_table@living:
     {room: living, kind: surface, name: {en: side table, ko: 사이드 테이블}, aliases: {en: [], ko: [협탁]},
-     pos: [4.0, 0.8], yaw_deg: 270, height_m: 0.5, clutter: high, capacity: 5, tags: [electrical]}
+     top: [3.2, 0.5], pos: [4.0, 0.8], yaw_deg: 270, height_m: 0.5, clutter: high, capacity: 5, tags: [electrical]}
   shoe_cabinet@living:
     {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
@@ -56,7 +56,7 @@ places:
      pos: [9.7, 0.5], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
   desk@room_a:
     {room: room_a, kind: surface, name: {en: desk in room A, ko: A 방 책상}, aliases: {en: [], ko: []},
-     pos: [1.9, 6.0], yaw_deg: 90, height_m: 0.75, clutter: medium, capacity: 6, tags: [electrical]}
+     top: [0.95, 6.5], pos: [1.8, 6.5], yaw_deg: 180, height_m: 0.75, clutter: medium, capacity: 6, tags: [electrical]}
   desk_chair@room_a:
     {room: room_a, kind: seat, name: {en: chair in room A, ko: A 방 의자}, aliases: {en: [], ko: []},
      pos: [2.2, 5.0], yaw_deg: 180, height_m: 0.45, clutter: low, capacity: 1, tags: []}
@@ -76,7 +76,7 @@ places:
      pos: [3.8, 4.0], yaw_deg: 180, height_m: 0.9, clutter: low, capacity: 5, tags: []}
   desk@room_c:
     {room: room_c, kind: surface, name: {en: desk in room C, ko: C 방 책상}, aliases: {en: [], ko: []},
-     pos: [7.0, 6.0], yaw_deg: 90, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
+     top: [8.05, 6.15], pos: [7.6, 5.4], yaw_deg: 59, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
   bed@room_c:
     {room: room_c, kind: seat, name: {en: bed in room C, ko: C 방 침대}, aliases: {en: [], ko: []},
      pos: [8.4, 5.1], yaw_deg: 0, height_m: 0.5, clutter: low, capacity: 3, tags: []}

@@ -1,0 +1,61 @@
+# Human reach of the `real` profile (round 2, delivery to a person; homeloop_robot/reach.py, docs/reach.md).
+# Geometry, role nominal: ideal and stress keep these values. Sources in docs/calibration.md ("Human reach").
+# R(posture) = reach.grip_reach_m - reach.body_offset_m + lean(posture); measured from the body centre to the
+# object's spot on the surface. Seated: 0.58 - 0.12 + 0.168 = 0.628 m; standing: 0.654 m; standing, frail: 0.614 m.
+profile: real
+part: reach
+params:
+  reach.grip_reach_m:
+    kind: distance_m
+    role: nominal
+    value: 0.58
+    source: https://personal.cityu.edu.hk/meachan/Online%20Anthropometry/Chapter2/Ch2-34_36.htm
+    where: "table 'Forward grip reach (mm)', Hong Kong women, 5th percentile 580 mm"
+    note: "Forward grip reach from the back of the shoulder blades to the centre of a rod grasped in the palm, arm raised forward at shoulder level, an easy reach without excessive stretch. The 5th percentile of Hong Kong women (580 mm) is taken so that the reach holds for most users (US women 655 mm, Japanese women 570 mm on the same page)."
+    assumed: false
+  reach.body_offset_m:
+    kind: distance_m
+    role: nominal
+    value: 0.12
+    assumed: true
+    note: "Distance from the back of the shoulder blades (where grip reach is measured from) to the body centre (the person's position in the world). No source opened for torso depth; about half the chest depth of an adult. Sensitivity: R moves 1:1 with it."
+  reach.lean_seated_m:
+    kind: distance_m
+    role: nominal
+    value: 0.168
+    source: https://doi.org/10.1589/jpts.36.685
+    where: "Table 2, lateral reach, FlatS (no leg support), old adults 16.80 +/- 0.50 cm (mean +/- SE)"
+    note: "Ademiluyi & Aruin, J Phys Ther Sci 2024;36(11):685-691: how far 12 older adults (70 +/- 4 y) reach beyond the arm held out at ~90 deg while seated. The lateral value (16.8 cm, smaller than forward 22.4 cm) is used because a side table or nightstand is beside the seat, not in front of it."
+    assumed: false
+  reach.lean_standing_m:
+    kind: distance_m
+    role: nominal
+    value: 0.194
+    source: https://pmc.ncbi.nlm.nih.gov/articles/PMC5628099
+    where: "Table 3, Functional Reach Test of older adults, 5th percentile 19.4 cm (pooled mean 27.2 cm, 95 % CI 25.5-28.9)"
+    note: "Bohannon, Wolfson & White, Physiotherapy 2017;103(4):387-391, meta-analysis of standing functional reach (beyond the arm at 90 deg) in 7,535 older adults. The 5th percentile keeps the reach valid for most older users."
+    assumed: false
+  reach.lean_standing_frail_m:
+    kind: distance_m
+    role: nominal
+    value: 0.154
+    source: https://ifp.nyu.edu/?p=1395018
+    where: "abstract: Functional Reach Test, non-community (institutional) older adults, 15.4 cm (95 % CI 13.47-17.42), 5 studies"
+    note: "Rosa, Perracini & Ricci, Arch Gerontol Geriatr 2019;81:149-170 (abstract page): standing functional reach of institutionalised older adults, used for persons marked frail in the house YAML."
+    assumed: false
+  reach.band_seated_m:
+    kind: range
+    role: nominal
+    value: [0.38, 1.12]
+    source: https://www.access-board.gov/ada/
+    where: "2010 ADA Standards 308.2.1 (low forward reach 15 in / 380 mm min) and 308.2.2 (high forward reach 44 in / 1120 mm max over a 510-635 mm deep obstruction)"
+    note: "Surface heights a seated (wheelchair) user reaches; the over-a-surface limit applies because the object is set on a table top. Tables and work surfaces of 710-865 mm (902.3) are inside the band, the floor (0 m) is not."
+    assumed: false
+  reach.band_standing_m:
+    kind: range
+    role: nominal
+    value: [0.38, 1.22]
+    source: https://www.access-board.gov/ada/
+    where: "2010 ADA Standards 308.2.1: unobstructed forward reach 15 in (380 mm) min to 48 in (1220 mm) max"
+    note: "No standing reach-height band for older adults was found; the ADA band (designed for wheelchair users, the stricter case) is used for standing people too, so a high shelf (1.45 m) is out of reach."
+    assumed: false

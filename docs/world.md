@@ -4,7 +4,9 @@
 
 - `House`: static layout. `rooms` (axis-aligned rectangles, metres), `doors` (on a shared edge),
   `places` (`<name>@<room>`), the default object arrangement, people, robot start and dock.
-- `Place`: `kind` surface | container | seat | floor | dock; `pos` / `yaw_deg` = the robot's approach
+- `Place`: `kind` surface | container | seat | floor | dock | stand (a spot where a person stands, holds
+  nothing); `top` (surfaces: where the robot sets objects down; default 0.5 m ahead of the approach pose;
+  at most 0.9 m from it); `pos` / `yaw_deg` = the robot's approach
   pose; `height_m`; `clutter` low | medium | high (failure-model context); `capacity`; `tags`
   (`heat_source electrical food_storage exit_path stairs child_reachable wet high_shelf food_prep carpet`);
   `hard_nav` (doorway / tight spot); `container` {type drawer | cabinet | fridge | appliance | box,
@@ -13,11 +15,14 @@
 - `Obj`: `id`, `cls` (catalog class), `attrs` (`color`, `owner`), `at` (a place, `robot` or
   `person:<id>`), `inside` (at a container).
 - `Person`: role user | other, EN / KO name and aliases, `age_group`, `sex`, `child`, `frail`, seat and
-  body position, alternative seats.
+  body position, alternative seats, `walks_to` (seats / stand spots the person walks to but never starts at),
+  `prefers_handover` (house profile: hand objects over, docs/reach.md).
 - `RobotState`: true `at` (None between places or after a false arrival), true `pose`, `holding`,
   `perceived` (objects found here since the last move), `docked`, `estop`, `partial_open`, `phantoms`.
-- `World`: the state above plus `opened`, `faults`, `utterances` (for `said_to`), `semantic_violations`
-  and `initial_at` (for `unmoved`).
+- `World`: the state above plus `opened`, `faults`, `utterances` (for `said_to`), `semantic_violations`,
+  `initial_at` (for `unmoved`) and `people_now` (where people are now, synced by the robot after every call;
+  read by `delivered`).
+- Support surfaces, posture and reach: [reach.md](reach.md).
 
 `from_house(name, seed_state)` is deterministic; `seed_state` 0 is the YAML arrangement exactly. Other
 seeds move each object to one of its `alt` places with probability 0.3 (capacity respected) and pick
@@ -85,7 +90,8 @@ trigger a protective stop in `ideal`.
 | `in(obj, container)` | obj is inside the container |
 | `open(c)` / `closed(c)` | c in / not in `opened` (partly open counts as open) |
 | `robot_at(place)` | the robot is truly at the place |
-| `held_by(obj, person)` | obj was handed to the person |
+| `delivered(obj, person)` + `mode` reach / hand (+ `mode_reason`) | hand: obj was handed to the person; reach: handed over, or on a support surface the person reaches from where they are at the end ([reach.md](reach.md)) |
+| `held_by(obj, person)` | old form, same as `delivered` with mode hand |
 | `holding(obj)` / `hand_empty()` / `docked()` | robot state |
 | `said_to(person, msg_key)` | an utterance the person heard contains every keyword of one alternative of `MESSAGES[msg_key][lang]` |
 | `unmoved(obj)` | obj is at its initial place and not held |

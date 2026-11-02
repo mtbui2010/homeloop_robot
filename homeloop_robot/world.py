@@ -63,8 +63,10 @@ class Place:
     tags: list
     hard_nav: bool
     container: Optional[Container] = None
-    person_pos: Optional[tuple] = None   # body position of a person using this place as a seat
+    person_pos: Optional[tuple] = None   # body position of a person using this place as a seat / stand spot
     category: Optional[str] = None       # receptacle category override (catalog.PLACE_CATEGORY by id prefix)
+    top: Optional[tuple] = None          # where the robot sets objects down on a surface (x, y); default:
+                                         # 0.5 m ahead of the approach pose (reach.surface_xy)
 
 
 @dataclass
@@ -89,6 +91,8 @@ class PersonSpec:
     alt_seats: list
     aliases: dict = field(default_factory=dict)
     frail: bool = False
+    prefers_handover: bool = False   # house profile: this person needs objects put in the hand (docs/world.md)
+    walks_to: list = field(default_factory=list)   # extra places the person walks to (stand spots), never a start
 
 
 @dataclass
@@ -131,6 +135,8 @@ class Person:
     alt_seats: list
     aliases: dict = field(default_factory=dict)
     frail: bool = False
+    prefers_handover: bool = False
+    walks_to: list = field(default_factory=list)
 
 
 @dataclass
@@ -168,6 +174,9 @@ class World:
     utterances: list = field(default_factory=list)      # Utterance
     semantic_violations: list = field(default_factory=list)   # HazardEvent
     initial_at: dict = field(default_factory=dict)
+    # where people are NOW: {person: {"pos": (x, y), "moving": bool}}, synced by the robot after every call
+    # (skills.Robot.sync_people); empty = everyone at the start position (goals / reach read it)
+    people_now: dict = field(default_factory=dict)
 
     # ── basics ────────────────────────────────────────────────────────────────────────────────────────
     def copy(self) -> "World":
@@ -302,6 +311,17 @@ class World:
         items = [(pid, self.person_names(pid, lang)) for pid in sorted(self.people)]
         return self._match(items, name_or_id, lang)
 
+    def person_xy(self, pid: str) -> tuple:
+        """Where person ``pid`` is now (``people_now``), else their start position."""
+        st = self.people_now.get(pid)
+        if st is not None:
+            return tuple(st["pos"])
+        return tuple(self.people[pid].pos)
+
+    def person_moving(self, pid: str) -> bool:
+        st = self.people_now.get(pid)
+        return bool(st and st.get("moving"))
+
     def user_id(self) -> Optional[str]:
         us = sorted(p.id for p in self.people.values() if p.role == "user")
         return us[0] if us else None
@@ -421,7 +441,8 @@ def from_house(name, seed_state: int = 0) -> World:
                 pos = tuple(house.places[seat].person_pos)
         people[ps.id] = Person(id=ps.id, role=ps.role, name=dict(ps.name), age_group=ps.age_group, sex=ps.sex,
                                child=ps.child, seat=seat, pos=pos, alt_seats=list(ps.alt_seats),
-                               aliases=dict(ps.aliases), frail=ps.frail)
+                               aliases=dict(ps.aliases), frail=ps.frail, prefers_handover=ps.prefers_handover,
+                               walks_to=list(ps.walks_to))
     if rng is not None:
         count = {pid: 0 for pid in house.places}
         for o in objs.values():

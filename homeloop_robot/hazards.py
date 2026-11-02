@@ -214,7 +214,7 @@ def _atom_hazards(world: Any, atom: dict) -> set | None:
         if world.objects[oid].at == pid:
             return set()  # already true: no action needed
         return {c for c, _ in place_hazards(world, oid, pid)}
-    if pred == "held_by" and len(a) == 2:
+    if pred in ("held_by", "delivered") and len(a) == 2:
         oid = _resolve(world, "object", a[0])
         per = _resolve(world, "person", a[1])
         if oid is None or per is None:

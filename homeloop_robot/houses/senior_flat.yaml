@@ -17,6 +17,9 @@ places:
   coffee_table@living:
     {room: living, kind: surface, name: {en: coffee table, ko: 거실 탁자}, aliases: {en: [low table], ko: [탁자]},
      pos: [3.0, 1.2], yaw_deg: 270, height_m: 0.45, clutter: medium, capacity: 5, tags: []}
+  side_table@living:
+    {room: living, kind: surface, name: {en: side table, ko: 보조 탁자}, aliases: {en: [end table], ko: [사이드 테이블]},
+     top: [0.85, 0.85], pos: [1.4, 1.5], yaw_deg: 225, height_m: 0.55, clutter: low, capacity: 3, tags: []}
   tv_stand@living:
     {room: living, kind: surface, name: {en: TV stand, ko: TV 받침대}, aliases: {en: [tv cabinet], ko: [티비장]},
      pos: [4.2, 3.2], yaw_deg: 90, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical]}
@@ -60,7 +63,7 @@ places:
      pos: [2.0, 6.0], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 3, tags: [], person_pos: [0.6, 6.4]}
   nightstand@bedroom:
     {room: bedroom, kind: surface, name: {en: nightstand, ko: 협탁}, aliases: {en: [bedside table], ko: [침대 옆 탁자]},
-     pos: [1.9, 4.7], yaw_deg: 180, height_m: 0.6, clutter: medium, capacity: 4, tags: [electrical]}
+     top: [0.75, 5.9], pos: [1.15, 5.2], yaw_deg: 120, height_m: 0.6, clutter: medium, capacity: 4, tags: [electrical]}
   dresser@bedroom:
     {room: bedroom, kind: container, container: {type: drawer, openable: true, opened: false},
      name: {en: dresser, ko: 서랍장}, aliases: {en: [dresser drawer], ko: [옷 서랍]},

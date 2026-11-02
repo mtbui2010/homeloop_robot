@@ -21,6 +21,7 @@ and return success or a typed failure drawn from failure rates calibrated from p
 ## Docs
 - [Architecture](docs/architecture.md): modules, call flow, determinism
 - [World and houses](docs/world.md): entities, house YAML schema, goal language
+- [Reach and delivery](docs/reach.md): support surfaces, posture, `delivered` reach / hand, mode choice
 - [Skills](docs/skills.md): every skill, preconditions, outcomes, durations
 - [Failure model](docs/failure_model.md): how outcomes are drawn, faults, recovery
 - [Profiles](docs/profiles.md): ideal / real / stress, YAML schema, validator

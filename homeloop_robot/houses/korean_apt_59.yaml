@@ -21,7 +21,7 @@ places:
      pos: [1.9, 2.0], yaw_deg: 180, height_m: 0.45, clutter: medium, capacity: 3, tags: [], person_pos: [0.5, 2.0]}
   coffee_table@living:
     {room: living, kind: surface, name: {en: coffee table, ko: 거실 탁자}, aliases: {en: [low table], ko: [탁자, 거실 테이블]},
-     pos: [3.2, 1.0], yaw_deg: 270, height_m: 0.4, clutter: medium, capacity: 6, tags: []}
+     top: [1.05, 1.85], pos: [1.75, 1.45], yaw_deg: 150, height_m: 0.4, clutter: medium, capacity: 6, tags: []}
   tv_stand@living:
     {room: living, kind: surface, name: {en: TV stand, ko: 티비장}, aliases: {en: [tv cabinet], ko: [TV 받침대, 거실장]},
      pos: [3.6, 3.2], yaw_deg: 90, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical]}
@@ -73,7 +73,7 @@ places:
      pos: [3.3, 4.8], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 5, tags: []}
   desk@small:
     {room: small, kind: surface, name: {en: desk, ko: 책상}, aliases: {en: [study desk], ko: [작은방 책상]},
-     pos: [5.6, 5.4], yaw_deg: 90, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
+     top: [6.15, 6.15], pos: [5.5, 5.7], yaw_deg: 35, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
   desk_chair@small:
     {room: small, kind: seat, name: {en: desk chair, ko: 의자}, aliases: {en: [chair], ko: [책상 의자]},
      pos: [5.2, 6.3], yaw_deg: 0, height_m: 0.45, clutter: low, capacity: 1, tags: [], person_pos: [6.5, 6.6]}

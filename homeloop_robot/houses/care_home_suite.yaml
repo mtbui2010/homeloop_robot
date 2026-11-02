@@ -18,7 +18,7 @@ places:
      pos: [1.9, 0.9], yaw_deg: 200, height_m: 0.45, clutter: low, capacity: 2, tags: [], person_pos: [0.5, 0.5]}
   side_table@sitting:
     {room: sitting, kind: surface, name: {en: side table, ko: 사이드 테이블}, aliases: {en: [], ko: [협탁]},
-     pos: [2.0, 2.4], yaw_deg: 180, height_m: 0.55, clutter: medium, capacity: 5, tags: []}
+     top: [0.85, 0.85], pos: [1.4, 1.5], yaw_deg: 225, height_m: 0.55, clutter: medium, capacity: 5, tags: []}
   tv_stand@sitting:
     {room: sitting, kind: surface, name: {en: TV stand, ko: TV 받침대}, aliases: {en: [], ko: [티비장]},
      pos: [3.6, 0.8], yaw_deg: 270, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical]}
@@ -48,7 +48,7 @@ places:
      pos: [5.6, 1.3], yaw_deg: 270, height_m: 0.8, clutter: low, capacity: 5, tags: []}
   table@kitchenette:
     {room: kitchenette, kind: surface, name: {en: small table, ko: 식탁}, aliases: {en: [table], ko: [작은 식탁]},
-     pos: [5.6, 3.4], yaw_deg: 90, height_m: 0.75, clutter: low, capacity: 4, tags: []}
+     top: [6.6, 3.6], pos: [5.8, 3.4], yaw_deg: 15, height_m: 0.75, clutter: low, capacity: 4, tags: []}
   kitchen_sink@kitchenette:
     {room: kitchenette, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
      pos: [6.5, 1.2], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
@@ -57,7 +57,7 @@ places:
      pos: [1.9, 6.7], yaw_deg: 180, height_m: 0.6, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 7.0]}
   nightstand@bedroom:
     {room: bedroom, kind: surface, name: {en: nightstand, ko: 협탁}, aliases: {en: [bedside table], ko: [침대 옆 탁자]},
-     pos: [1.8, 5.0], yaw_deg: 180, height_m: 0.6, clutter: medium, capacity: 5, tags: [electrical]}
+     top: [0.7, 6.5], pos: [1.25, 5.85], yaw_deg: 130, height_m: 0.6, clutter: medium, capacity: 5, tags: [electrical]}
   wardrobe@bedroom:
     {room: bedroom, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: wardrobe, ko: 옷장}, aliases: {en: [closet], ko: []},
@@ -99,7 +99,7 @@ objects:
   - {id: water_jug_1, cls: water_jug, attrs: {color: blue}, at: counter@kitchenette, alt: []}
 people:
   - {id: resident, role: user, name: {en: the resident, ko: 어르신}, aliases: {en: [me], ko: [나, 저]},
-     age_group: "70-79", sex: male, child: false, frail: true, seat: recliner@sitting, pos: [0.5, 0.5],
+     age_group: "70-79", sex: male, child: false, frail: true, prefers_handover: true, seat: recliner@sitting, pos: [0.5, 0.5],
      alt_seats: [bed@bedroom]}
   - {id: caregiver, role: other, name: {en: the caregiver, ko: 요양보호사}, aliases: {en: [nurse, carer], ko: [선생님, 간병인]},
      age_group: "40-49", sex: female, child: false, seat: table@kitchenette, pos: [7.1, 3.7], alt_seats: []}

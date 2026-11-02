@@ -4,9 +4,14 @@
     ATOM := {"pred": NAME, "args": [STR, ...]} | {"not": ATOM} | {"any": [ATOM, ...]}
     {"refuse": true, "all": [...]}             refuse task: the atoms say what must stay untouched
     {"stop": true, "all": []}                  stop goal set by the runner after a stop interruption
+    {"pred": "delivered", "args": [OBJ, PERSON], "mode": "reach" | "hand", "mode_reason": null | "explicit" |
+     "no_surface" | "user_needs"}              delivery to a person (homeloop_robot.reach.delivered)
 
 Text form: ``on(mug_1, counter@kitchen) & not open(drawer@kitchen) & any(on(a, b) | on(a, c))``,
-with an optional ``refuse:`` / ``stop:`` prefix.
+with an optional ``refuse:`` / ``stop:`` prefix; a delivery is ``delivered[reach](mug_1, grandma)`` (the
+mode_reason is not part of the text form).
+
+``held_by(obj, person)`` is kept for old data: it is the same as ``delivered[hand](obj, person)``.
 """
 
 from __future__ import annotations
@@ -18,8 +23,12 @@ from .catalog import MESSAGES, message_matches
 
 PREDS = {
     "on": 2, "in": 2, "open": 1, "closed": 1, "robot_at": 1, "held_by": 2, "holding": 1,
-    "hand_empty": 0, "docked": 0, "said_to": 2, "unmoved": 1,
+    "hand_empty": 0, "docked": 0, "said_to": 2, "unmoved": 1, "delivered": 2,
 }
+# predicates whose first argument is an object that the goal moves
+OBJECT_PREDS = ("on", "in", "held_by", "delivered")
+# predicates that bring an object to a person
+DELIVERY_PREDS = ("held_by", "delivered")
 
 
 class GoalError(ValueError):
@@ -55,7 +64,7 @@ def _split_top(s: str, sep: str) -> list:
     return [x.strip() for x in out]
 
 
-_ATOM_RE = re.compile(r"^([A-Za-z_]\w*)\s*\((.*)\)$", re.S)
+_ATOM_RE = re.compile(r"^([A-Za-z_]\w*)(?:\[(\w+)\])?\s*\((.*)\)$", re.S)
 
 
 def _parse_atom(s: str) -> dict:
@@ -69,11 +78,14 @@ def _parse_atom(s: str) -> dict:
         if re.fullmatch(r"[A-Za-z_]\w*", s):
             return {"pred": s, "args": []}
         raise GoalError(f"not an atom: {s!r}")
-    name, inner = m.group(1), m.group(2)
+    name, mode, inner = m.group(1), m.group(2), m.group(3)
     if name == "any":
         return {"any": [_parse_atom(x) for x in _split_top(inner, "|")]}
     args = [a.strip().strip("'\"") for a in _split_top(inner, ",")] if inner.strip() else []
-    return {"pred": name, "args": args}
+    out = {"pred": name, "args": args}
+    if mode is not None:
+        out["mode"] = mode
+    return out
 
 
 def parse(text: str) -> dict:
@@ -93,7 +105,8 @@ def format_atom(a: dict) -> str:
         return "not " + format_atom(a["not"])
     if "any" in a:
         return "any(" + " | ".join(format_atom(x) for x in a["any"]) + ")"
-    return f"{a['pred']}({', '.join(a.get('args') or [])})"
+    mode = f"[{a['mode']}]" if a.get("mode") else ""
+    return f"{a['pred']}{mode}({', '.join(a.get('args') or [])})"
 
 
 def format(goal: dict) -> str:  # noqa: A001 - the design's name
@@ -173,10 +186,18 @@ def validate(goal: dict, world) -> list:
                 errs.append(f"{w}: {args[0]} cannot be opened")
         elif p == "robot_at":
             place(args[0], w)
-        elif p == "held_by":
+        elif p in ("held_by", "delivered"):
             obj(args[0], w)
             if args[1] not in world.people:
                 errs.append(f"{w}: unknown person {args[1]!r}")
+            if p == "delivered":
+                from .reach import MODE_REASONS, MODES
+                if a.get("mode") not in MODES:
+                    errs.append(f"{w}: mode must be one of {MODES}, not {a.get('mode')!r}")
+                if a.get("mode_reason") not in MODE_REASONS:
+                    errs.append(f"{w}: mode_reason must be one of {MODE_REASONS}, not {a.get('mode_reason')!r}")
+                elif a.get("mode") == "reach" and a.get("mode_reason") is not None:
+                    errs.append(f"{w}: mode reach has no mode_reason")
         elif p in ("holding", "unmoved"):
             obj(args[0], w)
         elif p == "said_to":
@@ -215,6 +236,9 @@ def holds(a: dict, world) -> bool:
     if p == "held_by":
         o = objs.get(args[0])
         return bool(o and o.at == f"person:{args[1]}")
+    if p == "delivered":
+        from .reach import delivered
+        return delivered(world, args[0], args[1], a.get("mode") or "hand")
     if p == "holding":
         return world.robot.holding == args[0]
     if p == "hand_empty":

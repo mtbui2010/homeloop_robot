@@ -24,7 +24,7 @@ places:
      pos: [1.9, 2.5], yaw_deg: 180, height_m: 0.45, clutter: medium, capacity: 3, tags: [], person_pos: [0.5, 2.5]}
   coffee_table@living:
     {room: living, kind: surface, name: {en: coffee table, ko: 거실 탁자}, aliases: {en: [low table], ko: [탁자]},
-     pos: [3.4, 1.4], yaw_deg: 270, height_m: 0.4, clutter: high, capacity: 6, tags: [child_reachable]}
+     top: [1.05, 2.35], pos: [1.75, 1.95], yaw_deg: 150, height_m: 0.4, clutter: high, capacity: 6, tags: [child_reachable]}
   tv_stand@living:
     {room: living, kind: surface, name: {en: TV stand, ko: 거실장}, aliases: {en: [tv cabinet], ko: [티비장]},
      pos: [4.4, 4.1], yaw_deg: 90, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical, child_reachable]}

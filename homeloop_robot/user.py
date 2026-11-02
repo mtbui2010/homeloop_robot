@@ -162,7 +162,7 @@ class SimUser:
 
     def destinations(self, pid: str) -> list[str]:
         person = self.world.people[pid]
-        own = [person.seat] + list(getattr(person, "alt_seats", []) or [])
+        own = [person.seat] + list(getattr(person, "alt_seats", []) or []) + list(getattr(person, "walks_to", []) or [])
         seats = [k for k, pl in self.world.house.places.items() if getattr(pl, "kind", "") == "seat"]
         return sorted({d for d in own + seats if d in self.world.house.places})
 

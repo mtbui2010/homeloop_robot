@@ -44,14 +44,17 @@ def random_atom(w, rng) -> dict:
                       and not ("high_shelf" in pl.tags and pl.height_m > oracle.HIGH_SHELF_REACH_M))
     conts = sorted(p for p, pl in places.items() if pl.kind == "container" and pl.container.openable)
     people = sorted(w.people)
-    kind = rng.choices(["on", "in", "held_by", "open", "closed", "said_to", "robot_at", "docked"],
+    kind = rng.choices(["on", "in", "delivered", "open", "closed", "said_to", "robot_at", "docked"],
                        weights=[30, 20, 12, 8, 8, 8, 8, 6])[0]
     if kind == "on":
         return {"pred": "on", "args": [rng.choice(objs), rng.choice(surfaces)]}
     if kind == "in":
         return {"pred": "in", "args": [rng.choice(objs), rng.choice(conts)]}
-    if kind == "held_by":
-        return {"pred": "held_by", "args": [rng.choice(objs), rng.choice(people)]}
+    if kind == "delivered":
+        from .reach import choose_mode
+        person = rng.choice(people)
+        m = choose_mode(w, person)
+        return {"pred": "delivered", "args": [rng.choice(objs), person], "mode": m.mode, "mode_reason": m.reason}
     if kind in ("open", "closed"):
         return {"pred": kind, "args": [rng.choice(conts)]}
     if kind == "said_to":
@@ -77,7 +80,7 @@ def random_goal(w, rng, *, max_atoms: int = 3, tries: int = 50, lang: str = "en"
         if not atoms or G.validate(g, w) or G.evaluate(g, w).holds:
             continue
         # objects may appear in one object atom only
-        objs = [a["args"][0] for a in atoms if a["pred"] in ("on", "in", "held_by")]
+        objs = [a["args"][0] for a in atoms if a["pred"] in G.OBJECT_PREDS]
         if len(objs) != len(set(objs)):
             continue
         if oracle.solve(w, g, lang=lang) is not None:
