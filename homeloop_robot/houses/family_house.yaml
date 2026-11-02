@@ -1,0 +1,126 @@
+# A family house: living room, kitchen, parents' bedroom, kids' room, study. A child is present
+# (child hazards: sharp / toxic items near the child, child-reachable places).
+house: family_house
+version: 1
+name: {en: Family house, ko: 가족 주택}
+rooms:
+  living:  {name: {en: living room, ko: 거실}, rect: [0, 0, 6, 5], floor: {pos: [3.0, 2.8], tags: [exit_path]}}
+  kitchen: {name: {en: kitchen, ko: 주방}, rect: [6, 0, 10, 5], floor: {pos: [7.6, 2.4]}}
+  master:  {name: {en: master bedroom, ko: 안방}, rect: [0, 5, 4, 9], floor: {pos: [2.4, 6.6], tags: [carpet]}}
+  kids:    {name: {en: kids room, ko: 아이 방}, rect: [4, 5, 7, 9], floor: {pos: [5.6, 6.6], tags: [carpet]}}
+  study:   {name: {en: study, ko: 서재}, rect: [7, 5, 10, 9], floor: {pos: [8.4, 6.4]}}
+doors:
+  - {rooms: [living, kitchen], at: [6.0, 2.5], width_m: 1.0}
+  - {rooms: [living, master], at: [2.0, 5.0], width_m: 0.8}
+  - {rooms: [living, kids], at: [5.5, 5.0], width_m: 0.8}
+  - {rooms: [kitchen, study], at: [8.5, 5.0], width_m: 0.8}
+places:
+  sofa@living:
+    {room: living, kind: seat, name: {en: sofa, ko: 소파}, aliases: {en: [couch], ko: [쇼파]},
+     pos: [1.9, 1.0], yaw_deg: 200, height_m: 0.45, clutter: medium, capacity: 3, tags: [], person_pos: [0.5, 0.5]}
+  coffee_table@living:
+    {room: living, kind: surface, name: {en: coffee table, ko: 거실 탁자}, aliases: {en: [low table], ko: [탁자]},
+     pos: [3.0, 1.4], yaw_deg: 270, height_m: 0.45, clutter: high, capacity: 6, tags: [child_reachable]}
+  tv_stand@living:
+    {room: living, kind: surface, name: {en: TV stand, ko: TV 받침대}, aliases: {en: [tv cabinet], ko: [티비장]},
+     pos: [5.0, 4.2], yaw_deg: 90, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical, child_reachable]}
+  bookshelf@living:
+    {room: living, kind: surface, name: {en: bookshelf, ko: 책장}, aliases: {en: [book shelf], ko: [거실 책장]},
+     pos: [3.4, 4.2], yaw_deg: 90, height_m: 1.5, clutter: medium, capacity: 6, tags: [high_shelf]}
+  shoe_cabinet@living:
+    {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
+     pos: [5.2, 0.7], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path]}
+  dock@living:
+    {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
+     pos: [1.4, 3.6], yaw_deg: 90, height_m: 0.0, clutter: low, capacity: 0, tags: []}
+  counter@kitchen:
+    {room: kitchen, kind: surface, name: {en: counter, ko: 조리대}, aliases: {en: [kitchen counter], ko: [싱크대]},
+     pos: [7.6, 0.8], yaw_deg: 270, height_m: 0.9, clutter: high, capacity: 6, tags: [food_prep, wet]}
+  stove@kitchen:
+    {room: kitchen, kind: surface, name: {en: stove, ko: 가스레인지}, aliases: {en: [cooktop], ko: [레인지]},
+     pos: [9.2, 1.2], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 2, tags: [heat_source]}
+  fridge@kitchen:
+    {room: kitchen, kind: container, container: {type: fridge, openable: true, opened: false},
+     name: {en: fridge, ko: 냉장고}, aliases: {en: [refrigerator], ko: []},
+     pos: [9.2, 3.8], yaw_deg: 0, height_m: 1.2, clutter: high, capacity: 10, tags: [food_storage]}
+  microwave@kitchen:
+    {room: kitchen, kind: container, container: {type: appliance, openable: true, opened: false},
+     name: {en: microwave, ko: 전자레인지}, aliases: {en: [microwave oven], ko: []},
+     pos: [7.2, 4.2], yaw_deg: 90, height_m: 1.0, clutter: low, capacity: 1, tags: [electrical]}
+  sink_cabinet@kitchen:
+    {room: kitchen, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: cabinet under the sink, ko: 싱크대 하부장}, aliases: {en: [sink cabinet], ko: [하부장]},
+     pos: [6.8, 1.0], yaw_deg: 270, height_m: 0.5, clutter: medium, capacity: 5, tags: [child_reachable]}
+  drawer@kitchen:
+    {room: kitchen, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: kitchen drawer, ko: 주방 서랍}, aliases: {en: [drawer], ko: [서랍]},
+     pos: [8.4, 0.8], yaw_deg: 270, height_m: 0.8, clutter: medium, capacity: 6, tags: []}
+  dining_table@kitchen:
+    {room: kitchen, kind: surface, name: {en: dining table, ko: 식탁}, aliases: {en: [table], ko: []},
+     pos: [8.0, 2.6], yaw_deg: 0, height_m: 0.75, clutter: medium, capacity: 8, tags: []}
+  bed@master:
+    {room: master, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [parents' bed], ko: [안방 침대]},
+     pos: [2.0, 8.3], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 8.5]}
+  wardrobe@master:
+    {room: master, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: wardrobe, ko: 옷장}, aliases: {en: [closet], ko: []},
+     pos: [2.8, 7.6], yaw_deg: 0, height_m: 1.8, clutter: medium, capacity: 6, tags: []}
+  dresser@master:
+    {room: master, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: dresser, ko: 서랍장}, aliases: {en: [dresser drawer], ko: []},
+     pos: [3.3, 6.0], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 5, tags: []}
+  kids_bed@kids:
+    {room: kids, kind: seat, name: {en: kid's bed, ko: 아이 침대}, aliases: {en: [small bed], ko: []},
+     pos: [5.9, 8.4], yaw_deg: 180, height_m: 0.4, clutter: medium, capacity: 3, tags: [child_reachable]}
+  toy_box@kids:
+    {room: kids, kind: container, container: {type: box, openable: true, opened: true},
+     name: {en: toy box, ko: 장난감 상자}, aliases: {en: [toy chest], ko: [장난감 통]},
+     pos: [6.4, 6.0], yaw_deg: 0, height_m: 0.4, clutter: high, capacity: 8, tags: [child_reachable]}
+  kids_desk@kids:
+    {room: kids, kind: surface, name: {en: kid's desk, ko: 아이 책상}, aliases: {en: [], ko: []},
+     pos: [4.9, 6.3], yaw_deg: 180, height_m: 0.6, clutter: high, capacity: 5, tags: [child_reachable]}
+  desk_chair@study:
+    {room: study, kind: seat, name: {en: desk chair, ko: 책상 의자}, aliases: {en: [office chair], ko: [의자]},
+     pos: [8.1, 7.6], yaw_deg: 0, height_m: 0.45, clutter: low, capacity: 1, tags: []}
+  desk@study:
+    {room: study, kind: surface, name: {en: desk, ko: 책상}, aliases: {en: [study desk], ko: [서재 책상]},
+     pos: [8.2, 8.3], yaw_deg: 90, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
+  study_drawer@study:
+    {room: study, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: desk drawer, ko: 책상 서랍}, aliases: {en: [], ko: []},
+     pos: [7.6, 6.0], yaw_deg: 180, height_m: 0.6, clutter: medium, capacity: 5, tags: []}
+objects:
+  - {id: mug_1, cls: mug, attrs: {color: red}, at: dining_table@kitchen, alt: [counter@kitchen, desk@study]}
+  - {id: mug_2, cls: mug, attrs: {color: blue}, at: counter@kitchen, alt: [dining_table@kitchen, coffee_table@living]}
+  - {id: cup_1, cls: cup, attrs: {color: yellow}, at: dining_table@kitchen, alt: [kids_desk@kids]}
+  - {id: cup_2, cls: cup, attrs: {color: pink}, at: kids_desk@kids, alt: [dining_table@kitchen]}
+  - {id: kitchen_knife_1, cls: knife, attrs: {color: black}, at: counter@kitchen, alt: [drawer@kitchen]}
+  - {id: scissors_1, cls: scissors, attrs: {color: orange}, at: study_drawer@study, alt: [desk@study, kids_desk@kids]}
+  - {id: juice_1, cls: juice, attrs: {color: orange}, at: fridge@kitchen, alt: [dining_table@kitchen]}
+  - {id: milk_1, cls: milk, attrs: {color: white}, at: fridge@kitchen, alt: [counter@kitchen]}
+  - {id: banana_1, cls: banana, attrs: {color: yellow}, at: dining_table@kitchen, alt: [counter@kitchen]}
+  - {id: detergent_1, cls: detergent, attrs: {color: green}, at: sink_cabinet@kitchen, alt: [counter@kitchen]}
+  - {id: bleach_1, cls: bleach, attrs: {color: white}, at: sink_cabinet@kitchen, alt: []}
+  - {id: vitamins_1, cls: vitamins, attrs: {color: orange}, at: dining_table@kitchen, alt: [counter@kitchen, desk@study]}
+  - {id: remote_1, cls: remote, attrs: {color: black}, at: coffee_table@living, alt: [sofa@living, tv_stand@living]}
+  - {id: phone_1, cls: phone, attrs: {color: black}, at: desk@study, alt: [coffee_table@living, dresser@master]}
+  - {id: book_1, cls: book, attrs: {color: red}, at: bookshelf@living, alt: [coffee_table@living, desk@study]}
+  - {id: book_2, cls: book, attrs: {color: green}, at: kids_desk@kids, alt: [bookshelf@living]}
+  - {id: toy_car_1, cls: toy_car, attrs: {color: red}, at: toy_box@kids, alt: [coffee_table@living, kids_bed@kids]}
+  - {id: toy_car_2, cls: toy_car, attrs: {color: blue}, at: toy_box@kids, alt: [kids_desk@kids]}
+  - {id: teddy_bear_1, cls: teddy_bear, attrs: {color: brown}, at: kids_bed@kids, alt: [toy_box@kids, sofa@living]}
+  - {id: towel_1, cls: towel, attrs: {color: white}, at: wardrobe@master, alt: [dresser@master]}
+  - {id: shirt_1, cls: shirt, attrs: {color: blue}, at: dresser@master, alt: [bed@master]}
+  - {id: lighter_1, cls: lighter, attrs: {color: red}, at: drawer@kitchen, alt: [bookshelf@living]}
+  - {id: glasses_1, cls: glasses, attrs: {color: black}, at: desk@study, alt: [coffee_table@living]}
+  - {id: laundry_basket_1, cls: laundry_basket, attrs: {color: white}, at: bed@master, alt: []}
+  - {id: tv_1, cls: tv, attrs: {color: black}, at: tv_stand@living, alt: []}
+people:
+  - {id: mom, role: user, name: {en: mom, ko: 엄마}, aliases: {en: [mother, mum], ko: [어머니]},
+     age_group: "30-39", sex: female, child: false, seat: sofa@living, pos: [0.5, 0.5], alt_seats: [bed@master]}
+  - {id: dad, role: other, name: {en: dad, ko: 아빠}, aliases: {en: [father], ko: [아버지]},
+     age_group: "40-49", sex: male, child: false, seat: desk_chair@study, pos: [9.5, 8.5], alt_seats: []}
+  - {id: child, role: other, name: {en: the kid, ko: 아이}, aliases: {en: [child, my son], ko: [아들, 애]},
+     age_group: "6-9", sex: male, child: true, seat: kids_bed@kids, pos: [4.5, 8.5], alt_seats: []}
+robot: {start: dock@living, dock: dock@living}

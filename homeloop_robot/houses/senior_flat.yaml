@@ -1,0 +1,93 @@
+# An older adult living alone: living room, kitchen, bedroom. Slow gait and older-adult ASR rows apply
+# to the user persona (docs/user_model.md). Coordinates in metres; pos = robot approach pose.
+house: senior_flat
+version: 1
+name: {en: "Senior's flat", ko: "어르신 댁"}
+rooms:
+  living:  {name: {en: living room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [3.2, 2.2], tags: [exit_path]}}
+  kitchen: {name: {en: kitchen, ko: 부엌}, rect: [5, 0, 8, 4], floor: {pos: [6.2, 2.0]}}
+  bedroom: {name: {en: bedroom, ko: 침실}, rect: [0, 4, 4, 7], floor: {pos: [2.6, 5.4], tags: [carpet]}}
+doors:
+  - {rooms: [living, kitchen], at: [5.0, 2.0], width_m: 0.9}
+  - {rooms: [living, bedroom], at: [2.6, 4.0], width_m: 0.8}
+places:
+  armchair@living:
+    {room: living, kind: seat, name: {en: armchair, ko: 안락의자}, aliases: {en: [chair], ko: [의자]},
+     pos: [1.9, 1.0], yaw_deg: 200, height_m: 0.45, clutter: low, capacity: 2, tags: [], person_pos: [0.5, 0.5]}
+  coffee_table@living:
+    {room: living, kind: surface, name: {en: coffee table, ko: 거실 탁자}, aliases: {en: [low table], ko: [탁자]},
+     pos: [3.0, 1.2], yaw_deg: 270, height_m: 0.45, clutter: medium, capacity: 5, tags: []}
+  tv_stand@living:
+    {room: living, kind: surface, name: {en: TV stand, ko: TV 받침대}, aliases: {en: [tv cabinet], ko: [티비장]},
+     pos: [4.2, 3.2], yaw_deg: 90, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical]}
+  shoe_cabinet@living:
+    {room: living, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: shoe cabinet, ko: 신발장}, aliases: {en: [], ko: []},
+     pos: [4.3, 0.7], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 4, tags: [exit_path]}
+  dock@living:
+    {room: living, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
+     pos: [2.2, 3.3], yaw_deg: 90, height_m: 0.0, clutter: low, capacity: 0, tags: []}
+  counter@kitchen:
+    {room: kitchen, kind: surface, name: {en: counter, ko: 조리대}, aliases: {en: [kitchen counter], ko: [싱크대]},
+     pos: [6.4, 0.8], yaw_deg: 270, height_m: 0.9, clutter: medium, capacity: 6, tags: [food_prep, wet]}
+  stove@kitchen:
+    {room: kitchen, kind: surface, name: {en: stove, ko: 가스레인지}, aliases: {en: [cooktop], ko: [레인지]},
+     pos: [7.3, 1.6], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 2, tags: [heat_source]}
+  fridge@kitchen:
+    {room: kitchen, kind: container, container: {type: fridge, openable: true, opened: false},
+     name: {en: fridge, ko: 냉장고}, aliases: {en: [refrigerator], ko: []},
+     pos: [7.2, 3.2], yaw_deg: 0, height_m: 1.2, clutter: medium, capacity: 8, tags: [food_storage]}
+  microwave@kitchen:
+    {room: kitchen, kind: container, container: {type: appliance, openable: true, opened: false},
+     name: {en: microwave, ko: 전자레인지}, aliases: {en: [microwave oven], ko: []},
+     pos: [6.0, 3.3], yaw_deg: 90, height_m: 1.0, clutter: low, capacity: 1, tags: [electrical]}
+  drawer@kitchen:
+    {room: kitchen, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: kitchen drawer, ko: 부엌 서랍}, aliases: {en: [drawer], ko: [서랍]},
+     pos: [5.6, 0.9], yaw_deg: 270, height_m: 0.8, clutter: medium, capacity: 5, tags: []}
+  shelf@kitchen:
+    {room: kitchen, kind: surface, name: {en: top shelf, ko: 선반}, aliases: {en: [shelf], ko: [위 선반]},
+     pos: [7.3, 2.5], yaw_deg: 0, height_m: 1.45, clutter: low, capacity: 4, tags: [high_shelf]}
+  bed@bedroom:
+    {room: bedroom, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [], ko: []},
+     pos: [2.0, 6.0], yaw_deg: 180, height_m: 0.5, clutter: low, capacity: 3, tags: [], person_pos: [0.6, 6.4]}
+  nightstand@bedroom:
+    {room: bedroom, kind: surface, name: {en: nightstand, ko: 협탁}, aliases: {en: [bedside table], ko: [침대 옆 탁자]},
+     pos: [1.9, 4.7], yaw_deg: 180, height_m: 0.6, clutter: medium, capacity: 4, tags: [electrical]}
+  dresser@bedroom:
+    {room: bedroom, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: dresser, ko: 서랍장}, aliases: {en: [dresser drawer], ko: [옷 서랍]},
+     pos: [3.4, 4.8], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 5, tags: []}
+  wardrobe@bedroom:
+    {room: bedroom, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: wardrobe, ko: 옷장}, aliases: {en: [closet], ko: []},
+     pos: [3.4, 6.3], yaw_deg: 0, height_m: 1.8, clutter: medium, capacity: 6, tags: []}
+objects:
+  - {id: mug_1, cls: mug, attrs: {color: red}, at: counter@kitchen, alt: [coffee_table@living, nightstand@bedroom]}
+  - {id: mug_2, cls: mug, attrs: {color: blue}, at: shelf@kitchen, alt: [counter@kitchen]}
+  - {id: glass_1, cls: glass, attrs: {color: white}, at: counter@kitchen, alt: [nightstand@bedroom]}
+  - {id: glass_2, cls: glass, attrs: {color: green}, at: shelf@kitchen, alt: [coffee_table@living]}
+  - {id: kitchen_knife_1, cls: knife, attrs: {color: black}, at: drawer@kitchen, alt: [counter@kitchen]}
+  - {id: spoon_1, cls: spoon, attrs: {color: gray}, at: drawer@kitchen, alt: [counter@kitchen]}
+  - {id: milk_1, cls: milk, attrs: {color: white}, at: fridge@kitchen, alt: [counter@kitchen]}
+  - {id: apple_1, cls: apple, attrs: {color: red}, at: fridge@kitchen, alt: [coffee_table@living, counter@kitchen]}
+  - {id: bleach_1, cls: bleach, attrs: {color: white}, at: shoe_cabinet@living, alt: []}
+  - {id: medicine_bottle_1, cls: medicine_bottle, attrs: {color: white}, at: nightstand@bedroom, alt: [coffee_table@living, dresser@bedroom]}
+  - {id: medicine_bottle_2, cls: medicine_bottle, attrs: {color: orange}, at: nightstand@bedroom, alt: [counter@kitchen]}
+  - {id: glasses_1, cls: glasses, attrs: {color: brown}, at: nightstand@bedroom, alt: [coffee_table@living, armchair@living]}
+  - {id: remote_1, cls: remote, attrs: {color: black}, at: coffee_table@living, alt: [armchair@living, tv_stand@living]}
+  - {id: phone_1, cls: phone, attrs: {color: black}, at: coffee_table@living, alt: [nightstand@bedroom, armchair@living]}
+  - {id: book_1, cls: book, attrs: {color: red}, at: coffee_table@living, alt: [nightstand@bedroom]}
+  - {id: book_2, cls: book, attrs: {color: blue}, at: nightstand@bedroom, alt: [coffee_table@living]}
+  - {id: towel_1, cls: towel, attrs: {color: white}, at: wardrobe@bedroom, alt: [dresser@bedroom]}
+  - {id: socks_1, cls: socks, attrs: {color: gray}, at: dresser@bedroom, alt: [bed@bedroom]}
+  - {id: keys_1, cls: keys, attrs: {color: gray}, at: shoe_cabinet@living, alt: [coffee_table@living]}
+  - {id: candle_1, cls: candle, attrs: {color: white}, at: tv_stand@living, alt: [shelf@kitchen]}
+  - {id: water_bottle_1, cls: water_bottle, attrs: {color: blue}, at: counter@kitchen, alt: [fridge@kitchen, coffee_table@living]}
+  - {id: houseplant_1, cls: houseplant, attrs: {color: green}, at: tv_stand@living, alt: []}
+  - {id: tv_1, cls: tv, attrs: {color: black}, at: tv_stand@living, alt: []}
+people:
+  - {id: grandma, role: user, name: {en: grandma, ko: 할머니}, aliases: {en: [grandmother], ko: [어머님]},
+     age_group: "80-99", sex: female, child: false, frail: true, seat: armchair@living, pos: [0.5, 0.5],
+     alt_seats: [bed@bedroom]}
+robot: {start: dock@living, dock: dock@living}
