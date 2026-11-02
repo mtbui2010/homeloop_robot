@@ -66,10 +66,12 @@ def test_condition_threshold():
 
 def test_korean_confusions_stay_hangul():
     rng = random.Random(0)
-    for ch in "컵물약칼":
+    from homeloop_robot.asr import is_common_syllable
+    for ch in "컵물약칼부엌조리대에있는빨간머그가져다주세요":
         for _ in range(20):
             c = ko_confuse(ch, rng)
-            assert is_hangul(c) and c != ch
+            assert c == "" or (is_hangul(c) and is_common_syllable(c) and c != ch)
+    assert is_common_syllable("가") and not is_common_syllable("앜") and not is_common_syllable("a")
     r = rates(**{"asr.ko.far_cer": 0.9, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0})
     h = corrupt(KO, "ko", "far", random.Random(5), r)
     assert h.event == "corrupted" and h.text != KO
@@ -101,3 +103,19 @@ def test_consistency_rows_pass():
     assert len(rows) == 6 and all(r["ok"] for r in rows), rows
     rows = consistency(load_params("ideal"), n=300, seed=2)
     assert all(r["ok"] and r["observed"] == 0 for r in rows), rows
+
+
+def test_english_substitutions_are_real_words():
+    from homeloop_robot.asr import CONFUSIONS_EN, FILLERS, VOCAB_EN, en_confuse
+    real = set(VOCAB_EN) | {w for v in CONFUSIONS_EN.values() for x in v for w in x.split()} | set(FILLERS["en"])
+    rng = random.Random(0)
+    for w in EN.split() + ["don't", "know", "grandmother", "xylophone"]:
+        for _ in range(10):
+            out = en_confuse(w, rng)
+            assert all(tok in real for tok in out.split()), (w, out)
+            assert out != w
+    r = rates(**{"asr.en.far_wer": 0.9, "asr.p_not_heard": 0.0, "asr.p_partial": 0.0})
+    for i in range(50):
+        h = corrupt(EN, "en", "far", random.Random(i), r)
+        orig = set(EN.split())
+        assert all(tok in real or tok in orig for tok in h.text.split()), h.text

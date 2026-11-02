@@ -9,6 +9,7 @@ arXiv:2410.18444, Table 3) and in-home older-adult breakdown rates (Mahmood et a
 """
 from __future__ import annotations
 
+import functools
 import math
 import random
 import re
@@ -40,8 +41,44 @@ CONFUSIONS_EN = {
     "yes": ["yet", "us"], "no": ["know", "now"], "left": ["lift", "loft"], "right": ["write", "light"],
     "green": ["clean", "grin"], "black": ["back", "block"], "white": ["wide", "write"], "one": ["won", "on"],
 }
-FILLERS = {"en": ["uh", "um", "the", "a"], "ko": ["어", "음", "그"]}
-_VOWELS_EN = "aeiou"
+# Insertions are short function words / particles (Whisper-style output rarely contains disfluencies).
+FILLERS = {"en": ["the", "a", "and", "to", "it"], "ko": ["이", "요", "그"]}
+# Real-word vocabulary for substitutions outside the hand list: an ASR system outputs words, not non-words.
+VOCAB_EN = sorted({
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "do", "does", "for", "from", "go", "had", "has",
+    "have", "he", "her", "here", "him", "his", "how", "i", "if", "in", "into", "is", "it", "its", "just", "me", "my",
+    "need", "not", "now", "of", "off", "on", "one", "or", "our", "out", "over", "put", "said", "she", "so", "some",
+    "take", "than", "that", "the", "their", "them", "then", "there", "they", "this", "to", "too", "two", "up", "us",
+    "want", "was", "we", "well", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would",
+    "yes", "yet", "you", "your", "bring", "ring", "thing", "think", "please", "place", "plays", "cease", "keep",
+    "know", "knee", "new", "note", "don't", "won't", "doesn't", "didn't", "can't", "cannot", "it's", "that's",
+    "i'm", "i'll", "you're", "mean", "men", "main", "sure", "shore", "share", "maybe", "may", "baby", "red", "read",
+    "bread", "blue", "glue", "blew", "green", "grin", "clean", "black", "back", "block", "white", "wide", "write",
+    "light", "right", "left", "lift", "small", "smell", "big", "bag", "bug", "top", "tap", "stop", "shop", "drop",
+    "table", "cable", "label", "chair", "share", "cheer", "door", "floor", "four", "for", "room", "broom", "groom",
+    "cup", "cap", "cop", "mug", "mud", "glass", "grass", "class", "plate", "plane", "bowl", "ball", "bold", "fork",
+    "pork", "fort", "spoon", "soon", "moon", "knife", "night", "life", "towel", "tower", "book", "look", "cook",
+    "phone", "foam", "bone", "keys", "knees", "pill", "bill", "peel", "bottle", "battle", "model", "box", "fox",
+    "milk", "silk", "water", "waiter", "kitchen", "chicken", "kitten", "bedroom", "bathroom", "living", "giving",
+    "leaving", "sink", "shelf", "self", "shell", "fridge", "bridge", "drawer", "draw", "counter", "sofa", "sober",
+    "bed", "bad", "bet", "desk", "disk", "lamp", "camp", "remote", "remove", "it", "eat", "hit", "hot", "hat", "not",
+    "nut", "want", "won", "on", "an", "all", "ill", "oh", "no", "go", "so", "grandma", "grandpa", "mom", "mum", "dad",
+    "dead", "kid", "kit", "the", "they", "then", "than", "them", "these", "those", "first", "thirst", "fine", "find",
+    "mind", "kind", "time", "tight", "wait", "weight", "late", "later", "letter", "near", "nearer", "far", "fair",
+    "car", "card", "hard", "here", "hear", "hair", "chair", "there", "their",
+})
+
+
+def _edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        cur = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] != b[j - 1]))
+        prev = cur
+    return prev[-1]
+
+
 
 # Hangul syllable arithmetic: S = 0xAC00 + (L * 21 + V) * 28 + T
 _H0, _H1 = 0xAC00, 0xD7A3
@@ -53,30 +90,65 @@ def is_hangul(ch: str) -> bool:
     return len(ch) == 1 and _H0 <= ord(ch) <= _H1
 
 
-def ko_confuse(ch: str, rng: random.Random) -> str:
-    """A near-homophone of one Hangul syllable: neighbouring vowel, or the final consonant dropped/added."""
+def is_common_syllable(ch: str) -> bool:
+    """One of the 2,350 Hangul syllables of KS X 1001 (the common set; exactly what EUC-KR encodes)."""
+    # CPython's EUC-KR codec encodes the 2,350 KS X 1001 syllables in 2 bytes and any other syllable with the
+    # 8-byte make-up sequence, so the encoded length identifies the common set
+    if not is_hangul(ch):
+        return False
+    try:
+        return len(ch.encode("euc_kr")) == 2
+    except UnicodeEncodeError:
+        return False
+
+
+@functools.lru_cache(maxsize=4096)
+def _ko_neighbours(ch: str) -> tuple:
     code = ord(ch) - _H0
     lead, rest = divmod(code, 21 * 28)
     vowel, tail = divmod(rest, 28)
-    if rng.random() < 0.6 and vowel in _KO_VOWEL_NEIGHBOURS:
-        vowel = rng.choice(_KO_VOWEL_NEIGHBOURS[vowel])
-    elif tail:
-        tail = 0
+    cands = set()
+    for v in _KO_VOWEL_NEIGHBOURS.get(vowel, []):
+        cands.add(chr(_H0 + (lead * 21 + v) * 28 + tail))
+    if tail:
+        cands.add(chr(_H0 + (lead * 21 + vowel) * 28))
     else:
-        tail = rng.choice([4, 8, 21])  # ㄴ ㄹ ㅇ
-    return chr(_H0 + (lead * 21 + vowel) * 28 + tail)
+        for t in (1, 4, 8, 16, 21):  # ㄱ ㄴ ㄹ ㅁ ㅇ
+            cands.add(chr(_H0 + (lead * 21 + vowel) * 28 + t))
+    cands.discard(ch)
+    return tuple(sorted(c for c in cands if is_common_syllable(c)))
+
+
+def ko_confuse(ch: str, rng: random.Random) -> str:
+    """A near-homophone of one Hangul syllable (neighbouring vowel, final consonant dropped or added), limited
+    to common syllables so the output looks like recogniser output. Returns "" (a deletion) if none exists."""
+    cands = _ko_neighbours(ch)
+    return rng.choice(cands) if cands else ""
 
 
 def en_confuse(word: str, rng: random.Random) -> str:
+    """A real English word the recogniser may output instead of ``word``: a hand-listed near-homophone, else
+    the nearest words of the vocabulary by edit distance (ties drawn at random). Never a non-word."""
     core = re.sub(r"[^\w']", "", word.lower())
     if core in CONFUSIONS_EN:
         return rng.choice(CONFUSIONS_EN[core])
-    idx = [i for i, c in enumerate(core) if c in _VOWELS_EN]
-    if not idx:
-        return core + "s" if core else word
-    i = rng.choice(idx)
-    repl = rng.choice([v for v in _VOWELS_EN if v != core[i]])
-    return core[:i] + repl + core[i + 1:]
+    best = _nearest_words(core)
+    return rng.choice(best) if best else (core or word)
+
+
+@functools.lru_cache(maxsize=4096)
+def _nearest_words(core: str) -> tuple:
+    best: list[str] = []
+    bd = None
+    for v in VOCAB_EN:
+        if v == core:
+            continue
+        d = _edit_distance(core, v)
+        if bd is None or d < bd:
+            bd, best = d, [v]
+        elif d == bd:
+            best.append(v)
+    return tuple(best)
 
 
 class ASRRates:

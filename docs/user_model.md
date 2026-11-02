@@ -58,10 +58,12 @@ seed give the same answers, walks and ASR errors.
 
 Per utterance: not heard with `asr.p_not_heard` = 0.027 and partly heard with `asr.p_partial` = 0.0114 (the first
 half or more of the words survive) (OLDERVA Table 2: 69 and 29 of 2,552 in-home turns of older adults);
-otherwise each English word / Korean syllable is corrupted with the WER / CER of the condition: a substitution
-by a near-homophone (a hand list such as cup -> cop, or a changed vowel; for Hangul a neighbouring vowel or a
-changed final consonant: 컵 -> 캅), a deletion, or an inserted filler (uh, um / 어, 음) in shares 0.6 / 0.3 / 0.1
-(assumed).
+otherwise each English word / Korean syllable is corrupted with the WER / CER of the condition: a substitution,
+a deletion, or an inserted short function word (EN the, a, and, to, it; KO 이, 요, 그), in shares 0.6 / 0.3 / 0.1
+(assumed). Substitutions are always plausible recogniser output, never non-words: an English word becomes a
+hand-listed near-homophone (cup -> cop, kitchen -> chicken) or the nearest real word of a ~330-word vocabulary by
+edit distance; a Korean syllable becomes a neighbouring-vowel or changed-final-consonant syllable (컵 -> 캅)
+restricted to the 2,350 common syllables of KS X 1001.
 
 | condition | English WER | Korean CER |
 |---|---|---|
@@ -113,3 +115,17 @@ It is not a language model: it answers only what its rules and the task's `user`
 cannot extract the goal by asking open questions; a vague question gets "not sure". Elderly-specific ASR rates
 (read speech, fine-tuned models) were found but not used, because they are lower than the in-home breakdown
 rates of OLDERVA.
+
+## Sources
+
+Full entries in [calibration.md](calibration.md).
+
+- WHISPER: https://arxiv.org/abs/2212.04356
+- KMETEO: https://arxiv.org/abs/2410.18444
+- OLDERVA: https://arxiv.org/abs/2403.02421
+- ZOU: https://arxiv.org/abs/2008.00279
+- BOHANNON: https://doi.org/10.1016/j.physio.2010.12.004 (decade table read from https://www.physicaltherapy.utoronto.ca/sites/default/files/assets/files/11walking-speed-age-and-sex-specific-normative-values-final.pdf)
+- STUDENSKI: https://doi.org/10.1001/jama.2010.1923
+- WALTERS05: https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
+- OSKOEI10: https://uhra.herts.ac.uk/id/eprint/13538/2/MohammedrezaEtAl_AISB10Proxemic.pdf
+- TRAINS: https://aclanthology.org/J99-4003/
