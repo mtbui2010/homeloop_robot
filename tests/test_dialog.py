@@ -242,3 +242,19 @@ def test_goal_more_question_forms():
 def test_which_place_to_look_is_a_location_question():
     c = _ans("Which place should I look for the blue mug and the phone?")
     assert c.rule == "location" and c.text == "It's on the counter."
+
+
+def test_goal_destination_without_the_object():
+    one = {"all": [{"pred": "held_by", "args": ["phone_1", "grandma"]}]}
+    assert _ans("여기 있어요? 어디에 가져다줘야 할까요?", "ko", wants=one).text == "저한테 갖다 주세요."
+    assert _ans("Where should I put it?", wants=one).text == "Bring it to me, please."
+    # an empty slot is not a question a person can place; two things going to different places: which one?
+    assert _ans("Where should I put the ?", wants=one).rule != "goal_destination"
+    assert _ans("Where should I put it?").rule != "goal_destination"
+
+
+def test_question_followed_by_a_remark():
+    assert classify("파란 책은 안락의자에요, 아니면 TV대에요? 두 곳에 동시에 놓을 수는 없어요.") == "yes_no"
+    assert classify("Is it the red one? I can see two.") == "yes_no"
+    c = _ans("파란 머그컵은 조리대에요, 아니면 싱크대에요? 두 곳에 놓을 수는 없어요.", "ko")
+    assert c.text == "싱크대 위에 놔 주세요."

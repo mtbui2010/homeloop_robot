@@ -80,7 +80,9 @@ def classify(question: str, lang: str | None = None) -> str:
         if any(w in q for w in WH_KO):
             return "wh"
         q2 = q.replace(" ", "")
-        if any(q2.endswith(e) for e in YESNO_KO):
+        # the question may be followed by a remark ("...TV대에요? 두 곳에 놓을 수는 없어요.")
+        parts = [q2] + [seg + "?" for seg in q2.split("?")[:-1]]
+        if any(p.endswith(e) for p in parts for e in YESNO_KO):
             return "yes_no"
         return "other"
     words = normalize(question, "en").split()
@@ -88,7 +90,7 @@ def classify(question: str, lang: str | None = None) -> str:
         return "other"
     if any(w in WH_EN for w in words):
         return "wh"
-    if words[0] in AUX_EN or question.strip().endswith("?"):
+    if words[0] in AUX_EN or "?" in question:
         return "yes_no"
     return "other"
 
@@ -557,6 +559,13 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
 
     # 1. "Where should I put / bring the X?": where the user wants it
     is_dest = asks_destination(question)
+    if not goal_objs and is_dest:
+        # "어디에 가져다줘야 할까요?" (Korean drops the object) / "Where should I put it?": the one thing asked for
+        movers = [o for o in dict.fromkeys(gv.objects())]
+        dests = {gv.dest_text(gv.dest(o), L) for o in movers}
+        pron = L == "ko" or bool(re.search(r"\b(it|them|this|that)\b", low))
+        if pron and movers and len(dests) == 1:
+            return Content("correct", dests.pop(), True, wrong_place, "goal_destination")
     if goal_objs and is_dest:
         parts = []
         if (LOC_RX["en"].search(low) or LOC_RX["ko"].search(q)) and knows_location:

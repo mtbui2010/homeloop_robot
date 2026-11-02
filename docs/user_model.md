@@ -49,8 +49,9 @@ path only when the user is reachable.
 1. **Who answers**: the person with `role: user`. Not reachable (see the channel), asleep, or past the patience
    limit -> no answer (the robot's `ask` times out).
 2. **Question type** (`dialog.classify`): a wh-word anywhere (EN which, what, where, who, how, when; KO 어느,
-   어떤, 어디, 누구, 뭐, 무엇, 무슨, 어떻게, 몇, 언제) -> `wh`; an EN question starting with an auxiliary or ending in
-   "?", a KO question ending in 까요?, 나요?, 가요?, 죠?, 니?, 맞아요?, ...요? -> `yes_no`; otherwise `other`.
+   어떤, 어디, 누구, 뭐, 무엇, 무슨, 어떻게, 몇, 언제) -> `wh`; an EN question starting with an auxiliary or holding a
+   "?", a KO sentence ending in 까요?, 나요?, 가요?, 죠?, 니?, 맞아요?, ...요? (also when a remark follows it) ->
+   `yes_no`; otherwise `other`.
 3. **Mentions**: candidate mentions of the task (`spec.candidates[*].mentions`) and object names (catalog class
    name, colour + name) are matched in both languages after normalization (case, punctuation; Korean spaces
    ignored).
@@ -84,6 +85,9 @@ path only when the user is reachable.
        but "which place should I look for X?" asks where X is;
      - a list of places none of which is where the request goes, when the request is for a person -> who it is
        for: "Bring it to me, please." or where that person is ("Grandpa is at the bed.");
+     - "어디에 가져다줘야 할까요?" (Korean drops the object) / "Where should I put it?" with one thing asked for
+       (or all going to the same place) -> where it goes; an empty slot ("Where should I put the ?") is not
+       answered;
      - open questions ("What should I do?", "What else?") are not answered from the request;
    - "where is X?" about one object -> its true place ("It's on the counter." / "조리대 위에 있어요."), unless the
      user does not know (`user.p_location_unknown`); "where should I put X?" is not read as "where is X?";
