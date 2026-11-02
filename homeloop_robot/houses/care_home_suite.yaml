@@ -1,0 +1,106 @@
+# A care-home suite: sitting room, kitchenette, bedroom, bathroom. A resident (the user, 70-79) and a
+# caregiver: medicine, handover. Held out: used in the test split only.
+house: care_home_suite
+version: 1
+name: {en: Care home suite, ko: 요양원 방}
+rooms:
+  sitting:     {type: [living], name: {en: sitting room, ko: 거실}, rect: [0, 0, 5, 4], floor: {pos: [2.8, 2.0], tags: [exit_path]}}
+  kitchenette: {type: [kitchen, dining], name: {en: kitchenette, ko: 간이 주방}, rect: [5, 0, 7.5, 4], floor: {pos: [6.0, 1.6]}}
+  bedroom:     {type: [bedroom], name: {en: bedroom, ko: 침실}, rect: [0, 4, 5, 7.5], floor: {pos: [2.6, 5.4]}}
+  bathroom:    {type: [bathroom], name: {en: bathroom, ko: 화장실}, rect: [5, 4, 7.5, 6.5], floor: {pos: [6.2, 5.0], tags: [wet]}}
+doors:
+  - {rooms: [sitting, kitchenette], at: [5.0, 2.0], width_m: 1.0}
+  - {rooms: [sitting, bedroom], at: [3.2, 4.0], width_m: 1.0}
+  - {rooms: [bedroom, bathroom], at: [5.0, 5.2], width_m: 0.9}
+places:
+  recliner@sitting:
+    {room: sitting, kind: seat, name: {en: recliner, ko: 리클라이너}, aliases: {en: [armchair, chair], ko: [안락의자]},
+     pos: [1.9, 0.9], yaw_deg: 200, height_m: 0.45, clutter: low, capacity: 2, tags: [], person_pos: [0.5, 0.5]}
+  side_table@sitting:
+    {room: sitting, kind: surface, name: {en: side table, ko: 사이드 테이블}, aliases: {en: [], ko: [협탁]},
+     pos: [2.0, 2.4], yaw_deg: 180, height_m: 0.55, clutter: medium, capacity: 5, tags: []}
+  tv_stand@sitting:
+    {room: sitting, kind: surface, name: {en: TV stand, ko: TV 받침대}, aliases: {en: [], ko: [티비장]},
+     pos: [3.6, 0.8], yaw_deg: 270, height_m: 0.5, clutter: low, capacity: 4, tags: [electrical]}
+  wall_shelf@sitting:
+    {room: sitting, kind: surface, name: {en: wall shelf, ko: 벽 선반}, aliases: {en: [shelf], ko: [선반]},
+     pos: [1.2, 3.4], yaw_deg: 90, height_m: 1.45, clutter: low, capacity: 5, tags: [high_shelf]}
+  dock@sitting:
+    {room: sitting, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
+     pos: [4.3, 1.4], yaw_deg: 0, height_m: 0.0, clutter: low, capacity: 0, tags: []}
+  counter@kitchenette:
+    {room: kitchenette, kind: surface, name: {en: counter, ko: 조리대}, aliases: {en: [kitchen counter], ko: [싱크대]},
+     pos: [6.0, 0.7], yaw_deg: 270, height_m: 0.9, clutter: medium, capacity: 5, tags: [food_prep, wet]}
+  hob@kitchenette:
+    {room: kitchenette, kind: surface, name: {en: hob, ko: 전기레인지}, aliases: {en: [stove], ko: [레인지]},
+     pos: [7.0, 0.7], yaw_deg: 270, height_m: 0.9, clutter: low, capacity: 2, tags: [heat_source]}
+  fridge@kitchenette:
+    {room: kitchenette, kind: container, container: {type: fridge, openable: true, opened: false},
+     name: {en: fridge, ko: 냉장고}, aliases: {en: [refrigerator], ko: []},
+     pos: [7.0, 1.7], yaw_deg: 0, height_m: 1.0, clutter: low, capacity: 6, tags: [food_storage]}
+  microwave@kitchenette:
+    {room: kitchenette, kind: container, container: {type: appliance, openable: true, opened: false},
+     name: {en: microwave, ko: 전자레인지}, aliases: {en: [], ko: []},
+     pos: [5.8, 2.4], yaw_deg: 90, height_m: 1.0, clutter: low, capacity: 1, tags: [electrical]}
+  drawer@kitchenette:
+    {room: kitchenette, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: kitchen drawer, ko: 주방 서랍}, aliases: {en: [drawer], ko: [서랍]},
+     pos: [5.6, 1.3], yaw_deg: 270, height_m: 0.8, clutter: low, capacity: 5, tags: []}
+  table@kitchenette:
+    {room: kitchenette, kind: surface, name: {en: small table, ko: 식탁}, aliases: {en: [table], ko: [작은 식탁]},
+     pos: [5.6, 3.4], yaw_deg: 90, height_m: 0.75, clutter: low, capacity: 4, tags: []}
+  kitchen_sink@kitchenette:
+    {room: kitchenette, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [6.5, 1.2], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
+  bed@bedroom:
+    {room: bedroom, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [care bed], ko: [환자 침대]},
+     pos: [1.9, 6.7], yaw_deg: 180, height_m: 0.6, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 7.0]}
+  nightstand@bedroom:
+    {room: bedroom, kind: surface, name: {en: nightstand, ko: 협탁}, aliases: {en: [bedside table], ko: [침대 옆 탁자]},
+     pos: [1.8, 5.0], yaw_deg: 180, height_m: 0.6, clutter: medium, capacity: 5, tags: [electrical]}
+  wardrobe@bedroom:
+    {room: bedroom, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: wardrobe, ko: 옷장}, aliases: {en: [closet], ko: []},
+     pos: [3.6, 6.8], yaw_deg: 90, height_m: 1.8, clutter: low, capacity: 6, tags: []}
+  dresser@bedroom:
+    {room: bedroom, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: dresser, ko: 서랍장}, aliases: {en: [], ko: []},
+     pos: [4.0, 5.2], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 5, tags: []}
+  sink@bathroom:
+    {room: bathroom, kind: surface, name: {en: bathroom sink, ko: 세면대}, aliases: {en: [sink], ko: []},
+     pos: [7.0, 5.7], yaw_deg: 0, height_m: 0.85, clutter: low, capacity: 4, tags: [wet]}
+  medicine_cabinet@bathroom:
+    {room: bathroom, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: medicine cabinet, ko: 약 수납장}, aliases: {en: [bathroom cabinet], ko: [수납장]},
+     pos: [5.9, 6.0], yaw_deg: 90, height_m: 1.3, clutter: medium, capacity: 6, tags: [], hard_nav: true}
+objects:
+  - {id: cup_1, cls: cup, attrs: {color: white}, at: side_table@sitting, alt: [nightstand@bedroom, table@kitchenette]}
+  - {id: cup_2, cls: cup, attrs: {color: blue}, at: counter@kitchenette, alt: [table@kitchenette]}
+  - {id: water_bottle_1, cls: water_bottle, attrs: {color: blue}, at: fridge@kitchenette, alt: [nightstand@bedroom, side_table@sitting]}
+  - {id: juice_1, cls: juice, attrs: {color: orange}, at: fridge@kitchenette, alt: [table@kitchenette]}
+  - {id: banana_1, cls: banana, attrs: {color: yellow}, at: table@kitchenette, alt: [counter@kitchenette]}
+  - {id: bowl_1, cls: bowl, attrs: {color: white}, at: counter@kitchenette, alt: [table@kitchenette]}
+  - {id: spoon_1, cls: spoon, attrs: {color: gray}, at: drawer@kitchenette, alt: [table@kitchenette]}
+  - {id: medicine_bottle_1, cls: medicine_bottle, attrs: {color: white}, at: medicine_cabinet@bathroom, alt: [nightstand@bedroom]}
+  - {id: medicine_bottle_2, cls: medicine_bottle, attrs: {color: brown}, at: medicine_cabinet@bathroom, alt: [side_table@sitting]}
+  - {id: pill_box_1, cls: pill_box, attrs: {color: blue}, at: nightstand@bedroom, alt: [side_table@sitting, table@kitchenette]}
+  - {id: pill_box_2, cls: pill_box, attrs: {color: pink}, at: wall_shelf@sitting, alt: [nightstand@bedroom]}
+  - {id: glasses_1, cls: glasses, attrs: {color: gray}, at: nightstand@bedroom, alt: [side_table@sitting, recliner@sitting]}
+  - {id: remote_1, cls: remote, attrs: {color: black}, at: side_table@sitting, alt: [recliner@sitting, tv_stand@sitting]}
+  - {id: phone_1, cls: phone, attrs: {color: white}, at: nightstand@bedroom, alt: [side_table@sitting]}
+  - {id: book_1, cls: book, attrs: {color: green}, at: wall_shelf@sitting, alt: [nightstand@bedroom]}
+  - {id: tissue_box_1, cls: tissue_box, attrs: {color: white}, at: nightstand@bedroom, alt: [side_table@sitting]}
+  - {id: towel_1, cls: towel, attrs: {color: white}, at: sink@bathroom, alt: [wardrobe@bedroom]}
+  - {id: towel_2, cls: towel, attrs: {color: blue}, at: wardrobe@bedroom, alt: [sink@bathroom]}
+  - {id: socks_1, cls: socks, attrs: {color: gray}, at: dresser@bedroom, alt: [bed@bedroom]}
+  - {id: cleaning_spray_1, cls: cleaning_spray, attrs: {color: white}, at: medicine_cabinet@bathroom, alt: []}
+  - {id: kitchen_knife_1, cls: knife, attrs: {color: black}, at: drawer@kitchenette, alt: []}
+  - {id: vase_1, cls: vase, attrs: {color: blue}, at: tv_stand@sitting, alt: [wall_shelf@sitting]}
+  - {id: water_jug_1, cls: water_jug, attrs: {color: blue}, at: counter@kitchenette, alt: []}
+people:
+  - {id: resident, role: user, name: {en: the resident, ko: 어르신}, aliases: {en: [me], ko: [나, 저]},
+     age_group: "70-79", sex: male, child: false, frail: true, seat: recliner@sitting, pos: [0.5, 0.5],
+     alt_seats: [bed@bedroom]}
+  - {id: caregiver, role: other, name: {en: the caregiver, ko: 요양보호사}, aliases: {en: [nurse, carer], ko: [선생님, 간병인]},
+     age_group: "40-49", sex: female, child: false, seat: table@kitchenette, pos: [7.1, 3.7], alt_seats: []}
+robot: {start: dock@sitting, dock: dock@sitting}

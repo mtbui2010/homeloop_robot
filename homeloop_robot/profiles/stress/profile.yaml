@@ -1,0 +1,18 @@
+# `stress`: derived from `real` (docs/profiles.md). Every role:failure probability p -> min(cap, p x factor),
+# every role:failure rate r -> r x factor; recovery probabilities are NOT scaled (that would make stress
+# easier). Sourced worst cases in `overrides` replace the scaled value.
+profile: stress
+derive_from: real
+scaling:
+  failure_prob_factor: 2.0
+  cap: 0.95
+  assumed: true
+  note: "The research-notes methodology (R3) sweeps failure rates x0.5 / x1 / x2; stress is the x2 end. A design choice, not a measured value."
+overrides:
+  open.p_fail:
+    value: {door: 0.5, drawer: 0.5}
+    source: https://arxiv.org/abs/2401.14403
+    where: "Abstract, Fig. 6"
+    note: "Articulated-object mobile manipulation: an unadapted behaviour-cloning policy succeeds about 50 % on novel doors / drawers (about 95 % after adaptation). Worst case for both door and drawer."
+  # BEGIN user-safety overrides (robot-human-safety edits only inside this block)
+  # END user-safety overrides

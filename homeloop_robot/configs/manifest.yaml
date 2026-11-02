@@ -1,0 +1,264 @@
+# What the homeloop mock robot can do, for robot_agent's planner (robot_agent.contract.Manifest).
+# Check it against the skills:
+#     python -m robot_agent.contract.check_manifest homeloop_robot/homeloop_robot --strict
+# The skills run on the mock robot through configs/backend.py: no motion (docs/robot_agent.md).
+# Predicates: arrived(L), found(O), holding(O), hand_empty(), opened(C), docked(); "not P" negates; ?x = param x.
+robot: homeloop
+version: "1.0"
+language: en
+description: "A mobile manipulator with one arm and gripper, a camera, a speaker and a microphone, working in a home."
+capabilities: {base: true, arms: 1, hands: [right], lift: true, head: true, drawer: true, voice: true, find_reaches: false}
+geometry: {arrive_tol_m: 0.3, reach_m: 0.78, reach_far_m: 1.0}
+planner:
+  notes:
+    - "Open a container before PutIn; close it after."
+    - "Find an object at its place before Pick; move to a person before Handover."
+skills:
+  - name: move
+    action: MoveTo
+    description: "Drive to a place or to a person."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "place id or name (e.g. 'counter@kitchen', 'kitchen counter') or a person"}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: ["arrived(?inputs)", "not docked()"]
+    verify: [{kind: symbolic}, {kind: sensor, skill: pose}]
+    interruptible: true
+    errors: [unreachable, blocked, timeout, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: find
+    action: Find
+    description: "Look for an object at the current place."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "object id or name, e.g. 'red mug'"}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: ["found(?inputs)"]
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [absent, perception_unavailable, unreachable, hw_fault, timeout, cancelled, software]
+    version: "1.0"
+  - name: pick
+    action: Pick
+    description: "Pick up an object found at the current place."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the object found here"}
+      required: [inputs]
+    pre: ["found(?inputs)", "hand_empty()"]
+    hold: []
+    effects: ["holding(?inputs)", "not found(?inputs)", "not hand_empty()"]
+    verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check}]
+    interruptible: true
+    errors: [absent, unreachable, blocked, grasp_failed, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: place
+    action: Place
+    description: "Put the held object on the place the robot is at."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the place the robot is at"}
+      required: [inputs]
+    pre: ["arrived(?inputs)", "not hand_empty()"]
+    hold: []
+    effects: ["hand_empty()", "not holding(*)"]
+    verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
+    interruptible: true
+    errors: [dropped, absent, unreachable, blocked, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: put_in
+    action: PutIn
+    description: "Put the held object into the open container the robot is at."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the open container the robot is at"}
+      required: [inputs]
+    pre: ["arrived(?inputs)", "opened(?inputs)", "not hand_empty()"]
+    hold: []
+    effects: ["hand_empty()", "not holding(*)"]
+    verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
+    interruptible: true
+    errors: [dropped, absent, unreachable, blocked, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: open
+    action: Open
+    description: "Open a container (drawer, cabinet, fridge ...) the robot is at."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the container"}
+      required: [inputs]
+    pre: ["arrived(?inputs)", "hand_empty()"]
+    hold: []
+    effects: ["opened(?inputs)"]
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [unreachable, blocked, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: close
+    action: Close
+    description: "Close a container the robot is at."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the container"}
+      required: [inputs]
+    pre: ["arrived(?inputs)", "hand_empty()", "opened(?inputs)"]
+    hold: []
+    effects: ["not opened(?inputs)"]
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [unreachable, blocked, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: handover
+    action: Handover
+    description: "Hand the held object to a person nearby."
+    alias_actions: [WaitForUnload]
+    params:
+      type: object
+      properties:
+        inputs: {type: string, default: "", description: "the person ('' = the nearest person)"}
+      required: []
+    pre: ["not hand_empty()"]
+    hold: []
+    effects: ["hand_empty()", "not holding(*)"]
+    verify: [{kind: symbolic}, {kind: sensor, skill: grasp_check, expect: false}]
+    interruptible: true
+    errors: [dropped, grasp_failed, unreachable, timeout, hw_fault, estop, cancelled, software]
+    version: "1.0"
+  - name: say
+    action: Say
+    description: "Say a sentence to the people in this room."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the sentence, said as written"}
+        lang: {type: string, default: en}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: []
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [hw_fault, software]
+    version: "1.0"
+  - name: announce
+    action: Announce
+    description: "Announce a sentence to this room and the adjacent rooms."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the sentence"}
+        lang: {type: string, default: en}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: []
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [hw_fault, software]
+    version: "1.0"
+  - name: ask
+    action: Ask
+    description: "Ask a question and listen for the answer."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "the question"}
+        lang: {type: string, default: en}
+        retries: {type: integer, default: 0}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: []
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [timeout, cancelled, hw_fault, software]
+    version: "1.0"
+  - name: look
+    action: Look
+    description: "Describe what the camera sees here: objects, containers, people."
+    params: {type: object, properties: {}, required: []}
+    pre: []
+    hold: []
+    effects: []
+    verify: []
+    interruptible: true
+    errors: [perception_unavailable, hw_fault, software]
+    version: "1.0"
+  - name: vlm_check
+    action: Query
+    description: "Ask the camera whether a condition holds."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, description: "a condition, e.g. 'on(mug_1, table@kitchen)'"}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: []
+    verify: []
+    interruptible: true
+    errors: [perception_unavailable, hw_fault, software]
+    version: "1.0"
+  - name: wait
+    action: Wait
+    description: "Wait a number of seconds (0 < s <= 120)."
+    params:
+      type: object
+      properties:
+        inputs: {type: [string, number], description: "seconds"}
+      required: [inputs]
+    pre: []
+    hold: []
+    effects: []
+    verify: []
+    interruptible: true
+    errors: [software]
+    version: "1.0"
+  - name: dock
+    action: Dock
+    description: "Dock at the charging dock (the robot must be at the dock)."
+    params:
+      type: object
+      properties:
+        inputs: {type: string, default: dock, description: "the dock (only one)"}
+      required: []
+    pre: ["arrived(dock)"]
+    hold: []
+    effects: ["docked()"]
+    verify: [{kind: symbolic}]
+    interruptible: true
+    errors: [unreachable, hw_fault, estop, software]
+    version: "1.0"
+  - name: grasp_check
+    action: Verify
+    description: "Read the gripper sensor: isdone = something is held."
+    params: {type: object, properties: {}, required: []}
+    pre: []
+    hold: []
+    effects: []
+    verify: []
+    interruptible: true
+    errors: [hw_fault, software]
+    version: "1.0"
+  - name: pose
+    action: Observe
+    description: "Read the localization pose [x, y, yaw_deg]."
+    params: {type: object, properties: {}, required: []}
+    pre: []
+    hold: []
+    effects: []
+    verify: []
+    interruptible: true
+    errors: [hw_fault, software]
+    version: "1.0"

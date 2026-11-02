@@ -1,0 +1,81 @@
+# A small studio: one main room (sleeping, living, kitchenette) and a bathroom. Short paths, high clutter.
+house: studio_flat
+version: 1
+name: {en: Studio flat, ko: 원룸}
+rooms:
+  main:     {type: [living, bedroom, kitchen], name: {en: main room, ko: 방}, rect: [0, 0, 6, 5], floor: {pos: [3.4, 2.6], tags: [exit_path]}}
+  bathroom: {type: [bathroom], name: {en: bathroom, ko: 화장실}, rect: [6, 2, 8, 5], floor: {pos: [6.8, 3.6]}}
+doors:
+  - {rooms: [main, bathroom], at: [6.0, 3.5], width_m: 0.7}
+places:
+  bed@main:
+    {room: main, kind: seat, name: {en: bed, ko: 침대}, aliases: {en: [], ko: []},
+     pos: [1.8, 3.3], yaw_deg: 180, height_m: 0.5, clutter: high, capacity: 4, tags: [], person_pos: [0.5, 4.5]}
+  desk@main:
+    {room: main, kind: surface, name: {en: desk, ko: 책상}, aliases: {en: [work desk], ko: []},
+     pos: [2.0, 1.6], yaw_deg: 180, height_m: 0.75, clutter: high, capacity: 6, tags: [electrical]}
+  desk_chair@main:
+    {room: main, kind: seat, name: {en: desk chair, ko: 의자}, aliases: {en: [chair], ko: [책상 의자]},
+     pos: [1.8, 0.6], yaw_deg: 180, height_m: 0.45, clutter: low, capacity: 1, tags: [], person_pos: [0.5, 0.5]}
+  shelf@main:
+    {room: main, kind: surface, name: {en: wall shelf, ko: 벽 선반}, aliases: {en: [shelf], ko: [선반]},
+     pos: [3.2, 4.3], yaw_deg: 90, height_m: 1.45, clutter: medium, capacity: 5, tags: [high_shelf]}
+  counter@main:
+    {room: main, kind: surface, name: {en: kitchenette counter, ko: 싱크대}, aliases: {en: [counter], ko: [조리대]},
+     pos: [4.6, 0.8], yaw_deg: 270, height_m: 0.9, clutter: high, capacity: 6, tags: [food_prep, wet]}
+  hob@main:
+    {room: main, kind: surface, name: {en: hob, ko: 인덕션}, aliases: {en: [stove], ko: [레인지]},
+     pos: [5.4, 1.6], yaw_deg: 0, height_m: 0.9, clutter: low, capacity: 2, tags: [heat_source]}
+  fridge@main:
+    {room: main, kind: container, container: {type: fridge, openable: true, opened: false},
+     name: {en: fridge, ko: 냉장고}, aliases: {en: [mini fridge], ko: []},
+     pos: [3.4, 0.7], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 6, tags: [food_storage]}
+  microwave@main:
+    {room: main, kind: container, container: {type: appliance, openable: true, opened: false},
+     name: {en: microwave, ko: 전자레인지}, aliases: {en: [], ko: []},
+     pos: [5.3, 2.6], yaw_deg: 0, height_m: 1.1, clutter: low, capacity: 1, tags: [electrical]}
+  kitchen_sink@main:
+    {room: main, kind: surface, name: {en: kitchen sink, ko: 개수대}, aliases: {en: [sink], ko: [싱크볼]},
+     pos: [5.4, 0.6], yaw_deg: 270, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet, food_prep]}
+  drawer@main:
+    {room: main, kind: container, container: {type: drawer, openable: true, opened: false},
+     name: {en: drawer, ko: 서랍}, aliases: {en: [kitchen drawer], ko: []},
+     pos: [4.2, 1.7], yaw_deg: 270, height_m: 0.8, clutter: high, capacity: 6, tags: []}
+  closet@main:
+    {room: main, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: closet, ko: 붙박이장}, aliases: {en: [wardrobe], ko: [옷장]},
+     pos: [4.4, 4.3], yaw_deg: 90, height_m: 1.8, clutter: medium, capacity: 6, tags: []}
+  dock@main:
+    {room: main, kind: dock, name: {en: charging dock, ko: 충전기}, aliases: {en: [dock, charger], ko: [충전 스테이션]},
+     pos: [3.0, 3.0], yaw_deg: 90, height_m: 0.0, clutter: low, capacity: 0, tags: []}
+  sink@bathroom:
+    {room: bathroom, kind: surface, name: {en: bathroom sink, ko: 세면대}, aliases: {en: [sink], ko: []},
+     pos: [7.0, 4.2], yaw_deg: 90, height_m: 0.85, clutter: medium, capacity: 4, tags: [wet]}
+  bath_cabinet@bathroom:
+    {room: bathroom, kind: container, container: {type: cabinet, openable: true, opened: false},
+     name: {en: bathroom cabinet, ko: 욕실 수납장}, aliases: {en: [medicine cabinet], ko: [수납장]},
+     pos: [7.3, 2.7], yaw_deg: 0, height_m: 1.2, clutter: medium, capacity: 5, tags: [], hard_nav: true}
+objects:
+  - {id: mug_1, cls: mug, attrs: {color: white}, at: desk@main, alt: [counter@main]}
+  - {id: mug_2, cls: mug, attrs: {color: black}, at: counter@main, alt: [desk@main]}
+  - {id: cup_1, cls: cup, attrs: {color: green}, at: counter@main, alt: [desk@main]}
+  - {id: bowl_1, cls: bowl, attrs: {color: white}, at: counter@main, alt: [kitchen_sink@main]}
+  - {id: snack_1, cls: snack, attrs: {color: red}, at: desk@main, alt: [shelf@main]}
+  - {id: snack_2, cls: snack, attrs: {color: blue}, at: shelf@main, alt: [counter@main]}
+  - {id: juice_1, cls: juice, attrs: {color: orange}, at: fridge@main, alt: [counter@main]}
+  - {id: water_bottle_1, cls: water_bottle, attrs: {color: blue}, at: fridge@main, alt: [desk@main]}
+  - {id: phone_1, cls: phone, attrs: {color: black}, at: bed@main, alt: [desk@main]}
+  - {id: charger_1, cls: charger, attrs: {color: white}, at: desk@main, alt: []}
+  - {id: book_1, cls: book, attrs: {color: green}, at: shelf@main, alt: [bed@main, desk@main]}
+  - {id: notebook_1, cls: notebook, attrs: {color: yellow}, at: desk@main, alt: [shelf@main]}
+  - {id: towel_1, cls: towel, attrs: {color: white}, at: bath_cabinet@bathroom, alt: [sink@bathroom]}
+  - {id: towel_2, cls: towel, attrs: {color: gray}, at: closet@main, alt: [bath_cabinet@bathroom]}
+  - {id: socks_1, cls: socks, attrs: {color: black}, at: bed@main, alt: [closet@main]}
+  - {id: cleaning_spray_1, cls: cleaning_spray, attrs: {color: blue}, at: bath_cabinet@bathroom, alt: []}
+  - {id: hair_dryer_1, cls: hair_dryer, attrs: {color: black}, at: sink@bathroom, alt: [bath_cabinet@bathroom]}
+  - {id: kitchen_knife_1, cls: knife, attrs: {color: gray}, at: drawer@main, alt: [counter@main]}
+  - {id: foil_1, cls: foil, attrs: {color: gray}, at: drawer@main, alt: [counter@main]}
+people:
+  - {id: user, role: user, name: {en: the user, ko: 사용자}, aliases: {en: [me], ko: [나, 저]},
+     age_group: "20-29", sex: male, child: false, seat: desk_chair@main, pos: [0.5, 0.5], alt_seats: [bed@main]}
+robot: {start: dock@main, dock: dock@main}
