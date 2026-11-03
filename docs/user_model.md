@@ -56,7 +56,13 @@ path only when the user is reachable.
    name, colour + name) are matched in both languages after normalization (case, punctuation; Korean spaces
    ignored).
 4. **Content**, first rule that applies:
-   - "where are you?" (EN where are you / where you are; KO 어디(에) 계세요, 어디세요), naming no candidate -> the
+   - ASR repair, "could you repeat?" (EN repeat, say that / it again, pardon, come again, didn't catch that; KO 다시
+     (한 번) 말씀해, 뭐라고 하셨어요, 한 번 더 말씀해, 잘 못 들었어요) -> the user says it again: right after the request,
+     or when the question names the request ("what you'd like me to do", 부탁하신 거), the original request text;
+     after an answer of theirs, that answer. ASR noise applies again to what is repeated; people do not get their
+     own words wrong, so the correctness mix does not apply (silence and patience still do);
+   - "where are you?" (EN where are you / where you are; KO 어디(에) 계세요, 어디세요, and a plain 어디(에) 있어요? that
+     names no object, place or person), naming no candidate -> the
      user's own place: "I'm at the sofa." / "소파에 있어요.", or while walking "I'm going to the bed." /
      "침대로 가고 있어요." (`SimUser.place_of`). People do not misstate where they are, so the correctness mix of
      rule 5 does not apply; ASR does;
@@ -65,6 +71,12 @@ path only when the user is reachable.
      candidates -> the intended answer (`spec.answer`);
    - a scripted resolution (safety clarification, confirming a refused request): any wh or yes/no question ->
      `spec.answer`;
+   - ASR repair, "Did you mean X?" (EN did / do you mean / say X, "was it X", "... a typo?"; KO X(이)라고 하셨어요?,
+     X 말씀이세요?, X 맞나요?, 오타) where X (a quoted phrase, else the words after "mean" / before 말씀) is a word of
+     the user's own request or names an object, place or person of the request -> "Yes. " / "네. " + the request
+     restated. This is informative: the wrong / not-sure mix applies (a wrong draw is "not sure", since a "no" would
+     deny the user's own words). X that is neither (the misheard word itself) gets no repair answer and falls
+     through to the rules below;
    - a question about the user's own request (when the runner has told the user model what was asked for,
      `SimUser.set_wants(goal)`; `dialog.compose_from_goal`): the user restates what they asked for, never more:
      - "where should I put / bring X?" (EN put, place, bring, take, leave, move, go ...; KO 어디에 두/놓/넣/가져/갖다 ...)

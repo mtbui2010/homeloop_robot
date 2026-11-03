@@ -36,6 +36,22 @@ TEXT = {
 # "where are you?": the robot asks the user's own position (e.g. to bring something to them)
 SELF_WHERE = {"en": (r"\bwhere are you\b", r"\bwhere you are\b", r"\bwhere are you now\b"),
               "ko": (r"어디\s*에?\s*계", r"어디\s*세요", r"어디\s*계신")}
+# plain Korean "어디(에) 있어요?" with no object / person / place named: asked of the listener, "where are you?"
+SELF_WHERE_KO_PLAIN = re.compile(r"(지금\s*)?어디\s*(에)?\s*있(어요|어|으세요|나요|니|습니까)\s*\??")
+
+# ASR repair (R2-5 B3, docs/user_model.md): "Did you mean X?" about the user's own words, and "could you repeat?"
+MEAN_RX = {"en": re.compile(r"\b(did|do) you (mean|say|want)\b|\bby\b.+\bdo you mean\b|\bwas it\b|\btypo\b"),
+           "ko": re.compile(r"말씀(이세요|이신가요|이시죠|하신\s*(거|건)|하셨)|(이)?라고\s*(하셨|하신|말씀)|"
+                            r"(인가요|인지요|맞나요|맞아요|맞죠)\s*\??$|오타")}
+QUOTE_RX = re.compile(r"[\'\"‘’“”「」『』]([^\'\"‘’“”「」『』]{2,80})[\'\"‘’“”「」『』]")
+REPEAT_RX = {"en": re.compile(r"\b(repeat|say (that|it) again|come again|pardon|what did you (say|ask)|"
+                              r"one more time|didn'?t (catch|hear|get) (that|it|you|what you said))\b"),
+             "ko": re.compile(r"다시\s*(한\s*번\s*)?(말씀|말해|얘기|이야기)|뭐라고\s*(하셨|했|하신)|"
+                              r"한\s*번\s*더\s*(말씀|말해)|잘\s*못\s*들었")}
+# a repeat request that names the request itself ("what you'd like me to do", "부탁하신 거")
+REQUEST_REF_RX = {"en": re.compile(r"\b(what you( want| would like|'d like| asked| said| need)|your (request|task|"
+                                   r"instruction)|the (request|task|instruction)|what i should do)\b"),
+                  "ko": re.compile(r"부탁|요청|시키신|원하시|해\s*달라")}
 
 
 @dataclass(frozen=True)
@@ -168,10 +184,107 @@ def location_text(world: Any, oid: str, lang: str) -> str:
     return TEXT[key][lang].format(place=place_name(world, at, lang))
 
 
-def asks_user_position(question: str) -> bool:
-    """Does the question ask where the user is ("Where are you?", "지금 어디에 계세요?")?"""
+def asks_user_position(question: str, world: Any = None) -> bool:
+    """Does the question ask where the user is ("Where are you?", "지금 어디에 계세요?")? With ``world``, a plain
+    Korean "어디(에) 있어요?" that names no object, person or place counts as well (said to the listener)."""
     q = unicodedata.normalize("NFC", str(question or "")).lower()
-    return any(re.search(rx, q) for lg in ("en", "ko") for rx in SELF_WHERE[lg])
+    if any(re.search(rx, q) for lg in ("en", "ko") for rx in SELF_WHERE[lg]):
+        return True
+    if world is None:
+        return False
+    for seg in re.split(r"(?<=[?.!])\s*", q):
+        if SELF_WHERE_KO_PLAIN.search(seg) and not _names_anything(world, seg):
+            return True
+    return False
+
+
+def _names_anything(world: Any, text: str) -> bool:
+    """Does ``text`` name an object, a place or a person of the world (any language)?"""
+    if mentioned_objects(world, text):
+        return True
+    for pid in sorted(world.house.places):
+        if _mentions_any(_q_text(text), _place_words(world, pid)):
+            return True
+    return any(_mentions_any(text, _person_words(world, pid)) for pid in sorted(world.people))
+
+
+def _strip_det(x: str, L: str) -> str:
+    x = x.strip().strip("?.!,")
+    if L == "en":
+        x = re.sub(r"^(the|a|an|my|your|that|this)\s+", "", x.lower())
+    return x.strip()
+
+
+def mean_phrases(question: str, L: str) -> list[str]:
+    """The phrases X of a "did you mean X?" repair question: quoted phrases, else the words after "mean" /
+    before "말씀" (one phrase)."""
+    q = unicodedata.normalize("NFC", str(question or ""))
+    quoted = [m.group(1).strip() for m in QUOTE_RX.finditer(q)]
+    if quoted:
+        return quoted
+    if L == "en":
+        m = re.search(r"\b(?:did|do) you (?:mean|say|want)\s+(.+?)(?:\?|$|,|\bor\b)", q, re.I)
+        return [m.group(1).strip()] if m else []
+    m = re.search(r"(.+?)\s*(?:(?:이)?라고\s*(?:하셨|하신|말씀)|말씀(?:이세요|이신가요|이시죠|하신|하셨)|"
+                  r"(?:인가요|맞나요|맞아요|맞죠))", q)
+    return [m.group(1).strip().split("?")[-1].strip()] if m else []
+
+
+def own_phrase(world: Any, x: str, L: str, request: str | None, goal: "GoalView | None") -> bool:
+    """Is X a word of the user's own request, or the name of something their request is about?"""
+    x0 = _strip_det(x, L)
+    nx = normalize(x0, L)
+    if len(nx.replace(" ", "")) < 2:
+        return False
+    if request and nx in normalize(request, L):
+        return True
+    if goal is not None:
+        ents = set(goal.objects())
+        names = [n for o in ents if o in world.objects for n in object_names(world, o, L)]
+        for a in goal.atoms:
+            for arg in a.get("args") or []:
+                if arg in world.house.places:
+                    names += _place_words(world, arg)
+                elif arg in world.people:
+                    names += _person_words(world, arg)
+        if any(normalize(n, L) == nx for n in names if n):
+            return True
+    return False
+
+
+def is_repeat_request(question: str) -> bool:
+    q = unicodedata.normalize("NFC", str(question or ""))
+    return bool(REPEAT_RX["en"].search(q.lower()) or REPEAT_RX["ko"].search(q))
+
+
+def names_request(question: str) -> bool:
+    q = unicodedata.normalize("NFC", str(question or ""))
+    return bool(REQUEST_REF_RX["en"].search(q.lower()) or REQUEST_REF_RX["ko"].search(q))
+
+
+def repair(question: str, L: str, world: Any, *, request: str | None, last_answer: str | None,
+           goal: "GoalView | None") -> Content | None:
+    """ASR repair questions about the user's own words (R2-5 B3), or None.
+
+    * "could you repeat?" / "다시 말씀해 주시겠어요?": the user says it again. Right after the request (or when the
+      question names the request) that is the original request text; after an answer of theirs, that answer.
+      ASR applies again (user.answer); a person does not get their own words wrong, so it is not informative.
+    * "Did you mean X?" where X is a word of the request or names something the request is about: "yes", and
+      the user restates the request (informative: the wrong / not-sure mix applies; a wrong draw is "not sure").
+    """
+    if not request:
+        return None
+    if is_repeat_request(question):
+        if last_answer and not names_request(question):
+            return Content("correct", last_answer, False, None, "repeat_answer")
+        return Content("correct", request, False, None, "repeat_request")
+    q = unicodedata.normalize("NFC", str(question or ""))
+    if MEAN_RX["en"].search(q.lower()) or MEAN_RX["ko"].search(q):
+        xs = mean_phrases(q, L)
+        if xs and any(own_phrase(world, x, L, request, goal) for x in xs):
+            yes = {"en": "Yes. ", "ko": "네. "}[L]
+            return Content("yes", yes + request, True, None, "repair_confirm")
+    return None
 
 
 def _ro(word: str) -> str:
@@ -200,14 +313,17 @@ def candidate_text(cand: dict, lang: str) -> str:
 # ------------------------------------------------------------------------------------ answer content
 def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, knows_location: bool,
             other_place: str | None = None, user_place: tuple | None = None,
-            goal: "GoalView | None" = None) -> Content:
+            goal: "GoalView | None" = None, request: str | None = None,
+            last_answer: str | None = None) -> Content:
     """Answer content for ``question`` (DESIGN 5.2 rules 3-4), before the correctness mix.
 
     ``knows_location``: whether the user knows where an asked-about object is (drawn by the caller);
     ``other_place``: a place id used for a wrong location answer;
     ``user_place``: ``(place_id, moving)`` of the answering user, for "where are you?";
     ``goal``: what the user asked for (:class:`GoalView`), for questions about the request itself
-    (:func:`compose_from_goal`); None = those questions are not understood.
+    (:func:`compose_from_goal`); None = those questions are not understood;
+    ``request`` / ``last_answer``: the user's own request text and their last answer, for ASR repair
+    questions (:func:`repair`); None = not known.
     """
     qtype = classify(question)
     L = answer_lang
@@ -221,7 +337,11 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
     # "where are you?" (naming no candidate): the user says where they are (or where they are walking to); people
     # do not get their own position wrong, so the answer is not informative in the correctness-mix sense (ASR
     # still applies)
-    if user_place is not None and qtype == "wh" and asks_user_position(question) and \
+    if request and is_repeat_request(question):
+        c = repair(question, L, world, request=request, last_answer=last_answer, goal=goal)
+        if c is not None:
+            return c
+    if user_place is not None and qtype == "wh" and asks_user_position(question, world) and \
             not any(in_any_lang(c.get("mentions")) for c in cands):
         return Content("correct", self_position_text(world, user_place[0], bool(user_place[1]), L), False, None,
                        "self_position")
@@ -247,6 +367,11 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
     if ans and not cands and qtype in ("wh", "yes_no"):
         wt = spec.get("wrong_answer")
         return Content("correct", ans[L], True, wt[L] if isinstance(wt, dict) else None, "scripted_answer")
+    # "Did you mean X?" about the user's own words (ASR repair)
+    if request:
+        c = repair(question, L, world, request=request, last_answer=None, goal=goal)
+        if c is not None:
+            return c
     # a question about the request itself: where an object goes, which one / which place, a read-back
     if goal is not None:
         c = compose_from_goal(question, L, world, goal, knows_location=knows_location, other_place=other_place)

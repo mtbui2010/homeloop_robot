@@ -112,6 +112,7 @@ class SimUser:
             raise ValueError(f"user.dialog_channel must be app or voice, not {self.dialog_channel!r}")
         # the goal atoms the user asked for ({"all": [...]}); set by the runner (set_wants), None = unknown
         self.wants: dict | None = None
+        self.request: str | None = None          # the request text as the user said it (hear_instruction)
         self.asr = _asr.ASRRates(profile)
         users = sorted(pid for pid, p in world.people.items() if getattr(p, "role", "") == "user")
         self.user_id = users[0] if users else (sorted(world.people)[0] if world.people else None)
@@ -269,6 +270,7 @@ class SimUser:
     def hear_instruction(self, text: str, lang: str) -> Heard:
         """What the robot hears of the task instruction: app = near-field (the user's phone / tablet); voice =
         spoken at the robot from the approach distance."""
+        self.request = str(text or "")          # what the user said: repeated / confirmed in ASR repair
         if not self.asr_on_instruction:
             return Heard(text, "ok")
         cond = "app" if self.dialog_channel == "app" else self.asr.condition(self.approach_distance_m)
@@ -310,8 +312,11 @@ class SimUser:
             gv = None
             if self.wants:
                 gv = dialog.GoalView(self.world, self.wants, uid, lambda pid: self.place_of(pid, t)[0])
+            # the user's last reply that said something (an answer, not "not sure"): what "could you repeat?" repeats
+            last = next((e for e in reversed(self.log) if e.get("text")), None)
+            last = last["text"] if last is not None and last.get("kind") in ("correct", "yes", "no", "wrong") else None
             c = dialog.compose(question, L, self.spec, self.world, knows_location=knows, other_place=other,
-                               user_place=self.place_of(uid, t), goal=gv)
+                               user_place=self.place_of(uid, t), goal=gv, request=self.request, last_answer=last)
             kind, text, rule = c.kind, c.text, c.rule
             if c.informative:
                 u = rng.random()
