@@ -157,7 +157,10 @@ read as free text. A qtype whose script has nothing to say gets "not sure" like 
    policy above) on the part of the question that is answered (`intent.text_for_rules`). The conventions:
    1. the robot's own re-ask preamble ("Sorry, I didn't hear you.", "Sorry, I may have misheard you.",
       "죄송해요, 잘 안 들렸어요.") is not a request to repeat, and a context sentence ("You mentioned the X.",
-      "X 얘기하셨죠?") is not the question: the question after it is read;
+      "X 얘기하셨죠?") is not the question: the question after it is read; neither is the robot's remark on what is
+      not in its plan when a translation turns it into a question with another question after it ("김치냉장고 얘기가
+      제 계획에 없나요? 제가 우유를 주방 냉장고에 두겠습니다. 맞죠?" -> the read-back is answered; pilot round 3,
+      `tests/test_dialog_pilot_r3.py`);
    2. a compound question is answered from its **first** question ("Where is the red book, and where should I
       bring it to?" -> where it is); sentences before the first "?" are context (a read-back); a Korean list of
       steps ("A하고, B하고, ... 맞나요?") is one question;
