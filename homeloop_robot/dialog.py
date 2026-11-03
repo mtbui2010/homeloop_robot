@@ -494,6 +494,7 @@ GOAL_TEXT = {
     "fix_dock": {"en": "No, go back to the charger.", "ko": "아니요, 충전기로 돌아가 주세요."},
     "fix_say": {"en": "No, I asked you to tell {person}.", "ko": "아니요, {person}한테 말해 달라고 했어요."},
     "person_at": {"en": "{person} is at the {place}.", "ko": "{person}{eun} {place}에 있어요."},
+    "anywhere_in": {"en": "Anywhere in the {room} is fine.", "ko": "{room} 안이면 아무 데나 괜찮아요."},
 }
 # "where should I put / bring ... ?" (a destination), not "where is ...?" (a location)
 DEST_RX = {"en": re.compile(r"\bwhere\b[^?]*\b(put|place[sd]?|leave|left|bring|brought|take|taken|move[sd]?|keep|kept|"
@@ -754,12 +755,18 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
     # 1. "Where should I put / bring the X?": where the user wants it
     is_dest = asks_destination(question)
     if not goal_objs and is_dest:
-        # "어디에 가져다줘야 할까요?" (Korean drops the object) / "Where should I put it?": the one thing asked for
+        # "어디에 가져다줘야 할까요?" (Korean drops the object) / "Where should I put it?": the one thing asked for;
+        # "Where should they go?" / "어디에 두면 될까요?" with several things asked for: where each one goes
         movers = [o for o in dict.fromkeys(gv.objects())]
         dests = {gv.dest_text(gv.dest(o), L) for o in movers}
-        pron = L == "ko" or bool(re.search(r"\b(it|them|this|that)\b", low))
+        plural = L == "ko" or bool(re.search(r"\b(them|they|these|those|both|everything)\b|"
+                                             r"\bthe (objects|things|items)\b", low))
+        pron = plural or bool(re.search(r"\b(it|this|that)\b", low))
         if pron and movers and len(dests) == 1:
             return Content("correct", dests.pop(), True, wrong_place, "goal_destination")
+        # a singular "it" with two things going to different places is still "which one?"
+        if plural and len(movers) >= 2:
+            return Content("correct", _dest_answer(gv, movers, L), True, wrong_place, "goal_destination")
     if goal_objs and is_dest:
         parts = []
         if (LOC_RX["en"].search(low) or LOC_RX["ko"].search(q)) and knows_location:
@@ -829,6 +836,21 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
             others = [p for p in places if p not in targets]
             return Content("correct", _say("pick", L, name=place_name(world, hits[0], L)), True,
                            _say("pick", L, name=place_name(world, others[0], L)) if others else None, "goal_place")
+
+    # 3b. "Which place in the bedroom should I wait at?" when the user asked for the room, not a spot in it
+    if qtype == "wh" or alt:
+        for a in gv.atoms:
+            if a["pred"] != "robot_at_any":
+                continue
+            rooms = {world.house.places[p].room for p in a["args"] if p in world.house.places}
+            room = world.house.rooms.get(next(iter(rooms))) if len(rooms) == 1 else None
+            if room is None:
+                continue
+            words = [w for w in (room.name.get("en"), room.name.get("ko"), room.id) if w]
+            asks_place = re.search(r"\b(which|what|where)\b", low) or re.search(r"(어디|어느|어떤|무슨)", q)
+            if asks_place and _mentions_any(q, words):
+                return Content("correct", _say("anywhere_in", L, room=room.name.get(L, room.name.get("en", room.id))),
+                               True, None, "goal_room")
 
     # 4. "Where is <person>?": where that person is now (a household member knows, unless they do not)
     if qtype == "wh" and (LOC_RX["en"].search(low) or LOC_RX["ko"].search(q) or "where" in low or "어디" in q):
