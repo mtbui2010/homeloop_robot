@@ -137,12 +137,30 @@ def handover(node=None, inputs: str = "", **params) -> dict:
     return _run("handover", person=_person_id(str(inputs or "")))
 
 
-def say(node=None, inputs: str = "", lang: str = "en", **params) -> dict:
-    return _run("say", text=str(inputs), lang=str(lang or "en"))
+_HANGUL = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]")
+_LATIN = re.compile(r"[A-Za-z]")
 
 
-def announce(node=None, inputs: str = "", lang: str = "en", **params) -> dict:
-    return _run("announce", text=str(inputs), lang=str(lang or "en"))
+def speech_lang(text: str, lang: str | None = None) -> str:
+    """The language a sentence is spoken in (R2-6 H1). robot_agent passes ``lang`` only to Ask, so a Say /
+    Announce of a Korean sentence arrived as "en" (hl-dev-000040: "점심 준비됐어요, 아빠." never reached dad as
+    Korean). The text's own script decides: Hangul -> ko, Latin letters -> en (an English sentence in a Korean
+    episode is English, and a Korean listener hears it as such); a sentence with neither (digits, names in
+    another script) takes ``lang`` or the episode's language."""
+    t = str(text or "")
+    if _HANGUL.search(t):
+        return "ko"
+    if _LATIN.search(t):
+        return "en"
+    return str(lang or getattr(get_backend(), "lang", None) or "en")
+
+
+def say(node=None, inputs: str = "", lang: str | None = None, **params) -> dict:
+    return _run("say", text=str(inputs), lang=speech_lang(inputs, lang))
+
+
+def announce(node=None, inputs: str = "", lang: str | None = None, **params) -> dict:
+    return _run("announce", text=str(inputs), lang=speech_lang(inputs, lang))
 
 
 def ask(node=None, inputs: str = "", lang: str = "en", retries: int = 0, **params) -> dict:
