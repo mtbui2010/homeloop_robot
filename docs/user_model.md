@@ -182,14 +182,39 @@ read as free text. A qtype whose script has nothing to say gets "not sure" like 
 "where ...?" question keeps `which_place` without the object, otherwise the user says the task again (`repeat`)
 (`intent.ungrounded`).
 
-**Korean: the meaning must match the heard text.** robot_agent's adapter derives the meaning from SAGE's English
-question before translation, but a Korean user hears the translation. In a Korean episode the meaning counts only
-when the Korean text, read by the free-text chain above (rules, then the classifier), gives the same qtype;
-otherwise the user answers what it heard (that reading, or "not sure") and the answer is recorded with path
-`structured_mismatch` ("Where are you?" translated as "여기 있어요?" is not a question about the user's position).
-When the qtypes agree but the English slot names nothing the user knows ("plates" for 접시), the answer to the
-heard text is used. English episodes hear the template itself and are not checked. The share of
-`structured_mismatch` answers is in each run's `summary.json` `dialog_paths` (one language per run).
+**Heard-text check: the meaning must match what the user hears** (both languages; R2-7 note, review round 1).
+No real user hears a planner's meaning, only its text. A meaning counts only when the text the user hears says it
+(`SimUser._content`):
+
+1. the text is in the user's language (`intent.in_lang`): a Korean household member does not follow a question
+   that is mostly English (more words in Latin letters than words with Hangul: robot_agent's `_in_lang` returns the
+   English when its translation call fails, also under its LLM budget), an English one not a question that is
+   mostly Korean. Such a question is answered "I'm not sure what you mean." (rule `not_in_lang`), with or without a
+   meaning. This is a documented assumption: some Korean users follow simple English, but the robot cannot count
+   on it;
+2. the text, read by the free-text chain above (rules, then the classifier), gives the same qtype;
+3. the slots name the same things, places and people as the text (`intent.slots_agree`): they disagree when, for
+   one kind, the slots name something the text does not and the text names something the slots do not ("빨간 사과
+   어디 있어요?" with `obj: remote`; a read-back naming the sofa with a `goal` naming the TV stand; options naming
+   other places), or when a thing / person slot names nothing of the house while the text names a thing or a
+   person ("plates" for "접시 어디 있어요?"). A text that names nothing of that kind ("Where should I put it?") or
+   fewer of them agrees (context).
+
+Otherwise the user answers what it heard (that reading, or "not sure") and the answer is recorded with path
+`structured_mismatch` ("Where are you?" translated as "여기 있어요?" is not a question about the user's position;
+`{"qtype": "what_to_say"}` sent with the text "Okay." gets no message). The adapter derives SAGE's meanings from
+its English templates, so in English episodes the user hears the template itself; the rules read every SAGE
+template as the qtype the adapter gives it (test `test_sage_english_templates_read_as_their_meaning`), so a
+faithful question is never rejected. To read those templates, the rules also read a request for help with an
+obstacle ("Please clear the way and say yes.", "가장자리 쪽으로 옮겨 주세요") as `help`, "Please answer yes or no." as
+`repeat` (`about: answer`), "Could you say the task in other words?" as `repeat`, and a where-should-it-go
+question they cannot answer ("Where should I put the ?", "Where should I go?") as `which_place`
+(`intent.read_surface`). The share of `structured_mismatch` answers is in each run's `summary.json` `dialog_paths`
+(one language per run); questions not in the user's language are the answers with rule `not_in_lang`.
+
+The same assumption holds for messages: a `said_to` goal counts only for an utterance in the household's language
+(the episode's, `World.lang`): "Dad, lunch is ready." said in English in a Korean home does not tell dad
+(docs/world.md).
 
 Every answered question records how it was read: `SimUser.log[*]` and the episode's `calls[*].intent` hold
 `{path: structured | structured_mismatch | rules | llm, qtype, rule}`, `episodes.jsonl` has `dialog_paths` (counts) and `summary.json`
@@ -222,19 +247,33 @@ itself, and robot_agent's ClosedLoop planners (grace, llm_direct), have no templ
   are listed in `disagreements` and left out (`n_disagree_excluded`).
 - *Simulator reading*: each question goes through the chain of an episode of its task (profile ideal, seed 0):
   structured (the meaning the run's planner attached, rebuilt the way the run built it: SAGE's template via
-  `configs/ra_dialog.derive`, the oracle's gold question or help request, none for the others), the Korean
-  heard-text check, rules, then the classifier (qwen3-vl:8b-instruct on GPU 0, cached in
+  `configs/ra_dialog.derive`, the oracle's gold question or help request, none for the others), the heard-text
+  check (both languages), rules, then the classifier (qwen3-vl:8b-instruct on GPU 0, cached in
   `sim_user_audit/user_intent_cache.jsonl`, so the audit reruns without a server).
-- *Score*: a reading is correct when its qtype is gold and, when both sides give it, its key slot (where_is
-  `obj`, did_you_mean `word`, repeat `about`, what_to_say `person`) matches a gold judge's value (same words, or
-  naming the same object of the house). A rules reading by `dialog.compose` has no slots: only its qtype counts.
+- *Score*: a reading is correct when its qtype is gold and, for each key slot both sides give (where_is `obj`,
+  did_you_mean `word`, repeat `about`, what_to_say `person`, which_place `obj` and `options`, confirm `goal` and
+  `obj`), the simulator's value matches a gold judge's value: same words, or naming the same object of the house;
+  for `options` and a read-back `goal`, naming the same objects, places and people of the house (one in common, no
+  kind where each names one the other does not). A gold value that names nothing of the house (a word the
+  translation made up, "부두" for the dock) cannot be compared and is not checked. The slots scored are those of
+  the reading the answer came from (the meaning, or the heard text's reading for `structured_mismatch`); a
+  reading by a rule of `dialog.compose` has no slots: only its qtype counts. `key_slots.by_slot` has the counts.
+- *Untranslated Korean questions*: a question of a Korean episode that is not in Korean (3 in the set: "I
+  couldn't find the cooking pot. Where is it?", ...) is not followed by the Korean user by design (above); the
+  judges' label is its English meaning, which the user never gets, so these are left out of the accuracy and
+  listed in `untranslated_ko` with the simulator's answer.
 
 | | n | accuracy | EN | KO | structured | rules | llm | structured_mismatch |
 |---|---|---|---|---|---|---|---|---|
 | before the fixes (robot a3e97d7, bench 5215e4c; prompt ui1) | 529 | 0.758 | 0.788 | 0.728 | 0.913 (61 %) | 0.503 (27 %) | 0.540 (12 %) | - |
-| after (prompt ui2) | 529 | **0.953** | **0.966** | **0.940** | 0.985 (63 %) | 0.917 (27 %) | 0.829 (7 %) | 0.867 (3 %) |
+| after (prompt ui2) | 529 | 0.953 | 0.966 | 0.940 | 0.985 (63 %) | 0.917 (27 %) | 0.829 (7 %) | 0.867 (3 %) |
+| review round 1: heard-text check in both languages, slot agreement, more key slots, untranslated KO left out | 526 | **0.954** | **0.962** | **0.947** | 0.991 (60 %) | 0.917 (27 %) | 0.788 (6 %) | 0.938 (6 %) |
 
-(accuracy of each path, with its share of the 529 questions). The fixes were made from this set's confusions:
+(accuracy of each path, with its share of the scored questions). Review round 1 also scores which_place `obj` /
+`options` and confirm `goal` / `obj` (340 key slots checked, 338 matched); the structured_mismatch answers are now
+all Korean questions (32), none English. The rules added in that round to read SAGE's own templates (help, yes /
+no again, where-should-it-go, a leading "Where are you?") were written while reading this set's English
+structured questions, so they too are in-sample. The fixes were made from this set's confusions:
 the conventions above, SAGE's "You mentioned the X. What should I do there?" read as `repeat` (it was `free`),
 the Korean heard-text check (R2-7 note) and prompt ui2. The set was not changed (no question was dropped or
 relabelled), but the result is an in-sample number: the conventions were written while reading these errors, so

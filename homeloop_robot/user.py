@@ -120,6 +120,7 @@ class SimUser:
         self.asleep = set((spec or {}).get("asleep", []) or [])
         self.n_asks = 0
         self.last_intent: dict | None = None     # how the last answered question was read (path, qtype, rule)
+        self.last_reading: dict | None = None    # the meaning (qtype + slots) it was answered by, None = a rule's
         self.n_handovers = 0
         self._help: tuple[str, float] | None = None
         self.log: list[dict] = []
@@ -294,21 +295,33 @@ class SimUser:
         """(Content, path, qtype) of a free-text question: rules (the free-text conventions of ``intent.read_free``,
         then ``dialog.compose`` on the question as it is answered) -> llm (the classifier, only when the rules do
         not understand it)."""
+        self.last_reading = None
+        if not _intent.in_lang(question, L):             # e.g. English a Korean user does not follow
+            return _intent.not_in_lang(L), "rules", "free"
         r = _intent.read_free(question, L, self.world)
         if r is not None and r[0]["qtype"] == "free":        # a remark: nothing to answer
             return _intent._not_sure(L, self.spec or {}), "rules", "free"
         if r is not None:
             c = _intent.answer_structured(r[0], L, self.spec, self.world, **kw)
             if c is not None:
+                self.last_reading = r[0]
                 return c, "rules", r[0]["qtype"]
         qt = _intent.text_for_rules(question, L)
         c = dialog.compose(qt, L, self.spec, self.world, **kw)
+        if c.rule in _intent.NOT_CONFIDENT:
+            # no rule answers it, but what it asks may be plain ("Where should I put the ?", "clear the way")
+            s = _intent.read_surface(question, L, self.world)
+            if s is not None:
+                self.last_reading = s
+                c2 = _intent.answer_structured(s, L, self.spec, self.world, **kw)
+                return (c2 if c2 is not None else c), "rules", s["qtype"]
         if c.rule not in _intent.NOT_CONFIDENT or self.classifier is None:
             return c, "rules", _intent.rule_qtype(c, qt, self.spec)
         m2 = _intent.clean(self.classifier(_intent.strip_preamble(question), L))
         if m2 is None:
             return c, "llm", "free"
         m2 = _intent.ungrounded(m2, self.world, question) or m2
+        self.last_reading = m2
         c2 = _intent.answer_structured(m2, L, self.spec, self.world, **kw) if m2["qtype"] != "free" else None
         return (c2 if c2 is not None else c), "llm", m2["qtype"]
 
@@ -316,23 +329,29 @@ class SimUser:
         """(Content, path, qtype): structured (the planner's meaning) -> rules -> llm (``_read_text``).
 
         A meaning about a phrase that names nothing in the house is read as "say the task again"
-        (``intent.ungrounded``). In a Korean episode the meaning counts only when the Korean text the user hears
-        reads the same way (the planner may derive its meaning from an English question that was translated
-        badly): otherwise the user answers what it heard (path ``structured_mismatch``)."""
+        (``intent.ungrounded``). The meaning counts only when the text the user hears reads the same way, in both
+        languages (docs/user_model.md "Heard-text check"): the rules (or the classifier) read the heard text as the
+        same qtype, its slots name the same things, places and people as the text (``intent.slots_agree``), and the
+        text is in the user's language (``intent.in_lang``). Otherwise the user answers what it heard (path
+        ``structured_mismatch``): a planner may derive its meaning from an English question that was translated
+        badly or not at all, or attach a meaning to a text that does not say it, and no real user hears the
+        meaning."""
         m = _intent.clean(meaning)
         if m is not None and m["qtype"] != "free":
             m = _intent.ungrounded(m, self.world, question) or m
-            ct = None
-            if L == "ko":
-                ct, _p, qt = self._read_text(question, L, kw)
-                if qt != m["qtype"]:
-                    return ct, "structured_mismatch", qt
+            if not _intent.in_lang(question, L):
+                return _intent.not_in_lang(L), "structured_mismatch", "free"
+            ct, _p, qt = self._read_text(question, L, kw)
+            if qt != m["qtype"] or not _intent.slots_agree(m, question, self.world):
+                return ct, "structured_mismatch", qt
             c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
             if c is not None:
                 # the same meaning, but its English slot names nothing the user knows ("plates" for 접시): the
                 # answer to what was heard
-                if ct is not None and c.rule in _intent.NOT_CONFIDENT and ct.rule not in _intent.NOT_CONFIDENT:
+                if c.rule in _intent.NOT_CONFIDENT and ct.rule not in _intent.NOT_CONFIDENT:
                     c = ct
+                else:
+                    self.last_reading = m
                 return c, "structured", m["qtype"]
         return self._read_text(question, L, kw)
 
@@ -341,6 +360,7 @@ class SimUser:
         question (``intent.QTYPES`` + slots), None = free text (docs/user_model.md)."""
         self.n_asks += 1
         self.last_intent = None
+        self.last_reading = None
         k = self.n_asks
         rng = self.streams.rng_for("user", "answer", k)
         uid = self.user_id

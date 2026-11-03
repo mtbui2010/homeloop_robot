@@ -177,6 +177,9 @@ class World:
     # where people are NOW: {person: {"pos": (x, y), "moving": bool}}, synced by the robot after every call
     # (skills.Robot.sync_people); empty = everyone at the start position (goals / reach read it)
     people_now: dict = field(default_factory=dict)
+    # the household's language (the episode's: en | ko); a message reaches a listener only in it (goals said_to);
+    # None = judged in the language of the utterance itself (a world built without an episode)
+    lang: Optional[str] = None
 
     # ── basics ────────────────────────────────────────────────────────────────────────────────────────
     def copy(self) -> "World":

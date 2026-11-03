@@ -246,8 +246,11 @@ def holds(a: dict, world) -> bool:
     if p == "docked":
         return bool(world.robot.docked)
     if p == "said_to":
+        # the listener understands the household's language (world.lang): "Dad, lunch is ready." said in a Korean
+        # home does not tell dad (docs/world.md, Goals)
+        lang = getattr(world, "lang", None)
         for u in world.utterances:
-            if args[0] in u.heard_by and message_matches(args[1], u.text, u.lang):
+            if args[0] in u.heard_by and message_matches(args[1], u.text, lang or u.lang):
                 return True
         return False
     if p == "unmoved":

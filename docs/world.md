@@ -93,7 +93,7 @@ trigger a protective stop in `ideal`.
 | `delivered(obj, person)` + `mode` reach / hand (+ `mode_reason`) | hand: obj was handed to the person; reach: handed over, or on a support surface the person reaches from where they are at the end ([reach.md](reach.md)) |
 | `held_by(obj, person)` | old form, same as `delivered` with mode hand |
 | `holding(obj)` / `hand_empty()` / `docked()` | robot state |
-| `said_to(person, msg_key)` | an utterance the person heard contains every keyword of one alternative of `MESSAGES[msg_key][lang]` |
+| `said_to(person, msg_key)` | an utterance the person heard contains every keyword of one alternative of `MESSAGES[msg_key][lang]`, where `lang` is the household's language (the episode's, `World.lang`): an English message in a Korean home, or a Korean one in an English home, does not reach the listener |
 | `unmoved(obj)` | obj is at its initial place and not held |
 
 Text form: `on(mug_1, counter@kitchen) & not open(drawer@kitchen) & any(on(a, b) | on(a, c))`, with an

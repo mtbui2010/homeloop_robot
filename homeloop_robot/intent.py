@@ -55,7 +55,8 @@ _RULE_QTYPE = {"self_position": "where_are_you", "repeat_answer": "repeat", "rep
                "goal_destination": "which_place", "goal_place": "which_place", "goal_room": "which_place",
                "person_location": "where_is", "location": "where_is", "location_unknown": "where_is",
                "goal_confirm": "confirm", "goal_correct": "confirm", "help": "help",
-               "not_understood": "free", "generic_user": "free", "goal_message": "what_to_say"}
+               "not_understood": "free", "generic_user": "free", "goal_message": "what_to_say",
+               "not_in_lang": "free"}
 
 GO_TEXT = {"en": "To the {place}, please.", "ko": "{place}{ro} 가 주세요."}
 NAMES_JOIN = {"en": " and the ", "ko": "하고 "}
@@ -63,6 +64,67 @@ NAMES_JOIN = {"en": " and the ", "ko": "하고 "}
 
 def _hangul(s: str) -> bool:
     return any("가" <= ch <= "힣" for ch in str(s or ""))
+
+
+_LATIN = re.compile(r"[A-Za-z]")
+
+
+def in_lang(text: str, L: str) -> bool:
+    """Does a listener of language ``L`` follow ``text``? A Korean household member does not follow a question
+    that is mostly English (robot_agent's translation failed and the English went out as is, maybe with a Korean
+    word of the request in it: "You mentioned the 남편. What should I do there?"): fewer words with Hangul than
+    words in Latin letters. An English one does not follow a question that is mostly Korean. A Latin loan word or a
+    raw id in a Korean sentence ("TV 스탠드", "kimchi_fridge에") does not make it English (docs/user_model.md
+    "Heard-text check")."""
+    words = str(text or "").split()
+    n_ko = sum(1 for w in words if _hangul(w))
+    n_latin = sum(1 for w in words if not _hangul(w) and _LATIN.search(w))
+    if L == "ko":
+        return n_ko > 0 and n_ko >= n_latin or (n_ko == 0 and n_latin == 0)
+    return not (n_ko > n_latin)
+
+
+def not_in_lang(L: str) -> "D.Content":
+    """The answer to a question in a language the user does not follow: "I'm not sure what you mean." """
+    return D.Content("not_sure", D.TEXT["not_sure"][L], False, None, "not_in_lang")
+
+
+# the slots that name things, places or people of the house (the heard-text check compares them with the text)
+ENTITY_SLOTS = ("obj", "options", "goal", "person", "word")
+
+
+def entities(world: Any, text: str) -> dict:
+    """The objects, places and people of the house ``text`` names (any language), without the robot's re-ask
+    preamble and its "not in my plan" remarks."""
+    t = D._q_text(D.strip_plan_remarks(strip_preamble(text)))
+    return {"obj": _objects_in(world, t), "place": set(_places_in(world, t)),
+            "person": {pid for pid in sorted(world.people) if D._mentions_any(t, D._person_words(world, pid), world)}}
+
+
+def slots_agree(meaning: dict, question: str, world: Any) -> bool:
+    """Do the meaning's slots name the same things as the question the user hears? They disagree when, for one
+    kind (objects, places, people), the slots name something the text does not AND the text names something the
+    slots do not: the text is about another thing ("빨간 사과 어디 있어요?" with obj "remote"). A text that names
+    nothing of that kind ("Where should I put it?") or names fewer of them agrees (the user takes it from context).
+    A thing / person slot that names nothing of the house disagrees with a text that names a thing or a person."""
+    texts = []
+    for k in ENTITY_SLOTS:
+        v = meaning.get(k)
+        texts += [str(x) for x in v] if isinstance(v, (list, tuple)) else ([str(v)] if v else [])
+    if not texts:
+        return True
+    s = {k: set() for k in ("obj", "place", "person")}
+    for x in texts:
+        for k, v in entities(world, x).items():
+            s[k] |= v
+    h = entities(world, question)
+    # a thing / person slot that names nothing in the house ("plates") while the text names a thing or a person of
+    # the house ("접시 어디 있어요?"): the text is about something the meaning does not name
+    for k in ("obj", "person"):
+        v = meaning.get(k)
+        if v and not any(entities(world, str(v)).values()) and (h["obj"] or h["person"]):
+            return False
+    return not any((s[k] - h[k]) and (h[k] - s[k]) for k in s)
 
 
 def clean(meaning: Any) -> dict | None:
@@ -106,7 +168,8 @@ def rule_qtype(c: "D.Content", question: str, spec: dict | None) -> str:
         return _RULE_QTYPE[c.rule]
     slot_q = "which_place" if (spec or {}).get("slot") == "destination" else "which_object"
     if c.rule == "clarify_answer":          # a wh question or one naming two or more candidates: a choice
-        return slot_q
+        # "Where should the drink go: A or B?" asks a place even when the user answers which object they meant
+        return "which_place" if D.asks_destination(question) else slot_q
     if c.rule == "goal_object":             # "No, the red book." to "Did you mean the blue book?" is a check
         return "confirm" if c.kind in ("yes", "no") else "which_object"
     if c.rule == "scripted_answer":
@@ -393,6 +456,7 @@ POSITION_KO = re.compile(r"(?P<obj>.+?)(?:의)?\s*위치(?:를|가)?\s*(?:좀\s*
 NOT_FOUND = {"en": re.compile(r"\bi\s+(?:couldn'?t|could\s+not|can'?t|cannot)\s+find\s+(?P<obj>.+?)\.\s*$", re.I),
              "ko": re.compile(r"^(?P<obj>.+?)(?:을|를)?\s*(?:찾을\s*수(?:가)?\s*없|찾지\s*못)")}
 WHERE_ANY = re.compile(r"\bwhere\b|어디", re.I)
+SELF_WHERE_EN = re.compile(r"^where\s+are\s+you(?:\s+(?:now|right\s+now))?\s*\??\s*$", re.I)
 SELF_WHERE_BARE_KO = re.compile(r"^(?:지금\s*)?어디(?:에요|예요|세요|계세요|야)\s*\??$")
 TAG_RX = re.compile(r"^(?:is that (?:right|correct|ok(?:ay)?)|right|correct|ok(?:ay)?|맞(?:죠|아요|나요|습니까|지요)|괜찮(?:죠|을까요|아요))"
                     r"\s*\??$", re.I)
@@ -469,6 +533,12 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
     """Conventions 1-4 for a free-text question: ``(meaning, rule)`` when one of them decides the reading, or None
     (the rules of ``dialog.compose`` read the text, see :func:`text_for_rules`)."""
     q = strip_preamble(question)
+    # a request for help with an obstacle ("Please clear the way and say yes."), a request for a yes / no
+    # ("Please answer yes or no."): asked whatever else the text says
+    if HELP_RX.search(q):
+        return {"qtype": "help"}, "free_help"
+    if REPEAT_YESNO_RX.search(q):
+        return {"qtype": "repeat", "about": "answer"}, "free_yes_no_again"
     if "?" not in q and not WH_ANY.search(q) and not KO_Q_END.search(q.rstrip(" .!")):
         return {"qtype": "free"}, "free_statement"          # a remark, no question in it
     head = first_question(q, L)
@@ -516,6 +586,8 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
     if m and _named(world, m["obj"]) and not WH_ANY.search(m["obj"]):
         return {"qtype": "where_is", "obj": _strip_obj(m["obj"])}, "free_where_is"
     if ko and SELF_WHERE_BARE_KO.match(sent.strip()) and not (ctx and _named(world, ctx)):
+        return {"qtype": "where_are_you"}, "free_where_are_you"
+    if not ko and SELF_WHERE_EN.match(sent.strip()):         # "Where are you? Which place ...?": the first question
         return {"qtype": "where_are_you"}, "free_where_are_you"
     # a read-back with a tag question: "I will put ... . Is that right?" / "... 넣을게요. 맞죠?"
     if ctx and TAG_RX.match(sent.strip()) and D.READBACK_RX.search(ctx):
@@ -594,6 +666,41 @@ def _thing_word(world: Any, text: str) -> bool:
                 if base and (base in words or (lg == "ko" and any(w.startswith(base) for w in words))):
                     return True
     return False
+
+
+# What a question asks, read from its surface when the rules of ``dialog.compose`` find no answer to it (the user
+# still knows what is asked, and answers from the script by that qtype, or says "not sure"): a request to say the
+# task again, a question where something should go or where the robot should go ("Where should I put the ?", an
+# ASR fragment as the object; "Where should I go?"). A request for help with an obstacle and a request for a
+# yes / no are read first, by ``read_free``.
+HELP_RX = re.compile(r"\bclear\s+the\s+way\b|\bmove\s+it\s+closer\b|\bsomething\s+in\s+the\s+way\b|"
+                     r"길(?:이|을)?\s*(?:좀\s*)?(?:비켜|비워|비우|치워|터|열어|막혀)|치워\s*(?:주|줄)|가장자리|"
+                     r"가까이\s*(?:옮겨|놓아|밀어)", re.I)
+REPEAT_TASK_RX = re.compile(r"\b(?:say|tell|put)\b[^?]*\b(?:task|request)\b[^?]*\b(?:again|in\s+other\s+words|"
+                            r"differently)\b|\bin\s+other\s+words\b|다른\s*말로|다시\s*(?:한\s*번\s*)?(?:말씀|얘기|설명)",
+                            re.I)
+REPEAT_YESNO_RX = re.compile(r"\b(?:please\s+)?answer\s+(?:with\s+)?yes\s+or\s+no\b|"
+                             r"(?:네|예)\s*(?:나|아니면|또는|,)?\s*아니(?:요|오)(?:로|라고)?\s*(?:만\s*)?(?:대답|답|말씀)", re.I)
+
+
+def read_surface(question: str, L: str, world: Any) -> dict | None:
+    """The qtype (and slots) a question asks by its surface, or None (see the comment above)."""
+    q = strip_preamble(question)
+    if REPEAT_TASK_RX.search(q):
+        return {"qtype": "repeat", "about": "request"}
+    head = first_question(q, L) if "?" in q else q
+    if D.asks_destination(head):
+        objs = D.mentioned_objects(world, D._q_text(head))
+        if len(objs) == 1:
+            return {"qtype": "which_place", "obj": D._specific_name(world, objs[0], L)}
+        dw = DO_WITH_EN.search(head)
+        if dw:                       # "What should I do with the husband know were?": about nothing, the task again
+            return ungrounded({"qtype": "which_place", "obj": dw["x"]}, world, head) or {"qtype": "which_place"}
+        return {"qtype": "which_place"}
+    return None
+
+
+DO_WITH_EN = re.compile(r"\bdo\s+with\s+(?P<x>[^?]+)", re.I)
 
 
 def text_for_rules(question: str, L: str) -> str:

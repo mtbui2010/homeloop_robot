@@ -127,6 +127,7 @@ def make_episode(house: str, seed_state: int, profile, seed: int, *, lang: str =
 
     prof = profile if isinstance(profile, Profile) else load_profile(str(profile))
     world = from_house(house, seed_state)
+    world.lang = lang                    # the household's language: messages are judged in it (goals said_to)
     streams = Streams(seed, key)
     clock = SimClock()
     SimUser = None if user_impl == "null" else _optional("user", "SimUser")
