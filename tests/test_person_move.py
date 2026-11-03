@@ -51,7 +51,12 @@ def test_env_entry_of_a_person(house):
             assert (e["loc"]["x"], e["loc"]["y"]) == pytest.approx(tuple(p.pos[:2]))
 
 
-def test_ra_skills_move_to_a_person_without_robot_agent_env():
+def test_ra_skills_move_to_a_person_without_robot_agent_env(monkeypatch):
+    # robot_agent absent (it may be on PYTHONPATH with its own, unpatched ENV): ra_skills uses env_for
+    import sys
+    for m in [m for m in sys.modules if m == "robot_agent" or m.startswith("robot_agent.")]:
+        monkeypatch.delitem(sys.modules, m)
+    monkeypatch.setitem(sys.modules, "robot_agent", None)
     ep = make_episode("korean_apt_59", 0, "ideal", 0)
     set_backend(ep.robot)
     try:
