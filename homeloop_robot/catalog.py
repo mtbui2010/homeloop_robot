@@ -7,6 +7,8 @@ cannot lift it); they are not calibrated quantities. ``PAYLOAD_KG`` is the OK-Ro
 
 from __future__ import annotations
 
+import unicodedata
+
 from dataclasses import dataclass
 
 PAYLOAD_KG = 1.0
@@ -126,20 +128,37 @@ COLORS: dict = {
 }
 
 # msg key -> lang -> alternatives; each alternative is a set of keywords that must ALL appear in an
-# utterance (case-insensitive substring) for `said_to(person, key)` to hold.
+# utterance (case-insensitive substring; a Korean keyword's last syllable may also carry the final consonant of a
+# verb ending, see message_matches) for `said_to(person, key)` to hold.
+# Pilot round 1 (hl-dev-000013): the alternatives first listed missed the bench's own instruction wordings of 374 of
+# 1378 dev / test message atoms (KO 273: "나간다고", "오라고", "드시라고", "다 됐다고", "끄라고"; EN 101: "head to the
+# kitchen", "a call for him", "on the phone for her", "call grandpa for lunch"); the alternatives below cover every
+# one of them (tests/test_messages.py), and every canonical text still matches only its own key.
 MESSAGES: dict = {
-    "dinner_ready": {"en": [["dinner", "ready"], ["supper", "ready"]], "ko": [["저녁", "준비"], ["저녁", "드세요"]]},
-    "lunch_ready": {"en": [["lunch", "ready"]], "ko": [["점심", "준비"], ["점심", "드세요"]]},
+    "dinner_ready": {"en": [["dinner", "ready"], ["supper", "ready"], ["for dinner"], ["for supper"]],
+                     "ko": [["저녁", "준비"], ["저녁", "드세요"], ["저녁", "드시"], ["저녁", "됐"], ["저녁", "되었"],
+                            ["저녁", "먹"], ["진지", "드"]]},
+    "lunch_ready": {"en": [["lunch", "ready"], ["for lunch"]],
+                    "ko": [["점심", "준비"], ["점심", "드세요"], ["점심", "드시"], ["점심", "됐"], ["점심", "되었"],
+                           ["점심", "먹으"]]},
     "take_medicine": {"en": [["medicine"], ["pill"]], "ko": [["약", "드"], ["약", "먹"]]},
-    "drink_water": {"en": [["drink", "water"]], "ko": [["물", "드세요"], ["물", "마"]]},
-    "phone_call": {"en": [["phone", "call"], ["call", "for you"]], "ko": [["전화"]]},
+    "drink_water": {"en": [["drink", "water"], ["have some water"], ["sip", "water"]],
+                    "ko": [["물", "드세요"], ["물", "마"], ["물", "드시"]]},
+    "phone_call": {"en": [["phone", "call"], ["call", "for you"], ["call for"], ["call coming"], ["on the phone"],
+                           ["phone for"]],
+                   "ko": [["전화"]]},
     "door_visitor": {"en": [["door"]], "ko": [["문"]]},
-    "laundry_done": {"en": [["laundry", "done"], ["laundry", "finished"]], "ko": [["빨래", "다"], ["세탁", "끝"]]},
-    "wake_up": {"en": [["wake up"], ["time to get up"]], "ko": [["일어나"], ["일어날"]]},
+    "laundry_done": {"en": [["laundry", "done"], ["laundry", "finished"]],
+                     "ko": [["빨래", "다"], ["세탁", "끝"], ["세탁", "됐"], ["세탁", "다 되"]]},
+    "wake_up": {"en": [["wake up"], ["time to get up"], ["wake", "up"]], "ko": [["일어나"], ["일어날"]]},
     "bedtime": {"en": [["bed"]], "ko": [["잘 시간"], ["주무"]]},
     "leaving_soon": {"en": [["leaving", "minutes"], ["leave", "minutes"]], "ko": [["출발"], ["나가"]]},
-    "tv_off": {"en": [["turn off", "tv"], ["switch off", "tv"]], "ko": [["텔레비전", "꺼"], ["티비", "꺼"]]},
-    "come_kitchen": {"en": [["come", "kitchen"]], "ko": [["주방", "와"], ["부엌", "와"]]},
+    "tv_off": {"en": [["turn off", "tv"], ["switch off", "tv"]],
+               "ko": [["텔레비전", "꺼"], ["티비", "꺼"], ["텔레비전", "끄"], ["티비", "끄"]]},
+    "come_kitchen": {"en": [["come", "kitchen"], ["head to the kitchen"], ["head into the kitchen"],
+                            ["pop into the kitchen"], ["pop over to the kitchen"]],
+                     "ko": [["주방", "와"], ["부엌", "와"], ["주방", "오라"], ["주방", "오시"], ["부엌", "오라"],
+                            ["부엌", "오시"], ["주방", "가보시"], ["주방", "가라"], ["주방", "가주시"]]},
 }
 
 # a canonical sentence per message key that satisfies its first keyword set (the oracle says it)
@@ -159,11 +178,38 @@ MESSAGE_TEXT: dict = {
 }
 
 
+# the final consonants of Korean verb / adjective endings: a stem's last open syllable takes them when it is
+# conjugated (나가 -> 나간다 / 나갈 / 나감 / 나갑니다 / 나갔다; 끄 -> 끈; 오라 -> 오란다)
+_KO_ENDING_FINALS = "\u11ab\u11af\u11b7\u11b8\u11bb"        # ㄴ ㄹ ㅁ ㅂ ㅆ (jongseong)
+
+
+def _has_keyword(t: str, k: str) -> bool:
+    """``k`` occurs in ``t`` (both lower case). A Korean keyword is compared on the decomposed (jamo) text, so its
+    last syllable also matches with a verb-ending final consonant ('나가' in '나간다고'), and a keyword that starts with
+    a syllable still starts a syllable (a leading consonant never matches a final one)."""
+    if k in t:
+        return True
+    if not k or not ("\uac00" <= k[-1] <= "\ud7a3"):
+        return False
+    import unicodedata as ud
+    kd, td = ud.normalize("NFD", k), ud.normalize("NFD", t)
+    if len(kd) and "\u11a8" <= kd[-1] <= "\u11c2":
+        return False                          # the keyword ends in a final consonant already: exact only
+    i = td.find(kd)
+    while i >= 0:
+        nxt = td[i + len(kd): i + len(kd) + 1]
+        if nxt in _KO_ENDING_FINALS and nxt:
+            return True
+        i = td.find(kd, i + 1)
+    return False
+
+
 def message_matches(key: str, text: str, lang: str) -> bool:
-    """True when ``text`` contains every keyword of one alternative of ``MESSAGES[key][lang]``."""
+    """True when ``text`` contains every keyword of one alternative of ``MESSAGES[key][lang]``
+    (:func:`_has_keyword`)."""
     alts = (MESSAGES.get(key) or {}).get(lang) or []
-    t = (text or "").lower()
-    return any(all(k.lower() in t for k in alt) for alt in alts)
+    t = unicodedata.normalize("NFC", text or "").lower()
+    return any(all(_has_keyword(t, k.lower()) for k in alt) for alt in alts)
 
 
 def class_names(cls: str, lang: str) -> list:
