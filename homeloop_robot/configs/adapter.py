@@ -25,8 +25,42 @@ OBJECT_ACTIONS = {"Find", "Pick"}
 PLACE_ACTIONS = {"MoveTo", "Place", "PutIn", "Open", "Close"}
 DOCK_NAMES = {"dock", "charger", "home", "charging dock", "charging station", "base"}
 
+# robot_agent's Announcer speaks the plan milestones (task start, step start / success / fail, done) from the robot's
+# i18n, falling back to its core table, which has English and Vietnamese only: without these a Korean user heard
+# "Task completed" / "Task failed" (pilot rounds 1-4, KO hl-dev-000013 / 000001). Plain polite Korean (해요체/합니다체);
+# {object} {verb} {reason} {eul} (을/를) are filled by the Announcer.
+_KO_MILESTONES = {
+    "task_start": "작업을 시작합니다",
+    "step_start": "{object} {verb}{eul} 진행합니다",
+    "step_success": "{object} {verb}{eul} 완료했습니다",
+    "step_fail": "{object} {verb}에 실패했습니다. {reason}",
+    "replan": "계획을 다시 세웁니다",
+    "done_success": "작업을 완료했습니다",
+    "done_fail": "작업에 실패했습니다",
+    "plan_ready": "계획을 생성했습니다",
+    "unsupported": "지원하지 않는 동작입니다",
+    "llm_down": "지금 언어 모델에 연결할 수 없어서 작업을 중단합니다",
+    "generic": "진행 중입니다",
+}
+
+# per-action verbs: the manifest's actions and the skill names of robot_agent's direct path ("find::apple")
+_KO_VERBS = {
+    "MoveTo": "이동", "GoTo": "이동", "Navigate": "이동",
+    "Find": "찾기", "Search": "찾기", "Detect": "찾기", "Look": "둘러보기",
+    "Pick": "집기", "PickUp": "집기", "Grasp": "집기",
+    "Place": "놓기", "PlaceAt": "놓기", "PutDown": "놓기", "PutIn": "넣기",
+    "Open": "열기", "Close": "닫기", "Handover": "건네주기", "Dock": "충전",
+    "navigate": "이동", "move": "이동", "moveto": "이동",
+    "find": "찾기", "detect": "찾기", "detect_object": "찾기", "look": "둘러보기",
+    "pick": "집기", "grasp": "집기",
+    "place": "놓기", "put": "놓기", "put_in": "넣기",
+    "open": "열기", "close": "닫기", "handover": "건네주기", "dock": "충전",
+}
+
 PHRASES: dict = {
-    "cannot_do": {"en": "I can't do that. I can move, find, pick up, put down, open and close things, "
+    **{k: {"ko": v} for k, v in _KO_MILESTONES.items()},
+    **{f"verb.{a}": {"ko": v} for a, v in _KO_VERBS.items()},
+    "cannot_do":{"en": "I can't do that. I can move, find, pick up, put down, open and close things, "
                         "hand things over, talk and ask.",
                   "ko": "그 일은 할 수 없어요. 이동, 찾기, 집기, 놓기, 열고 닫기, 건네주기, 말하기, 질문은 할 수 있어요."},
     "done": {"en": "Done.", "ko": "다 했어요."},
