@@ -125,3 +125,30 @@ def test_ko_bedtime_read_back_is_structured(q):
     r, log = _ask("family_house", "ko", q, BOOK_GOAL, BOOK_REQ, {"qtype": "confirm", "goal": BOOK_EN},
                   at={"book_2": "kids_desk@kids"})
     assert r.kind == "yes" and log["path"] == "structured", (r.text, log)
+
+
+# ---- the route / source rule stays narrow (sim-user audit cases) ------------------------------------------------
+
+WATER_GOAL = {"all": [{"pred": "on", "args": ["book_2", "tv_stand@living"]},
+                      {"pred": "delivered", "args": ["water_bottle_1", "grandma"], "mode": "reach",
+                       "mode_reason": None}]}
+WATER_REQ = {"ko": "파란 책은 거실 TV 스탠드에 두고, 물병은 저한테 갖다 주세요."}
+
+
+def test_a_place_said_in_the_objects_own_part_is_where_it_goes():
+    # audit q0115 (hl-dev-000008 KO): the TV stand is the book's destination, but it is said for the water bottle
+    # that goes to the speaker; the go-to clauses before it do not decide it
+    q = ("저녁탁자에 있는 파란 책을 거실의 TV 스탠드에 두고, 거실 바닥으로 가서, 주방 선반으로 가서, 주방 카운터에 있는 물병을 "
+         "거실 TV 스탠드에 두는 거죠? 맞죠?")
+    r, log = _ask("senior_flat", "ko", q, WATER_GOAL, WATER_REQ,
+                  at={"book_2": "nightstand@bedroom", "water_bottle_1": "counter@kitchen"})
+    assert r.kind == "no" and "물병" in r.text, (r.text, log)
+
+
+def test_a_message_said_at_another_place_is_still_another_place():
+    # audit q0373 (couple_flat KO): '침대에서 ... 말할 거예요' says where the robot speaks; the husband is not there
+    goal = {"all": [{"pred": "said_to", "args": ["partner_b", "lunch_ready"]}]}
+    req = {"ko": "남편한테 점심 준비됐다고 말해 주세요."}
+    q = '침실 침대에서 “남편님, 점심 준비 끝났어요.”라고 말할 거예요. 맞죠?'
+    r, log = _ask("couple_flat", "ko", q, goal, req)
+    assert r.kind == "no", (r.text, log)

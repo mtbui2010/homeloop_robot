@@ -941,25 +941,50 @@ class GoalView:
         objs = {x for a in self.atoms if a["pred"] in ("on", "in", "held_by") for x in a["args"][:1]}
         if obj is not None:
             objs.add(obj)
+        sources = set()
         for o in sorted(x for x in objs if x in self.w.objects):
-            others |= {x for x in (self.w.objects[o].at, (getattr(self.w, "initial_at", None) or {}).get(o))
-                       if x in self.w.house.places}
-        # a place said as where an object comes from or where the robot goes on the way ("the remote from the coffee
-        # table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not where it is brought,
-        # even when that source is wrong (fresh pilot round 2, hl-dev-000060: the wrong source of the remote and the
-        # speaker's seat in a go-to clause made a right delivery to grandpa "not covered")
+            sources |= {x for x in (self.w.objects[o].at, (getattr(self.w, "initial_at", None) or {}).get(o))
+                        if x in self.w.house.places}
+        others |= sources
+        places = sorted(self.w.house.places)
+        if obj is None:
+            other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in places
+                              if k != here and k not in others)
+            return at_here or (named and not other_place)
+        # a delivery: a place said as where an object comes from or where the robot goes on the way ("the remote from
+        # the coffee table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not where it
+        # is brought, even when that source is wrong (fresh pilot round 2, hl-dev-000060: the wrong source of the
+        # remote and the speaker's seat in a go-to clause made a right delivery to grandpa "not covered")
         qd = strip_route_places(self.w, q)
-        other_place = any(_mentions_any(qd, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
+        other_place = any(_mentions_any(qd, _place_words(self.w, k)[:2], self.w) for k in places
                           if k != here and k not in others)
+        # ... but a place said in this object's own part of the read-back is where it goes, also when it is the place
+        # of another part of the request ('... 주방 카운터에 있는 물병을 거실 TV 스탠드에 두는 거죠?': the TV stand,
+        # the book's destination, is said for the water bottle brought to the speaker)
+        for cl in read_back_clauses(q):
+            if other_place:
+                break
+            if _mentions_any(cl, _obj_words(self.w, obj), self.w):
+                cd = strip_route_places(self.w, cl)
+                other_place = any(_mentions_any(cd, _place_words(self.w, k), self.w) for k in places
+                                  if k != here and k not in sources)
         return at_here or (named and not other_place)
 
 
 # A place named as a source or a waypoint: "from (the) X", "go / move / head to (the) X" (English, the words before
-# the name); 'X에 있는', 'X에 놓인', 'X 위에 있는', 'X에서', 'X에 가서', 'X(으)로 가서' (Korean, the particles after it)
+# the name); 'X에 있는', 'X에 놓인', 'X 위에 있는', 'X에 가서', 'X(으)로 가서' (Korean, the particles after it). Not 'X에서':
+# it is also where the robot does something ('침대에서 ... 말할게요', sim-user audit q0373)
 EN_ROUTE_BEFORE_RX = re.compile(r"\b(?:from|(?:go|goes|going|move|moving|head|heading)\s+(?:over\s+)?to)\s+"
                                 r"(?:the\s+|your\s+|my\s+)?$")
-KO_ROUTE_AFTER_RX = re.compile(r"^\s*(?:(?:위|안)?에\s*(?:있는|있던|놓인|놓여\s*있는|가서|가서요)|(?:위|안)?에서|"
-                               r"(?:으로|로)\s*(?:가서|이동))")
+KO_ROUTE_AFTER_RX = re.compile(r"^\s*(?:(?:위|안)?에\s*(?:있는|있던|놓인|놓여\s*있는|가서|가서요)|(?:으로|로)\s*(?:가서|이동))")
+
+
+CLAUSE_RX = re.compile(r"[,;]|\bthen\b|\band\b|그리고|다음에|(?<=[고서])\s")
+
+
+def read_back_clauses(q: str) -> list[str]:
+    """The parts of a compound read-back (split at commas, "then", "and", '그리고', '...고 ', '...서 ')."""
+    return [c for c in CLAUSE_RX.split(str(q or "")) if c and c.strip()]
 
 
 def strip_route_places(world: Any, q: str) -> str:

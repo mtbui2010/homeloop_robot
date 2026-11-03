@@ -209,7 +209,11 @@ that and says the request again (`repeat`; fresh pilot round 1, hl-dev-000060 KO
   000060).
 - A place said as where an object comes from or where the robot goes on the way ("the remote from the coffee
   table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not a place the object is
-  brought to, even when that source is wrong; a place named as where it goes still is (`dialog.strip_route_places`;
+  brought to, even when that source is wrong; a place named as where it goes still is, and a place said in the
+  object's own part of the read-back counts even when it is the destination of another part ('... 물병을 거실 TV
+  스탠드에 두는 거죠?' for a water bottle brought to the speaker). For a message the place stays where it is said
+  ('침대에서 ... 말할 거예요'), and 'X에서' is never taken as a source (`dialog.strip_route_places`,
+  `dialog.read_back_clauses`;
   fresh pilot round 2, hl-dev-000060: a wrong source made the right delivery to grandpa "not covered", and the
   correction repeated what the robot had said instead of naming the glasses that went to the living room;
   tests/test_dialog_fresh_pilot_r2.py).
