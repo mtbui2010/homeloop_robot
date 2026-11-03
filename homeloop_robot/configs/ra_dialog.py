@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import re
 
-_OPT = r"(?P<opts>.+?)"
+# a slot never runs across a question mark: SAGE joins questions, and an empty slot ("Where should I put the ?
+# Where should I put the green mug?") must not swallow the next question (pilot round 1, hl-dev-000010 KO)
+_S = r"[^?]+?"
+_OPT = r"(?P<opts>" + _S + ")"
 
 
 def _opts(s: str) -> list:
@@ -33,7 +36,7 @@ TEMPLATES = [
     # assist_loop._ground_goals: a "to me" goal without the user's place
     ("where_user", r"Where are you\? Which place should I bring it to\?", "where_are_you", lambda m: {}),
     # goals.conflicts: two destinations for one object
-    ("two_destinations", r"Where should the (?P<obj>.+?) go in the end: " + _OPT + r"\? It cannot be in two "
+    ("two_destinations", r"Where should the (?P<obj>[^?]+?) go in the end: " + _OPT + r"\? It cannot be in two "
                          r"places\.", "which_place", lambda m: {"obj": m["obj"], "options": _opts(m["opts"])}),
     # assist_loop._ground_template
     ("which_place", r"Which place do you mean: " + _OPT + r"\?", "which_place",
@@ -48,13 +51,13 @@ TEMPLATES = [
     ("where_go", r"Where should I go\?", "which_place", lambda m: {}),
     ("where_take", r"Where should I take it\?", "which_place", lambda m: {}),
     # assist_loop._ground_goals / understand.issue_question ("unsaid")
-    ("where_put", r"Where should I put the (?P<obj>.+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
+    ("where_put", r"Where should I put the (?P<obj>[^?]+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
     # understand.issue_question ("place"): an open question about a place the person named
     # (an open "what should I do?": the person says the task again, homeloop_robot.intent convention 3)
-    ("mentioned_place", r"You mentioned the (?P<what>.+?)\. What should I do there\?", "repeat",
+    ("mentioned_place", r"You mentioned the (?P<what>[^?]+?)\. What should I do there\?", "repeat",
      lambda m: {"about": "request"}),
     # understand.issue_question ("object")
-    ("do_with", r"What should I do with the (?P<obj>.+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
+    ("do_with", r"What should I do with the (?P<obj>[^?]+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
     # assist_loop._understand_round / _read_back: the task itself, again
     ("what_to_do", r"(?:Sorry\. )?What should I do(?: exactly)?\?", "repeat", lambda m: {"about": "request"}),
     ("other_words", r"Sorry, I did not understand\. Could you say the task in other words\?", "repeat",
@@ -70,12 +73,12 @@ TEMPLATES = [
     ("yes_or_no", r"Sorry, I didn't catch that\. Please answer yes or no\.", "repeat",
      lambda m: {"about": "answer"}),
     # assist_loop search help
-    ("not_found", r"I couldn't find the (?P<obj>.+?)\. Where is it\?", "where_is", lambda m: {"obj": m["obj"]}),
+    ("not_found", r"I couldn't find the (?P<obj>[^?]+?)\. Where is it\?", "where_is", lambda m: {"obj": m["obj"]}),
     # assist_loop pick help
-    ("pick_help", r"(?:The (?P<obj>.+?) is too far for my arm|I can't pick up the (?P<obj2>.+?))\. Could you "
+    ("pick_help", r"(?:The (?P<obj>[^?]+?) is too far for my arm|I can't pick up the (?P<obj2>[^?]+?))\. Could you "
                   r"move it closer to the edge, then say yes\?", "help", lambda m: {}),
     # assist_loop move help
-    ("move_help", r"I can't get to the (?P<place>.+?)\. Is something in the way\? Please clear the way and say "
+    ("move_help", r"I can't get to the (?P<place>[^?]+?)\. Is something in the way\? Please clear the way and say "
                   r"yes\.", "help", lambda m: {}),
 ]
 _RX = [(tid, re.compile(rx), qt, fn) for tid, rx, qt, fn in TEMPLATES]

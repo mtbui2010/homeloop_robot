@@ -212,6 +212,14 @@ question they cannot answer ("Where should I put the ?", "Where should I go?") a
 (`intent.read_surface`). The share of `structured_mismatch` answers is in each run's `summary.json` `dialog_paths`
 (one language per run); questions not in the user's language are the answers with rule `not_in_lang`.
 
+A read-back (`confirm` with a `goal`) is also answered for the sentence heard: when the heard read-back states something (it names a thing, place or person
+of the house, quotes a message, or, in Korean, holds a word in Latin letters such as a raw id) and the user's yes /
+no to it differs from the yes / no to the meaning's English read-back, the answer is the one to the heard sentence
+(path `structured_mismatch`). A Korean translation that names fewer things than the English ("…주방에 놓겠습니다"
+for "…on you", "파트너B에게" for "to husband") passes the slot check above, but the user agrees or disagrees with
+what they heard (pilot round 1, hl-dev-000010 / 000013). A read-back that states nothing ("그렇게 할게요. 맞죠?")
+is taken from context (`intent.vague_read_back`).
+
 The same assumption holds for messages: a `said_to` goal counts only for an utterance in the household's language
 (the episode's, `World.lang`): "Dad, lunch is ready." said in English in a Korean home does not tell dad
 (docs/world.md).
@@ -268,10 +276,14 @@ itself, and robot_agent's ClosedLoop planners (grace, llm_direct), have no templ
 | before the fixes (robot a3e97d7, bench 5215e4c; prompt ui1) | 529 | 0.758 | 0.788 | 0.728 | 0.913 (61 %) | 0.503 (27 %) | 0.540 (12 %) | - |
 | after (prompt ui2) | 529 | 0.953 | 0.966 | 0.940 | 0.985 (63 %) | 0.917 (27 %) | 0.829 (7 %) | 0.867 (3 %) |
 | review round 1: heard-text check in both languages, slot agreement, more key slots, untranslated KO left out | 526 | **0.954** | **0.962** | **0.947** | 0.991 (60 %) | 0.917 (27 %) | 0.788 (6 %) | 0.938 (6 %) |
+| pilot round 1: a read-back is confirmed or corrected for the sentence heard | 526 | **0.954** | **0.962** | **0.947** | 0.990 (59 %) | 0.917 (27 %) | 0.788 (6 %) | 0.951 (8 %) |
 
 (accuracy of each path, with its share of the scored questions). Review round 1 also scores which_place `obj` /
 `options` and confirm `goal` / `obj` (340 key slots checked, 338 matched); the structured_mismatch answers are now
-all Korean questions (32), none English. The rules added in that round to read SAGE's own templates (help, yes /
+all Korean questions (32), none English. Pilot round 1 moved 9 Korean read-backs from structured to
+structured_mismatch (now 41; 339 key slots checked, 337 matched): their Korean translation drops or changes the
+destination ("욕실 주니어 캐비닛", "kimchi_fridge에"), and the answer is now the one to that sentence; the qtype
+accuracy is unchanged. The rules added in that round to read SAGE's own templates (help, yes /
 no again, where-should-it-go, a leading "Where are you?") were written while reading this set's English
 structured questions, so they too are in-sample. The fixes were made from this set's confusions:
 the conventions above, SAGE's "You mentioned the X. What should I do there?" read as `repeat` (it was `free`),

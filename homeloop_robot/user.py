@@ -345,6 +345,15 @@ class SimUser:
             if qt != m["qtype"] or not _intent.slots_agree(m, question, self.world):
                 return ct, "structured_mismatch", qt
             c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
+            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and c.kind in ("yes", "no")
+                    and ct.kind in ("yes", "no") and ct.kind != c.kind
+                    and not _intent.vague_read_back(question, L, self.world)):
+                # a read-back is confirmed or corrected for what the user heard: a translation that drops or changes
+                # the destination or the person ("…주방에 놓겠습니다" for "…on you", "파트너B에게" for "to husband")
+                # names fewer things than the meaning's English read-back (slots_agree lets that pass), but the
+                # user says yes / no to the sentence they heard (pilot round 1, hl-dev-000010 KO); a read-back that
+                # states nothing ("그렇게 할게요. 맞죠?") is taken from context as before
+                return ct, "structured_mismatch", qt
             if c is not None:
                 # the same meaning, but its English slot names nothing the user knows ("plates" for 접시): the
                 # answer to what was heard

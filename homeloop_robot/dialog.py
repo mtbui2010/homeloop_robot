@@ -556,7 +556,7 @@ ALT_RX = re.compile(r"\bor\b|아니면|또는|이나|거나")
 READBACK_RX = re.compile(r"\bI will\b|\bI'll\b|\bI'm going to\b|\bI am going to\b|겠습니다|게요|놓아요|둬요|넣어요|"
                          r"맞죠|맞나요|맞습니까")
 ME_RX = {"en": re.compile(r"\b(you|your hand|to me|hand it|give it)\b"),
-         "ko": re.compile(r"(드릴|드려|갖다\s*드|가져다\s*드|건네|손에)")}
+         "ko": re.compile(r"(드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신)")}
 DOCK_WORDS = ("dock", "charg", "충전")
 
 
@@ -764,16 +764,18 @@ class GoalView:
             if not self.subject_said(a, q):
                 return False
             if args[1] == self.user_id:
-                here = self.place_of(args[1])
+                # to the speaker: "to you" / "to me", their place, or their own name ("the user", "grandma"; the
+                # robot may name the person it talks to, pilot round 1 hl-dev-000010), never an id
                 return bool(ME_RX["en"].search(q.lower()) or ME_RX["ko"].search(q)
-                            or (here and _mentions_any(q, _place_words(self.w, here), self.w)))
-            return self._person_ok(args[1], q)
+                            or self._person_ok(args[1], q, obj=args[0]))
+            return self._person_ok(args[1], q, obj=args[0])
         if p == "said_to":
             return self._person_ok(args[0], q)
         return self.subject_said(a, q)
 
-    def _person_ok(self, pid: str, q: str) -> bool:
-        """The person is named, or their place is; a place named for them must be where they are."""
+    def _person_ok(self, pid: str, q: str, obj: str | None = None) -> bool:
+        """The person is named, or their place is; a place named for them must be where they are. ``obj``: the
+        object brought to them, whose own place may be named as where it comes from ("the mug from the counter")."""
         here = self.place_of(pid)
         at_here = bool(here and _mentions_any(q, _place_words(self.w, here), self.w))
         named = _mentions_any(q, _person_words(self.w, pid), self.w)
@@ -781,6 +783,10 @@ class GoalView:
         # then tell grandpa") is not a place named for this person
         others = {x for a in self.atoms if a["pred"] not in ("said_to", "held_by")
                   for x in (a.get("args") or []) if x in self.w.house.places}
+        if obj is not None and obj in self.w.objects:
+            # where the object is / was at the start: the source of the delivery
+            others |= {x for x in (self.w.objects[obj].at, (getattr(self.w, "initial_at", None) or {}).get(obj))
+                       if x in self.w.house.places}
         other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
                           if k != here and k not in others)
         return at_here or (named and not other_place)

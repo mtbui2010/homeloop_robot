@@ -101,6 +101,18 @@ def entities(world: Any, text: str) -> dict:
             "person": {pid for pid in sorted(world.people) if D._mentions_any(t, D._person_words(world, pid), world)}}
 
 
+def vague_read_back(text: str, L: str, world: Any) -> bool:
+    """A read-back that states nothing a listener could check ("I will do that. Is that right?", "그렇게 할게요.
+    맞죠?"): it names no object, place or person of the house, quotes no message, and (in Korean) holds no word in
+    Latin letters (a raw id such as "파트너B"). The user takes such a read-back from context."""
+    t = strip_preamble(str(text or ""))
+    if any(entities(world, t).values()):
+        return False
+    if re.search(r'["“”「」]', D.strip_plan_remarks(t)):
+        return False
+    return not (L == "ko" and _LATIN.search(D.strip_plan_remarks(t)))
+
+
 def slots_agree(meaning: dict, question: str, world: Any) -> bool:
     """Do the meaning's slots name the same things as the question the user hears? They disagree when, for one
     kind (objects, places, people), the slots name something the text does not AND the text names something the
