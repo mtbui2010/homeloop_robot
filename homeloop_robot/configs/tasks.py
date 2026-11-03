@@ -114,14 +114,14 @@ def person_target(env: dict, key: str, world=None):
     return None
 
 
-def person_spot(world, pid: str, radius_m: float = PERSON_SPOT_RADIUS_M):
+def person_spot(world, pid: str, radius_m: float = PERSON_SPOT_RADIUS_M, xy=None):
     """Where "near person ``pid``" is for a robot that sees the room: the nearest support surface (table, desk,
     counter, nightstand, shelf) in the person's room whose set-down spot is within ``radius_m`` of where they are
     now and that has free room, or None. Chosen from the same scene facts every planner observes (people_now and
     the nearby furniture); it does NOT use the judge's reach radius, height bands or posture, so the surface may
     still be out of the person's reach, and then the delivery fails like anyone's would."""
     from ..reach import is_support, surface_xy
-    xy = world.person_xy(pid)
+    xy = world.person_xy(pid) if xy is None else xy
     rooms = world.rooms_of(xy)
     best = []
     for plid, pl in sorted(world.house.places.items()):
@@ -133,14 +133,14 @@ def person_spot(world, pid: str, radius_m: float = PERSON_SPOT_RADIUS_M):
     return sorted(best)[0][1] if best else None
 
 
-def person_loc(world, pid: str, spot) -> tuple:
+def person_loc(world, pid: str, spot, xy=None) -> tuple:
     """(ENV loc, height) of person ``pid``'s entry: the support surface ``spot`` beside them, or, with none, where a
     move to the person stops (skills.person_stop_xy, the robot's own rule)."""
     from ..skills import person_stop_xy
     if spot is not None:
         p = world.house.places[spot]
         return {"x": float(p.pos[0]), "y": float(p.pos[1]), "rz": float(p.yaw_deg)}, float(p.height_m)
-    xy = world.person_xy(pid)
+    xy = world.person_xy(pid) if xy is None else xy
     sx, sy = person_stop_xy(world, xy, standoff_m())
     return {"x": float(sx), "y": float(sy), "rz": float(math.degrees(math.atan2(xy[1] - sy, xy[0] - sx)))}, 0.0
 
@@ -155,20 +155,26 @@ def refresh_person_spot(env: dict, pid: str, world):
     not be put down beside her after the book was gone ("a person, use handover"). Returns the spot (None: none)."""
     e = next((v for _k, v in sorted((env or {}).items()) if isinstance(v, dict) and v.get("person") == pid), None)
     if e is None:
-        return person_spot(world, pid)
+        return person_spot(world, pid, xy=world.seen_xy(pid))
+    if "loc" not in e:
+        return None                     # people tracking off: the robot knows no position to look at
     old = e.get("spot")
     if old is not None and old in world.house.places and world.free_slots(old) > 0:
         return old
-    new = person_spot(world, pid)
+    xy = world.seen_xy(pid)             # where the robot last saw them (stale when they left its view)
+    new = person_spot(world, pid, xy=xy)
     if new == old:
         return old
-    e["loc"], e["height"] = person_loc(world, pid, new)
+    e["loc"], e["height"] = person_loc(world, pid, new, xy=xy)
     e["spot"] = new
     return new
 
 
-def env_for(world: World) -> dict:
-    """Per place: {loc: {x, y, rz}, height, default_mode, aliases, openable} keyed by place id."""
+def env_for(world: World, people_tracking: bool = True) -> dict:
+    """Per place: {loc: {x, y, rz}, height, default_mode, aliases, openable, surface} keyed by place id; per person
+    (robot_agent's optional ENV contract, its docs/env.md): {person, speaker, aliases} and, with
+    ``people_tracking`` (the robot perceives people), their LAST-SEEN position as loc, the seat and the spot beside
+    them. Without it the entries carry no position: the planner must ask where the person is."""
     env = {}
     for pid, p in sorted(world.house.places.items()):
         room = world.house.rooms[p.room]
@@ -190,7 +196,9 @@ def env_for(world: World) -> dict:
                 al.append(a)
         env[pid] = {"loc": {"x": float(p.pos[0]), "y": float(p.pos[1]), "rz": float(p.yaw_deg)},
                     "height": float(p.height_m), "default_mode": "front", "aliases": al,
-                    "openable": bool(p.container and p.container.openable)}
+                    "openable": bool(p.container and p.container.openable),
+                    # the robot's map: can things be put down on it (a table, shelf; not a seat, bed or floor)
+                    "surface": _is_support(p)}
     # people: robot_agent's planners name a person as the place to bring something to ("bring me the mug" ->
     # on(mug -> grandma)); the entry stands at the free support surface nearest to the person within Hall's
     # personal zone (person_spot, geometry only) and records it as ``spot``; with none, it stands where a move to
@@ -201,8 +209,10 @@ def env_for(world: World) -> dict:
         key = keys[pid]
         if key in env:
             continue
-        spot = person_spot(world, pid)
-        loc, height = person_loc(world, pid, spot)
+        uid = world.user_id() if hasattr(world, "user_id") else None
+        xy = world.seen_xy(pid) if hasattr(world, "seen_xy") else None
+        spot = person_spot(world, pid, xy=xy)
+        loc, height = person_loc(world, pid, spot, xy=xy)
         aliases, seen = [], set()
         for a in [f for n in [per.name.get("en", ""), per.name.get("ko", "")] + list(per.aliases.get("en") or []) +
                   list(per.aliases.get("ko") or []) + ([key.replace("_", " ")] if key != pid else [])
@@ -210,9 +220,22 @@ def env_for(world: World) -> dict:
             if a and a not in seen:
                 seen.add(a)
                 aliases.append(a)
-        env[key] = {"loc": loc, "height": height, "default_mode": "front", "aliases": aliases, "openable": False,
-                    "person": pid, "spot": spot}
+        entry = {"default_mode": "front", "aliases": aliases, "openable": False, "person": pid,
+                 "speaker": pid == uid, "surface": False}
+        if people_tracking:
+            entry.update(loc=loc, height=height, spot=spot)
+            if getattr(per, "seat", None) in world.house.places:
+                entry["seat"] = per.seat
+        env[key] = entry
     return env
+
+
+def _is_support(place) -> bool:
+    from ..reach import is_support
+    try:
+        return bool(is_support(place))
+    except Exception:                    # noqa: BLE001
+        return False
 
 
 ENV = env_for(from_house(DEFAULT_HOUSE, 0))

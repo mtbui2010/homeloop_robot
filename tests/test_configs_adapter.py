@@ -13,7 +13,7 @@ PKG = Path(__file__).resolve().parents[1] / "homeloop_robot"
 def test_env_shape():
     assert "counter@kitchen" in ENV
     e = ENV["fridge@kitchen"]
-    assert set(e) == {"loc", "height", "default_mode", "aliases", "openable"} and e["openable"] is True
+    assert set(e) == {"loc", "height", "default_mode", "aliases", "openable", "surface"} and e["openable"] is True
     assert "냉장고" in e["aliases"]
     assert set(env_for(episode("family_house").world)) >= {"dock@living", "fridge@kitchen"}
 

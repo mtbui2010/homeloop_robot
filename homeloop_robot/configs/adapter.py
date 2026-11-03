@@ -67,6 +67,47 @@ PHRASES: dict = {
     "which_one": {"en": "Which one do you mean?", "ko": "어느 것을 말씀하시는 거예요?"},
 }
 
+# robot_agent SAGE-v2 phrase keys (its core/planning/speech.py CORE_PHRASES): the Korean the robot says for its fixed
+# questions and read-backs, written from a style guide (해요체, short, a home robot speaking to a household member;
+# no particle after a slot whose final consonant is unknown), NOT tuned against the simulated user. Slots are
+# filled by robot_agent with the places' / people's Korean names and the person's own words for the object.
+_KO_PHRASES = {
+    "q_where_put": "{object}, 어디에 둘까요?",
+    "q_which_place": "{options} 중에 어디를 말씀하시는 거예요?",
+    "q_which_x": "{options} 중에 어느 쪽을 말씀하시는 거예요?",
+    "q_which_drawer": "어느 서랍이요?",
+    "q_where_go": "어디로 갈까요?",
+    "q_where_take": "어디로 가져갈까요?",
+    "q_what_say": "뭐라고 전할까요?",
+    "q_where_are_you": "지금 어디에 계세요?",
+    "q_where_is_person": "{person} 지금 어디 계신지 아세요?",
+    "q_where_is": "{object}, 못 찾았어요. 어디에 있는지 아세요?",
+    "q_repeat": "죄송해요, 잘 못 들었어요. 다시 말씀해 주시겠어요?",
+    "q_silence": "죄송해요, 잘 안 들렸어요.",
+    "q_did_you_mean": "{place} 말씀하시는 거예요?",
+    "q_what_bring": "뭘 가져다드릴까요?",
+    "q_confirm": "{summary} 맞아요?",
+    "rb_will": "{what}.",
+    "sep_then": ", 그다음 ",
+    "rb_on": "{object} {place}에 놓을게요",
+    "rb_on_from": "{source}에 있는 {object} {place}에 놓을게요",
+    "rb_in": "{object} {place} 안에 넣을게요",
+    "rb_to_you": "{object} 가져다드릴게요",
+    "rb_on_near_you": "{object} 가져다가 옆에 있는 {place}에 놓아 드릴게요",
+    "rb_on_near_person": "{object} {person}한테 가져가서 옆에 있는 {place}에 놓아 드릴게요",
+    "rb_hand_you": "{object} 손에 건네드릴게요",
+    "rb_to_person": "{object} {person}한테 가져다줄게요",
+    "rb_hand_person": "{object} {person}한테 직접 건네줄게요",
+    "rb_open": "{place} 열게요",
+    "rb_close": "{place} 닫을게요",
+    "rb_go": "{place} 쪽으로 갈게요",
+    "rb_say": "{person}한테 \"{text}\"라고 전할게요",
+    "rb_say_here": "\"{text}\"라고 말할게요",
+    "rb_say_at": "{place}에서 \"{text}\"라고 말할게요",
+    "llm_budget": "죄송해요, 정해진 횟수 안에 이 일을 해결하지 못해서 멈출게요.",
+}
+PHRASES.update({k: {**PHRASES.get(k, {}), "ko": v} for k, v in _KO_PHRASES.items()})
+
 
 def to_name(name: str) -> str:
     """'KitchenCounter' / 'kitchen_counter' -> 'kitchen counter'; ids (with @ or _N) are kept."""

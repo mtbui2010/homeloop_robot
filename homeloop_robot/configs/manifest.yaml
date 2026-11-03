@@ -15,9 +15,20 @@ geometry: {arrive_tol_m: 0.3, reach_m: 0.78, reach_far_m: 1.0}
 # bench's leak test (tests/test_seed_pool_leak.py) check it. robot_agent:sage_norag runs without it.
 planner:
   seed_memory: ../planner/seed_memory.jsonl
+  # SAGE-v2 (robot_agent docs/env.md): the run's caps sum to the bench's 30-call episode budget (26 planning + 4
+  # translation calls); what the robot says is translated by the model the round-3 A/B chose
+  # (homeloop_bench data/quality/translate_ab.json, Apache-2.0); search legs without a replan
+  llm_budget: 26
+  translate_budget: 4
+  translate_model: qwen3-vl:30b-a3b-instruct
+  search_legs: true
   notes:
     - "Open a container before PutIn; close it after."
     - "Find an object at its place before Pick; move to a person before Handover."
+# what the body can carry (robot_agent F4.1 checks a goal's object against it). ASSUMED (no mock-robot spec sheet):
+# 1.5 kg, the payload class of single-arm home mobile manipulators; documented in docs/calibration.md "Payload".
+limits:
+  payload_kg: 1.5
 skills:
   - name: move
     action: MoveTo

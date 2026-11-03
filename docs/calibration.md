@@ -432,3 +432,11 @@ OK-Robot drops onto named receptacles in 10 real homes, no handover (https://arx
 
 The robot_agent adapter's "near the person" spot (`configs/tasks.py` `person_spot`) uses a fixed radius of
 1.2 m, the outer edge of Hall's personal zone (WALTERS05 Table 1), not the judge's reach radius.
+
+## Payload (round 3, assumed)
+
+`configs/manifest.yaml` `limits.payload_kg: 1.5` is an ASSUMPTION (`assumed: true`): the mock robot has no spec
+sheet, and no published source for a home mobile manipulator's payload was opened for this value. It is used only
+by robot_agent's capability check of a goal object with a weight estimate; no object weights are given today, so
+the value does not change any episode yet.
+

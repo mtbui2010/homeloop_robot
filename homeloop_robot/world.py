@@ -177,6 +177,9 @@ class World:
     # where people are NOW: {person: {"pos": (x, y), "moving": bool}}, synced by the robot after every call
     # (skills.Robot.sync_people); empty = everyone at the start position (goals / reach read it)
     people_now: dict = field(default_factory=dict)
+    # where the ROBOT last saw each person {person: (x, y)} (its perception, not the truth): updated only while the
+    # person is in the robot's room (skills.Robot.sync_people); empty = their start positions (seen before the task)
+    people_seen: dict = field(default_factory=dict)
     # the household's language (the episode's: en | ko); a message reaches a listener only in it (goals said_to);
     # None = judged in the language of the utterance itself (a world built without an episode)
     lang: Optional[str] = None
@@ -320,6 +323,12 @@ class World:
         if st is not None:
             return tuple(st["pos"])
         return tuple(self.people[pid].pos)
+
+    def seen_xy(self, pid: str) -> tuple:
+        """Where the robot last saw person ``pid`` (``people_seen``), else their start position. It may be stale:
+        a person who left the robot's room keeps the position they were last seen at."""
+        p = self.people_seen.get(pid)
+        return tuple(p) if p is not None else tuple(self.people[pid].pos)
 
     def person_moving(self, pid: str) -> bool:
         st = self.people_now.get(pid)

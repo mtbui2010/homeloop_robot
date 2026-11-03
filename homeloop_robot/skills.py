@@ -186,6 +186,12 @@ class Robot:
             v = tuple(getattr(st, "vel", (0.0, 0.0)) or (0.0, 0.0))
             now[pid] = {"pos": (float(st.pos[0]), float(st.pos[1])), "moving": bool(v[0] or v[1])}
         self.world.people_now = now
+        # the robot's perception: a person in the robot's room is seen there now; anyone else keeps the position
+        # they were last seen at (world.people_seen; docs/robot_agent.md "people tracking")
+        here = set(self.world.rooms_of(self.world.robot.pose[:2]))
+        for pid, st in now.items():
+            if here and set(self.world.rooms_of(st["pos"])) & here:
+                self.world.people_seen[pid] = tuple(st["pos"])
 
     def pop_events(self) -> list:
         ev, self.pending_events = self.pending_events, []

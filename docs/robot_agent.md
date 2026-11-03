@@ -117,6 +117,33 @@ the bench's tests/test_seed_pool_leak.py (no dev / test leak; each plan reaches 
 bench's `robot_agent:sage_norag` runs the same SAGE without the pool. robot_agent also hands the pool to its other
 planners (grace, llm_direct's examples), as it does for any robot that ships one.
 
+## People tracking (round 3)
+
+robot_agent's optional ENV contract (its `docs/env.md`) lets a person entry carry `person`, `speaker`, `seat`,
+`spot` and a `loc`. `configs/tasks.env_for(world, people_tracking=...)` writes them:
+
+- `people_tracking=True` (`robot_agent:sage`): each person's `loc` / `spot` is where the ROBOT last saw them, not
+  where they are. `World.people_seen` holds the last-seen positions; `skills.Robot.sync_people` updates a person's
+  entry only while they are in the robot's room (its view), so a person who left keeps a stale position. Before
+  the task every person counts as seen at their start position. A move to a person looks at the spot again from
+  the last-seen position (`refresh_person_spot`). The speaker's entry has `speaker: true`, so "me" / 나한테 grounds
+  to it without a question.
+- `people_tracking=False` (`robot_agent:sage_ask`): person entries keep their names, `person` and `speaker`, but
+  no `loc`, `seat`, `spot` or `height`. robot_agent then asks "Where are you?" and maps the answer onto the map:
+  the nearest support surface (`surface: true`) beside the named place, or a hand-over.
+- Every place entry carries `surface`: true for a support surface things can be put down on (table, desk,
+  counter, nightstand, shelf), false for a seat, a bed, the floor, a container's inside.
+
+The ENV gives no house `tags`, no catalog `SPOKEN` aliases of objects and no label field (mode, kind, hazard).
+
+## Planner settings (round 3)
+
+`manifest.yaml` `planner:` sets `llm_budget: 26` and `translate_budget: 4` (the bench's 30-call episode cap,
+split), `translate_model: qwen3-vl:30b-a3b-instruct` (the translation A/B winner,
+homeloop_bench `data/quality/translate_ab.json`) and `search_legs: true`. `limits.payload_kg: 1.5` is ASSUMED
+(docs/calibration.md "Payload"). The Korean phrases of robot_agent's fixed questions and read-backs are in
+`configs/adapter.py` (`_KO_PHRASES`), written from a style guide and not tuned on the simulated user.
+
 ## How the bench drives it
 
 `homeloop_bench`'s robot_agent adapter sets the backend to an episode-bound proxy (its `call` goes

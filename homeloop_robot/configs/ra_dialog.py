@@ -35,6 +35,14 @@ TEMPLATES = [
                        r"current task\.", "free", lambda m: {}),
     # assist_loop._ground_goals: a "to me" goal without the user's place
     ("where_user", r"Where are you\? Which place should I bring it to\?", "where_are_you", lambda m: {}),
+    # SAGE-v2 (robot_agent core/planning/speech.py CORE_PHRASES): the speaker's whereabouts when the ENV does not
+    # track people, a person's, the repeat / did-you-mean repairs, "what should I bring?"
+    ("where_are_you", r"Where are you\?", "where_are_you", lambda m: {}),
+    ("where_is_person", r"Where is (?P<obj>[^?]+?)\?", "where_is", lambda m: {"obj": m["obj"]}),
+    ("repeat_v2", r"Sorry, I didn't catch that\. Could you say it again\?", "repeat",
+     lambda m: {"about": "request"}),
+    ("did_you_mean", r"Did you mean the (?P<word>[^?]+?)\?", "did_you_mean", lambda m: {"word": m["word"]}),
+    ("what_bring", r"What should I bring\?", "repeat", lambda m: {"about": "request"}),
     # goals.conflicts: two destinations for one object
     ("two_destinations", r"Where should the (?P<obj>[^?]+?) go in the end: " + _OPT + r"\? It cannot be in two "
                          r"places\.", "which_place", lambda m: {"obj": m["obj"], "options": _opts(m["opts"])}),

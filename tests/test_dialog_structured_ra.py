@@ -19,7 +19,11 @@ from robot_agent.core.planning import understand as U  # noqa: E402
 from robot_agent.core.planning.robot import CORE_TEXT  # noqa: E402
 from robot_agent.interact import dialog as RD  # noqa: E402
 
-SRC = "\n".join(Path(m.__file__).read_text(encoding="utf-8") for m in (AL, RG, U, RD, RR))
+from robot_agent.core.planning import speech as RS  # noqa: E402
+
+SRC = "\n".join(Path(m.__file__).read_text(encoding="utf-8") for m in (AL, RG, U, RD, RR, RS))
+# templates robot_agent no longer asks (SAGE-v2 round 3), kept so questions of earlier runs still derive (the audit)
+RETIRED = {"do_with"}
 
 # a fixed wording of each template as it stands in robot_agent's source
 ANCHORS = {
@@ -33,13 +37,18 @@ ANCHORS = {
     "say_again": "Could you say that again?", "yes_or_no": "Please answer yes or no.",
     "not_found": "Where is it?", "pick_help": "Could you move it closer to the edge, then say yes?",
     "move_help": "Please clear the way and say yes.",
+    # SAGE-v2 (robot_agent core/planning/speech.py CORE_PHRASES)
+    "where_are_you": '"q_where_are_you": "Where are you?"', "where_is_person": '"Where is {person}?"',
+    "repeat_v2": "Sorry, I didn't catch that. Could you say it again?", "did_you_mean": '"Did you mean the {object}?"',
+    "what_bring": '"What should I bring?"',
 }
 
 
 def test_every_template_wording_is_in_robot_agent():
     assert set(ANCHORS) == {t[0] for t in TEMPLATES}
     for tid, anchor in ANCHORS.items():
-        assert anchor in SRC, f"{tid}: {anchor!r} no longer in robot_agent"
+        if tid not in RETIRED:
+            assert anchor in SRC, f"{tid}: {anchor!r} no longer in robot_agent"
 
 
 def test_read_back_from_summary():
@@ -61,8 +70,11 @@ def test_issue_questions():
     m = derive(q)
     assert m["qtype"] == "which_place" and m["options"] == ["shelf in the kitchen", "shelf in the living"]
     assert m["template"] == ["which_x"]
+    # SAGE-v2 F3.3: an uncovered noun is a repair question, never "What should I do with the X?"
     q = U.issue_question([{"kind": "object", "what": "towel"}], places)
-    assert derive(q)["qtype"] == "which_place" and derive(q)["obj"] == "towel"
+    assert derive(q) == {"qtype": "repeat", "about": "request", "template": ["repeat_v2"]}
+    q = U.issue_question([{"kind": "object", "what": "towle", "near": "towel"}], places)
+    assert derive(q) == {"qtype": "did_you_mean", "word": "towel", "template": ["did_you_mean"]}
     # the verb issue: robot_agent's own verbs (understand._VERB), a question about which container / door
     assert set(U._VERB) == {"open", "close"}
     for verb in U._VERB:
@@ -114,7 +126,7 @@ def test_assist_loop_templates(q, qt, slots):
 def test_llm_own_question_has_no_meaning():
     assert derive("Do you want the mug washed first?") is None
     # "What should I <verb>?" is a template only for robot_agent's open / close verb issue
-    for q in ("What should I tell dad?", "What should I do first?", "What should I bring?"):
+    for q in ("What should I tell dad?", "What should I do first?", "What should I buy?"):
         assert derive(q) is None, q
     assert derive("") is None
     # the LLM's words first, then a template: the template gives the meaning
