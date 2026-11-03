@@ -329,3 +329,25 @@ def test_person_spot_is_geometry_only():
             pl = w.house.places[spot]
             assert reach.is_support(pl) and w.free_slots(spot) > 0
             assert math.dist(reach.surface_xy(pl), w.person_xy(pid)) <= 1.2 + 1e-9
+
+
+def test_person_spot_may_be_out_of_reach_and_then_the_delivery_fails():
+    """A support surface within Hall's 1.2 m whose height is outside the seated band (a wall shelf at 1.6 m beside
+    the armchair): person_spot still picks it (geometry only, no judge), the object put there is not delivered in
+    reach mode, and a handover still is."""
+    from homeloop_robot.configs.tasks import person_spot
+    w = from_house("senior_flat", 0)
+    spot = person_spot(w, "grandma")
+    assert spot == "side_table@living" and reach.place_reachable(w, spot, "grandma")
+    pl = w.house.places[spot]
+    h0 = pl.height_m
+    try:
+        object.__setattr__(pl, "height_m", 1.6)
+        assert person_spot(w, "grandma") == spot                      # still chosen: within 1.2 m, free
+        assert not reach.place_reachable(w, spot, "grandma")          # above the seated band
+        put(w, "mug_1", spot)
+        assert not G.holds(dl("mug_1", "grandma", "reach"), w)
+        w.objects["mug_1"].at, w.objects["mug_1"].inside = "person:grandma", False
+        assert G.holds(dl("mug_1", "grandma", "reach"), w)
+    finally:
+        object.__setattr__(pl, "height_m", h0)
