@@ -370,17 +370,36 @@ gives the app channel its own rates (`asr.en.app_wer`, `asr.ko.app_cer`, conditi
 
 | lang | mean length | channel | any change (corrupted / partial / not heard) | an entity (object, place, person name) changed |
 |---|---|---|---|---|
-| EN | 18.1 words | app (round 2) | 58.1 % (54.2 / 1.1 / 2.8) | 18.8 % |
-| KO | 30.1 syllables | app (round 2) | 76.5 % (73.1 / 1.0 / 2.4) | 35.1 % |
+| EN | 18.4 words | app (round 2) | 58.4 % (54.5 / 1.1 / 2.8) | 18.7 % |
+| KO | 30.6 syllables | app (round 2) | 77.1 % (73.7 / 1.0 / 2.4) | 34.7 % |
 | KO | 30.1 syllables | old (near, 10.48 % CER) | 91.9 % (88.5 / 1.0 / 2.4) | 56.9 % |
 
+(Dev data after review round 1; the explicit-hand sentences made the texts slightly longer.)
+
 "Any change" includes harmless ones (a function word substituted, "the" inserted). Errors are drawn
-independently per token, an assumption that overstates the share of changed sentences when real errors
-cluster; no sentence-level near-field rate was found to check it, apart from SLURP's ~27 % of English
-commands with an entity wrong under the better of two 2020 systems with mixed microphones (Sec. 3.2), which the
-English entity-changed share (18.8 %, near-field, a stronger recogniser) stays below. Utterance length matters:
+independently per token. **These shares are an assumed upper bound, not a measured rate.** Real recognition
+errors cluster in some utterances (accents, noise, rare words) and leave the others clean, so independent
+per-token errors overstate the share of changed sentences at the same per-token rate. No sentence-level or
+utterance-level error rate for near-field / close-talk short commands was found for either language (searched
+2026-11-03: Speech-MASSIVE and SLURP report token rates and SLU accuracy, not ASR sentence error rates of a
+modern recogniser on close-talk audio). The only sentence-level anchor is SLURP's ~27 % of English commands
+with an entity wrong under the better of two 2020 systems with mixed microphones (Sec. 3.2); the English
+entity-changed share (18.7 %, near-field, a stronger recogniser) stays below it. Utterance length matters:
 shorter utterances have a higher WER (Li et al. 2023, https://arxiv.org/abs/2305.16065 Sec. 4.3, qualitative
 only), which the per-token model does not represent.
+
+**Sensitivity.** The share falls steeply with the per-token rate (`report asr-share --profile
+"real+asr.ko.app_cer=X,asr.en.app_wer=Y"`, dev, seed 0):
+
+| asr.en.app_wer / asr.ko.app_cer | EN changed / entity changed | KO changed / entity changed |
+|---|---|---|
+| 0.01 / 0.01 | 20.5 % / 7.4 % | 27.8 % / 10.0 % |
+| 0.02 / 0.02 | 34.1 % / 11.1 % | 45.6 % / 16.1 % |
+| 0.044 / 0.0521 (real) | 58.4 % / 18.7 % | 77.1 % / 34.7 % |
+
+Planner success must be reported against these rates too: the bench runs a planner with a parameter changed
+by `homeloop-bench run ... --set asr.ko.app_cer=0.02,asr.en.app_wer=0.02` (recorded in `config.profile`), and
+homeloop_bench docs/experiments.md lists the sensitivity runs (0.01 / 0.02 / real) next to the main table.
 
 ## Human reach (delivery to a person, round 2)
 

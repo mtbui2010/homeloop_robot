@@ -1,5 +1,7 @@
 import io
 
+import pytest
+
 from homeloop_robot.profiles import PARAM_REGISTRY, list_profiles, load_profile
 from homeloop_robot.profiles.validate import norm_source, run
 
@@ -36,3 +38,14 @@ def test_norm_source():
     assert norm_source("https://arxiv.org/pdf/2401.12202v2") == "arxiv:2401.12202"
     assert norm_source("arXiv:2401.12202") == "arxiv:2401.12202"
     assert norm_source("https://doi.org/10.1016/J.X.1") == "doi:10.1016/j.x.1"
+
+
+def test_profile_overrides_for_sensitivity_runs():
+    from homeloop_robot.profiles import ProfileError, load_profile
+    p = load_profile("real+asr.ko.app_cer=0.01,asr.en.app_wer=0")
+    assert p.get("asr.ko.app_cer") == 0.01 and p.get("asr.en.app_wer") == 0.0
+    assert p.sha != load_profile("real").sha and load_profile("real").get("asr.ko.app_cer") == 0.0521
+    assert p.get("hw.p_per_motion_call") == load_profile("real").get("hw.p_per_motion_call")
+    for bad in ("real+nope=1", "real+asr.ko.app_cer=2", "real+asr.ko.app_cer=x"):
+        with pytest.raises(ProfileError):
+            load_profile(bad)

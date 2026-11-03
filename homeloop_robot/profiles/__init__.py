@@ -281,6 +281,8 @@ def load_spec(name: str) -> dict:
 
 @functools.lru_cache(maxsize=None)
 def _load(name: str) -> Profile:
+    if "+" in name:
+        return _with_overrides(name)
     real, _frags, errs = load_real_fragments()
     if errs:
         raise ProfileError("; ".join(errs))
@@ -295,8 +297,34 @@ def _load(name: str) -> Profile:
     return Profile(name, params, {"notes": notes, "spec": spec})
 
 
+def _with_overrides(name: str) -> Profile:
+    """``"real+asr.ko.app_cer=0.02,asr.en.app_wer=0"``: a base profile with scalar parameters set (sensitivity runs,
+    docs/profiles.md). Only existing scalar (number) parameters can be set; each is marked ``override: true``."""
+    base, _, spec = name.partition("+")
+    prof = _load(base)
+    params = copy.deepcopy(prof.params)
+    for item in [x for x in spec.split(",") if x.strip()]:
+        key, eq, val = item.partition("=")
+        key = key.strip()
+        if not eq or key not in params:
+            raise ProfileError(f"{name}: unknown parameter {key!r}")
+        old = params[key].get("value")
+        if isinstance(old, bool) or not isinstance(old, (int, float)):
+            raise ProfileError(f"{name}: {key} is not a scalar number")
+        try:
+            v = float(val)
+        except ValueError:
+            raise ProfileError(f"{name}: {key}={val!r} is not a number") from None
+        if params[key].get("kind") == "prob" and not 0.0 <= v <= 1.0:
+            raise ProfileError(f"{name}: {key}={v} is not a probability")
+        params[key]["value"] = v
+        params[key]["override"] = True
+    return Profile(name, params, dict(prof.meta, base=base))
+
+
 def load_profile(name: str) -> Profile:
-    """The resolved profile (cached; treat it as read-only)."""
+    """The resolved profile (cached; treat it as read-only). ``name`` may carry overrides:
+    ``real+asr.ko.app_cer=0.02`` (see :func:`_with_overrides`)."""
     return _load(str(name))
 
 

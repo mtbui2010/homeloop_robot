@@ -58,3 +58,12 @@ PASS / FAIL; exit 0 only if all pass; `--strict` also fails on warnings:
 
 The output ends with `assumed: N params` and their names. A derivation rule for a parameter family that
 is not installed (e.g. `user.*` before the user model is merged) is printed as INFO, not a warning.
+
+## Overrides for sensitivity runs
+
+`load_profile("real+asr.ko.app_cer=0.02,asr.en.app_wer=0.02")` returns `real` with those scalar parameters set
+(each marked `override: true`; unknown keys, non-numbers and probabilities outside [0, 1] are refused). The
+profile's `sha` changes, so a run records which values it used. The bench passes it with
+`homeloop-bench run ... --set KEY=V[,KEY=V]`; `python -m homeloop_robot.report asr-share --profile` takes the
+same form. Overridden profiles are for sensitivity analysis only; `validate --strict` checks the three named
+profiles.

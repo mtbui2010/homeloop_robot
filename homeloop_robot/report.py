@@ -221,7 +221,8 @@ def main(argv=None) -> int:
     k.add_argument("--trials", type=int, default=300)
     s = sub.add_parser("asr-share", help="share of instructions changed by ASR (near-field app channel)")
     s.add_argument("--tasks", required=True, help="JSONL with text.en / text.ko (e.g. the bench's dev split)")
-    s.add_argument("--profile", default="real", choices=["ideal", "real", "stress"])
+    s.add_argument("--profile", default="real",
+                   help="ideal | real | stress, optionally with overrides: real+asr.ko.app_cer=0.02")
     s.add_argument("--condition", default="app", choices=["app", "near", "far"])
     s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args(argv)
