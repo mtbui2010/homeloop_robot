@@ -150,7 +150,8 @@ Walters et al., "The Influence of Subjects' Personality Traits on Personal Spati
 Interaction Experiment", IEEE RO-MAN 2005. https://uhra.herts.ac.uk/id/eprint/265/1/101144.pdf
 
 - Table 1: Hall's zones as tabulated (social zone 1.2-3.6 m). -> `move.person_standoff_m` = 1.2 (a move to a
-  person stops at the near edge of the social zone).
+  person stops at the near edge of the social zone, on the path from the charging dock into the person's room:
+  `skills.person_stop_xy`, one stop point per person position whatever the robot comes from).
 
 ### Composition references (used in docs/failure_model.md, no parameter)
 

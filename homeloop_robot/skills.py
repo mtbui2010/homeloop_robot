@@ -88,6 +88,19 @@ def standoff_point(path: list, stand: float) -> tuple:
     return tuple(path[0])
 
 
+ARRIVED_EPS_M = 0.05          # a move to a person ends at once when the base is already this close to its stop point
+
+
+def person_stop_xy(world, ppos, stand: float) -> tuple:
+    """Where a move to a person at ``ppos`` stops: ``stand`` metres before them on the path from the charging
+    dock (the way into their room). One point per person position, whatever room the robot comes from, so the
+    robot_agent ENV entry of a person (configs/tasks.env_for) is where this move really ends and its arrival
+    check (arrive_tol) can be met. The person is not on the robot's safety list during the move
+    (``collaborative_with``), as before."""
+    dock = world.house.places[world.house.dock].pos
+    return standoff_point(world.path((float(dock[0]), float(dock[1])), tuple(ppos)), stand)
+
+
 def canon_args(args: dict) -> str:
     return json.dumps({k: args[k] for k in sorted(args)}, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":"), default=str)
@@ -466,10 +479,10 @@ class Robot:
             ppos = tuple(pst.pos) if pst else tuple(w.people[person].pos)
             here = self._xy()
             stand = float(self._p("move.person_standoff_m"))
-            if dist(here, ppos) <= stand + 1e-9 and w.room_of(ppos) in w.rooms_of(here):
+            goal = person_stop_xy(w, ppos, stand)
+            if dist(here, goal) <= ARRIVED_EPS_M:
                 res.data["at"] = f"person:{person}"
                 return res
-            goal = standoff_point(w.path(here, ppos), stand)
             yaw = math.degrees(math.atan2(ppos[1] - goal[1], ppos[0] - goal[0]))
             clutter, hard, tags, tkey = "medium", False, (), f"person:{person}"
         path = w.path(self._xy(), goal)

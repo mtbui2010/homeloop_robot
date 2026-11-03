@@ -16,7 +16,7 @@ from pathlib import Path
 from robot_agent.contract import Geometry, Manifest, Messages, Observation, Unbindable
 
 from .backend import get_backend
-from .tasks import person_spot  # noqa: F401  (re-exported: adapter.person_spot)
+from .tasks import person_key, person_spot  # noqa: F401  (re-exported: adapter.person_spot)
 
 MANIFEST_PATH = Path(__file__).with_name("manifest.yaml")
 
@@ -57,6 +57,10 @@ class Adapter:
     def _resolve(self, name: str, kind: str) -> str:
         """A planner name -> an id of the robot's world when it names exactly one thing."""
         w = self._world()
+        if kind in ("place", "person"):
+            pid = self._person_of_key(str(name or "").strip())
+            if pid is not None:
+                return pid
         n = to_name(name)
         if w is None or not n:
             return n
@@ -69,6 +73,17 @@ class Adapter:
             if isinstance(r, str):
                 return r
         return n
+
+    def _person_of_key(self, key: str):
+        """The person id of an ENV person key ('person_user' -> 'user'), else None."""
+        w = self._world()
+        if w is None:
+            return None
+        for pid in sorted(w.people):
+            k = person_key(pid)
+            if k != pid and key in (k, k.replace("_", " ")):
+                return pid
+        return None
 
     def bind(self, step: dict, world=None):
         """{'action': 'Pick', 'object': 'Cup'} -> ('pick', {'inputs': 'cup_1'})."""
@@ -103,7 +118,11 @@ class Adapter:
             # them (adapter.person_spot: geometry only, not the judge's reach test). With none, the step stays
             # aimed at the person: MoveTo drives to them, Place fails ("a person, use handover"); the adapter never
             # turns a Place into a handover (that is the planner's choice)
-            spot = person_spot(w, target)
+            # the ENV entry's spot (env_for of the start world), the one ra_skills.move / place use for the raw
+            # ENV key robot_agent's AssistLoop passes
+            from .ra_skills import _person
+            per = _person(person_key(target))
+            spot = per[1] if per is not None else person_spot(w, target)
             if spot is not None:
                 return spec.name, {"inputs": spot}
         return spec.name, {"inputs": target}

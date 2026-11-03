@@ -18,7 +18,7 @@ from .types import Call
 from .world import World, dist
 
 HIGH_SHELF_REACH_M = 1.5
-PERSON_NEAR_M = 1.25        # the robot counts as "at" a person within this distance, same room (standoff 1.2 m)
+PERSON_STANDOFF_M = 1.2     # move.person_standoff_m of the profiles (WALTERS05, docs/calibration.md)
 
 
 class Unsolvable(Exception):
@@ -69,12 +69,12 @@ class _Plan:
     def move_person(self, person: str):
         w, r = self.w, self.w.robot
         ppos = self.person_pos(person)
-        if r.at is None and dist(r.pose[:2], ppos) <= PERSON_NEAR_M and w.room_of(ppos) in w.rooms_of(r.pose[:2]):
-            return                                   # already next to the person
-        self.cost += w.path_length(r.pose[:2], ppos)
+        from .skills import ARRIVED_EPS_M, person_stop_xy
+        sp = person_stop_xy(w, ppos, PERSON_STANDOFF_M)
+        if r.at is None and dist(r.pose[:2], sp) <= ARRIVED_EPS_M:
+            return                                   # already at the person's stop point
+        self.cost += w.path_length(r.pose[:2], sp)
         self.calls.append(Call("move", {"target": person}))
-        from .skills import standoff_point
-        sp = standoff_point(w.path(r.pose[:2], ppos), 1.2)
         r.at, r.pose, r.perceived, r.docked = None, (sp[0], sp[1], 0.0), set(), False
 
     def open(self, cid: str):

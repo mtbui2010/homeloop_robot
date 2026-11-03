@@ -43,6 +43,23 @@ reach, and the delivery then fails. With no such surface, `MoveTo` drives to the
 `place` aimed at the person, which fails ("a person, use handover"). The adapter never turns a `Place` into a
 `handover`: choosing a handover is the planner's decision. robot_agent is not changed.
 
+Where this is applied (R2-5 B1). robot_agent's AssistLoop (`assist_loop._bind`) overwrites the adapter's bind
+result with the raw ENV key for `MoveTo` / `Place`, so the skill functions receive the person's ENV key. The ENV
+entry of a person therefore records `person` (the id) and `spot` (the `person_spot` of the start world, or
+None), and `ra_skills.move` / `ra_skills.place` of a person key go to that spot (or to the person). The entry's
+`loc` is the spot, or, with no spot, the point where a move to the person stops: `skills.person_stop_xy`, the
+point `move.person_standoff_m` (1.2 m) before the person on the path from the charging dock (the way into their
+room). The robot's own `move(person)` stops at that same point from wherever it starts, so the base ends within
+robot_agent's `arrive_tol` (0.3 m) of the ENV loc and its arrival check holds. If the person walks away
+meanwhile, the entry is stale like any ENV place and the check can fail, as it would on a real robot with a
+fixed map. Tests: homeloop_bench `tests/test_reach_ra_bind.py` (the real AssistLoop bind path, every house and
+person) and `tests/test_person_move.py`.
+
+Reserved user words (R2-5 B2). AssistLoop reads a goal place that normalises to `me`, `user`, `here`, `you`,
+`myself` or `person` as "the user, place unknown" and asks where they are. A person whose id is such a word
+(`user` in korean_apt_59 and studio_flat) is keyed in the ENV as `person_<id>` (`tasks.person_key`) and mapped
+back to the id by `ra_skills` and `Adapter.bind` (`Handover person_user` -> `handover user`).
+
 What this covers, measured (homeloop_bench data after review round 1): 3,269 of the 3,273 `reach` delivery
 atoms go to the **speaker**, and only 4 to another person. For the speaker, sage does not name a person as the
 place. With `--llm fake` (understand built from the gold goals) it asks "Where are you? Which place should I bring

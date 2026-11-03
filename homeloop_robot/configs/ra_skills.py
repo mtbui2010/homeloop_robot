@@ -50,10 +50,39 @@ def _run(skill: str, **args) -> dict:
     return _named(get_backend().call(skill, **args).to_legacy())
 
 
+def _env() -> dict:
+    """The ENV robot_agent runs with (``robot_agent.skill_configs.ENV``: the bench sets it to ``env_for`` of the
+    episode's start world); without robot_agent, ``env_for`` of the robot's world."""
+    try:
+        from robot_agent import skill_configs
+        return skill_configs.ENV
+    except ImportError:
+        from .tasks import env_for
+        world = getattr(get_backend(), "world", None)
+        return env_for(world) if world is not None else {}
+
+
+def _person(target: str):
+    """(person id, spot or None) when ``target`` names a person (an ENV person key such as 'person_user', a
+    person id or name), else None. robot_agent's AssistLoop passes the raw ENV key of a MoveTo / Place
+    (assist_loop._bind), whatever the adapter's bind returned, so the person is resolved here."""
+    from .tasks import person_target
+    world = getattr(get_backend(), "world", None)
+    try:
+        return person_target(_env(), target, world)
+    except Exception:                                   # noqa: BLE001 - no ENV / world: not a person
+        return None
+
+
 def move(node=None, inputs: str = "", **params) -> dict:
     """MoveTo; to the charging dock it also docks: this robot's charger is a place, and a robot sent to its
     charger ends on it (as a robot vacuum's "go home"). robot_agent has no Dock goal: "go back and charge"
-    is a MoveTo the dock."""
+    is a MoveTo the dock. To a person: to the spot of their ENV entry (the support surface beside them), or to
+    the person when there is none (the base stops where the ENV loc is: skills.person_stop_xy)."""
+    per = _person(str(inputs or "").strip())
+    if per is not None:
+        pid, spot = per
+        return _run("move", target=spot or pid)
     out = _run("move", target=str(inputs))
     world = getattr(get_backend(), "world", None)
     dock = getattr(getattr(world, "house", None), "dock", None)
@@ -78,7 +107,18 @@ def pick(node=None, inputs: str = "", **params) -> dict:
 
 
 def place(node=None, inputs: str = "", **params) -> dict:
+    """Place; on a person: on the spot of their ENV entry. With no spot it stays a place on the person, which
+    fails ("a person, use handover"): a Place is never turned into a handover here."""
+    per = _person(str(inputs or "").strip())
+    if per is not None:
+        pid, spot = per
+        return _run("place", target=spot or pid)
     return _run("place", target=str(inputs))
+
+
+def _person_id(name: str) -> str:
+    per = _person(str(name or "").strip()) if name else None
+    return per[0] if per is not None else str(name or "")
 
 
 def put_in(node=None, inputs: str = "", **params) -> dict:
@@ -94,7 +134,7 @@ def close(node=None, inputs: str = "", **params) -> dict:
 
 
 def handover(node=None, inputs: str = "", **params) -> dict:
-    return _run("handover", person=str(inputs or ""))
+    return _run("handover", person=_person_id(str(inputs or "")))
 
 
 def say(node=None, inputs: str = "", lang: str = "en", **params) -> dict:
