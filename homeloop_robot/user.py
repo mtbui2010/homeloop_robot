@@ -364,6 +364,22 @@ class SimUser:
                 return c, "structured", m["qtype"]
         return self._read_text(question, L, kw)
 
+    def wrong_places(self) -> list[str]:
+        """The places a mistaken "where" answer names: a surface or container where an object of this task is
+        usually kept (catalog typical receptacle that fits it, realism R-b), as a person confuses one usual place
+        for another; not the wardrobe for a mug (pilot round 2, hl-dev-000010 KO). With no such object (or no such
+        place in the house), any surface or container."""
+        from .catalog import is_typical, place_category, size_fits
+        w = self.world
+        places = sorted(pid for pid, pl in w.house.places.items() if getattr(pl, "kind", "") in ("surface", "container"))
+        objs = {x for a in dialog._atoms(self.wants) for x in (a.get("args") or []) if x in w.objects}
+        objs |= {c.get("id") for c in (self.spec or {}).get("candidates") or [] if c.get("id") in w.objects}
+        classes = sorted({w.objects[o].cls for o in objs})
+        usual = [pid for pid in places
+                 if any(is_typical(c, place_category(w.house.places[pid])) and size_fits(c, place_category(
+                     w.house.places[pid])) for c in classes)]
+        return usual or places
+
     def answer(self, question: str, lang: str, robot_xy, t: float, meaning: dict | None = None):
         """The user's reply to ``question`` (what they hear). ``meaning``: the planner's structured form of the
         question (``intent.QTYPES`` + slots), None = free text (docs/user_model.md)."""
@@ -390,8 +406,7 @@ class SimUser:
             kind, text, rule = "yes", dialog.TEXT["help_ok"][L], "help"
         else:
             knows = rng.random() >= self.p_location_unknown
-            places = sorted(pid for pid, pl in self.world.house.places.items()
-                            if getattr(pl, "kind", "") in ("surface", "container"))
+            places = self.wrong_places()
             other = places[rng.randrange(len(places))] if places else None
             gv = None
             if self.wants:

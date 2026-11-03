@@ -116,7 +116,9 @@ path only when the user is reachable.
    - otherwise "I'm not sure what you mean." / "무슨 말씀인지 잘 모르겠어요." (the generic user: "I don't know.").
 5. **Correctness mix** on informative answers: wrong with `user.answer.p_wrong` = 0.173 (another candidate,
    a flipped yes/no, another place, or `spec.wrong_answer`; when no alternative exists the user is unsure
-   instead), not sure with `user.answer.p_not_sure` = 0.096, else correct (73.1 %). ZOU Table 1: crowd workers
+   instead; "another place" is a surface or container where an object of the task is usually kept, a catalog
+   typical receptacle that fits it (realism R-b), as people confuse one usual place for another, never the
+   wardrobe for a mug: `SimUser.wrong_places`), not sure with `user.answer.p_not_sure` = 0.096, else correct (73.1 %). ZOU Table 1: crowd workers
    answering a product-search system's clarifying questions, the closest measured answer mix we found (it is not
    a robot study).
 6. **Silence**: `user.p_no_answer` = 0.05 (assumed; no measured rate).
