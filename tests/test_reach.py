@@ -283,7 +283,7 @@ def test_claimed_done_on_a_seat_is_not_success():
 def test_adapter_person_place_resolves_to_reachable_surface():
     from homeloop_robot.configs.adapter import make_adapter
     from homeloop_robot.configs.backend import reset_backend, set_backend
-    from homeloop_robot.configs.tasks import env_for
+    from homeloop_robot.configs.tasks import env_for, person_key
     ep = episode("senior_flat")
     set_backend(ep.robot)
     try:
@@ -291,7 +291,8 @@ def test_adapter_person_place_resolves_to_reachable_surface():
         assert ad.bind({"action": "MoveTo", "object": "grandma"}) == ("move", {"inputs": "side_table@living"})
         assert ad.bind({"action": "Place", "object": "grandma"}) == ("place", {"inputs": "side_table@living"})
         env = env_for(ep.world)
-        assert env["grandma"]["loc"]["x"] == ep.world.place("side_table@living").pos[0]
+        # the ENV is keyed by the person's name key (the speaker: "spot near you"), not the raw id
+        assert env[person_key(ep.world, "grandma")]["loc"]["x"] == ep.world.place("side_table@living").pos[0]
     finally:
         reset_backend()
     ep = episode("family_house")

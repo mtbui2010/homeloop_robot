@@ -25,6 +25,22 @@ RESERVED_USER_WORDS = frozenset({"me", "user", "here", "you", "myself", "person"
 # robot says it to the person: the support surface beside them (the entry's spot) or, with none, where they are.
 SPEAKER_KEY = "spot near you"
 
+# robot_agent matches a non-ASCII place phrase as a plain substring (understand._find), so a one-syllable Korean
+# person name (나, 저, 애, 딸) would be "mentioned" inside 하나, 저녁, 나간다고, 딸기 (pilot round 2, hl-dev-000013 KO:
+# "You mentioned the 나"). Such a name goes into the ENV in the forms that name a person as a destination: the
+# dative particles, and the contracted pronouns (나에게 -> 내게, 저에게 -> 제게).
+KO_DATIVE = ("한테", "에게")
+KO_CONTRACTED = {"나": ["내게"], "저": ["제게"]}
+
+
+def env_alias_forms(alias: str) -> list:
+    """The spellings of a person alias written to the ENV: itself, or, for a one-syllable non-ASCII name, its
+    dative forms (it would otherwise match inside longer words)."""
+    a = str(alias or "").strip()
+    if not a or a.isascii() or len(a.replace(" ", "")) > 1:
+        return [a] if a else []
+    return [a + p for p in KO_DATIVE] + KO_CONTRACTED.get(a, [])
+
 
 def _words(name) -> str:
     """robot_agent's name normaliser (assist_loop.words): '_' / '-' to spaces, camel case split, lower case."""
@@ -155,8 +171,9 @@ def env_for(world: World) -> dict:
             loc = {"x": float(sx), "y": float(sy), "rz": float(math.degrees(math.atan2(xy[1] - sy, xy[0] - sx)))}
             height = 0.0
         aliases, seen = [], set()
-        for a in [per.name.get("en", ""), per.name.get("ko", "")] + list(per.aliases.get("en") or []) + \
-                list(per.aliases.get("ko") or []) + ([key.replace("_", " ")] if key != pid else []):
+        for a in [f for n in [per.name.get("en", ""), per.name.get("ko", "")] + list(per.aliases.get("en") or []) +
+                  list(per.aliases.get("ko") or []) + ([key.replace("_", " ")] if key != pid else [])
+                  for f in env_alias_forms(n)]:
             if a and a not in seen:
                 seen.add(a)
                 aliases.append(a)
