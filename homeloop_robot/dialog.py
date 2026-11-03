@@ -687,7 +687,7 @@ READBACK_RX = re.compile(r"\bI will\b|\bI'll\b|\bI'm going to\b|\bI am going to\
 # (the speaker's ENV key "spot within your reach" is read back as "on the spot within your reach"; in Korean "손이 닿는
 # 곳 / 손 닿는 자리")
 ME_RX = {"en": re.compile(r"\b(you|your hand|your reach|to me|hand it|give it)\b"),
-         "ko": re.compile(r"(드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신|손이?\s*닿는)")}
+         "ko": re.compile(r"(드리|드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신|손이?\s*닿는)")}
 DOCK_WORDS = ("dock", "charg", "충전")
 
 
@@ -906,8 +906,7 @@ class GoalView:
             if args[1] == self.user_id:
                 # to the speaker: "to you" / "to me", their place, or their own name ("the user", "grandma"; the
                 # robot may name the person it talks to, pilot round 1 hl-dev-000010), never an id
-                return bool(ME_RX["en"].search(q.lower()) or ME_RX["ko"].search(q)
-                            or self._person_ok(args[1], q, obj=args[0]))
+                return self._to_speaker_said(args[0], q) or self._person_ok(args[1], q, obj=args[0])
             return self._person_ok(args[1], q, obj=args[0])
         if p == "said_to":
             # to the person (not "your husband is the one saying it", pilot round 2 hl-dev-000013 KO), and a quoted
@@ -921,6 +920,61 @@ class GoalView:
                     return False
             return self._person_ok(args[0], q)
         return self.subject_said(a, q)
+
+    def object_parts(self, q: str, oid: str) -> list[str]:
+        """The parts of a read-back that are about object ``oid``: a clause (or sentence) that names it, and the
+        clauses after it up to the next one naming another object, or another part's place or person, of the request
+        ('안경을 가져와서 / 드릴게요': the second clause is still about the glasses; '..., 리모컨은 할아버지께 드릴게요': that one
+        is about the remote)."""
+        mine = _obj_words(self.w, oid)
+        others = [_obj_words(self.w, o) for o in self.objects() if o != oid]
+        # ... or another part's place or person ("..., then open the fridge", "..., then tell grandpa")
+        for a in self.atoms:
+            if a["pred"] in ("on", "in", "held_by") and a["args"][0] == oid:
+                continue
+            for x in a.get("args") or []:
+                if isinstance(x, str) and x in self.w.house.places:
+                    others.append(_place_words(self.w, x)[:2])
+                elif isinstance(x, str) and x in self.w.people and x != self.user_id:
+                    others.append(_person_words(self.w, x))
+        out, cur = [], False
+        for cl in read_back_clauses(SENTENCE_RX.sub(",", q)):
+            if _mentions_any(cl, mine, self.w):
+                cur = True
+            elif any(_mentions_any(cl, ws, self.w) for ws in others):
+                cur = False
+            if cur:
+                out.append(cl)
+        return out
+
+    def _to_speaker_said(self, oid: str, q: str) -> bool:
+        """Does the read-back say ``oid`` goes to the speaker ("to you", "hand it", '드릴게요', '당신', '손에') in that
+        object's own part, with no other person and no place or room of another room said for it there? A "to me"
+        word of another part of a compound read-back is not one for this object ('안경을 거실 탁자에 두고, 리모컨은
+        할아버지께 드릴게요': the humble giving verb is for grandpa; fresh pilot round 3, hl-dev-000060 KO)."""
+        q = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+        here = self.place_of(self.user_id)
+        pl = self.w.house.places.get(here) if here else None
+        my_room = getattr(pl, "room", None)
+        o = self.w.objects.get(oid)
+        sources = {x for x in ((o.at if o else None), (getattr(self.w, "initial_at", None) or {}).get(oid))
+                   if x in self.w.house.places}
+        others = [p for p in sorted(self.w.people) if p != self.user_id]
+        parts = self.object_parts(q, oid)
+        # a "to me" word in a clause naming no other person ("give it to grandpa", '할아버지께 드릴게요' are not)
+        if not any((ME_RX["en"].search(cl.lower()) or ME_RX["ko"].search(cl))
+                   and not any(_mentions_any(cl, _person_words(self.w, p), self.w) for p in others) for cl in parts):
+            return False
+        part = " , ".join(parts)
+        pd = strip_route_places(self.w, part)
+        if my_room is not None and any(
+                _mentions_any(pd, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
+                if k not in sources and k != here and self.w.house.places[k].room != my_room):
+            return False                       # '거실 탁자에 두고' for a speaker in the small room
+        if my_room is not None and any(room_said_as_dest(self.w, part, r) for r in sorted(self.w.house.rooms)
+                                       if r != my_room):
+            return False                       # '거실에 바로 올려서 당신이 ...', "to the living room"
+        return True
 
     def _person_ok(self, pid: str, q: str, obj: str | None = None) -> bool:
         """The person is named, or their place is; a place named for them must be where they are. ``obj``: the
@@ -985,6 +1039,37 @@ CLAUSE_RX = re.compile(r"[,;]|\bthen\b|\band\b|그리고|다음에|(?<=[고서])
 def read_back_clauses(q: str) -> list[str]:
     """The parts of a compound read-back (split at commas, "then", "and", '그리고', '...고 ', '...서 ')."""
     return [c for c in CLAUSE_RX.split(str(q or "")) if c and c.strip()]
+
+
+SENTENCE_RX = re.compile(r"(?<=[.?!])\s+")
+
+
+def room_said_as_dest(world: Any, q: str, rid: str) -> bool:
+    """Is room ``rid`` said in ``q`` as where something goes? Korean: the room name with 에 / 에다 / (으)로, not 'X에
+    있는' (:data:`KO_ROUTE_AFTER_RX`); English: "to / into the <room>", or "in the <room>" not right after a place
+    name ("the TV stand in the living room" says where the TV stand is)."""
+    room = world.house.rooms.get(rid)
+    if room is None:
+        return False
+    t = unicodedata.normalize("NFC", str(q or ""))
+    ko = [w for w in [room.name.get("ko")] if w]
+    for w in ko:
+        for m in re.finditer(re.escape(w) + r"(?:에다|에|으로|로)(?![가-힣])", t):
+            if not KO_ROUTE_AFTER_RX.match(t[m.start() + len(w):]):
+                return True
+    en = [w for w in dict.fromkeys([room.name.get("en", ""), rid.replace("_", " ")]) if w]
+    low = t.lower()
+    pwords = sorted({x.lower() for k in world.house.places for x in _place_words(world, k) if detect_lang(x) == "en"},
+                    key=len, reverse=True)
+    for w in en:
+        for m in re.finditer(r"\b(to|into|in)\s+the\s+" + re.escape(w.lower()) + r"(?:\s+room)?\b", low):
+            before = low[:m.start()].rstrip()
+            if m.group(1) != "in":
+                if not re.search(r"\b(go|goes|going|move|moving|head|heading)(\s+over)?$", before):
+                    return True
+            elif not any(before.endswith(p) for p in pwords):
+                return True
+    return False
 
 
 def strip_route_places(world: Any, q: str) -> str:

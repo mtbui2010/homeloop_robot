@@ -449,9 +449,12 @@ class SimUser:
                     if c.wrong_text is not None:
                         kind, text = "wrong", c.wrong_text
                     else:  # no alternative answer exists: the user is unsure instead
-                        kind, text = "not_sure", dialog.TEXT["not_sure"][L]
+                        kind, text = "not_sure", dialog.TEXT["dont_know"][L]
                 elif u < self.p_wrong + self.p_not_sure:
-                    kind, text = "not_sure", dialog.TEXT["not_sure"][L]
+                    # unsure of the ANSWER to a question it understood: "I don't know.", not the not-understood
+                    # "I'm not sure what you mean." (that one tells the robot its question was unclear; fresh pilot
+                    # round 3, sage EN hl-dev-000016: "Where are the reading glasses and the remote?")
+                    kind, text = "not_sure", dialog.TEXT["dont_know"][L]
         lat = self.latency
         latency = lognormal(rng, lat["median"], lat["sigma"], lat["min"])
         st = self._state(uid, t)

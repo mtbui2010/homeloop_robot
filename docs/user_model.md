@@ -115,12 +115,17 @@ path only when the user is reachable.
      - open questions ("What should I do?", "What else?") are not answered from the request;
    - "where is X?" about one object -> its true place ("It's on the counter." / "조리대 위에 있어요."), unless the
      user does not know (`user.p_location_unknown`); "where should I put X?" is not read as "where is X?";
-   - otherwise "I'm not sure what you mean." / "무슨 말씀인지 잘 모르겠어요." (the generic user: "I don't know.").
+   - otherwise "I'm not sure what you mean." / "무슨 말씀인지 잘 모르겠어요." (the generic user: "I don't know.");
+   - a "to me" word ("to you", "hand it", '드릴게요', '당신', '손에') confirms a delivery to the speaker only in that
+     object's own part of the read-back (its clause and the following ones up to the next object of the request),
+     with no other person named there and no place or room of another room said as where it goes there
+     ('안경을 거실 탁자에 두고, 리모컨은 할아버지께 드릴게요' is a "no" for a speaker in the small room: the giving
+     verb is for grandpa; fresh pilot round 3, hl-dev-000060 KO).
 5. **Correctness mix** on informative answers: wrong with `user.answer.p_wrong` = 0.173 (another candidate,
    a flipped yes/no, another place, or `spec.wrong_answer`; when no alternative exists the user is unsure
    instead; "another place" is a surface or container where an object of the task is usually kept, a catalog
    typical receptacle that fits it (realism R-b), as people confuse one usual place for another, never the
-   wardrobe for a mug: `SimUser.wrong_places`), not sure with `user.answer.p_not_sure` = 0.096, else correct (73.1 %). ZOU Table 1: crowd workers
+   wardrobe for a mug: `SimUser.wrong_places`), not sure with `user.answer.p_not_sure` = 0.096 (said "I don't know." / "잘 모르겠어요.": the user understood the question and is unsure of the answer; "I'm not sure what you mean." is kept for a question it did not follow), else correct (73.1 %). ZOU Table 1: crowd workers
    answering a product-search system's clarifying questions, the closest measured answer mix we found (it is not
    a robot study).
 6. **Silence**: `user.p_no_answer` = 0.05 (assumed; no measured rate).
