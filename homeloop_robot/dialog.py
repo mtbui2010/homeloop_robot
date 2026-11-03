@@ -331,6 +331,11 @@ def repair(question: str, L: str, world: Any, *, request: str | None, last_answe
         return Content("correct", request, False, None, "repeat_request")
     q = unicodedata.normalize("NFC", str(question or ""))
     if MEAN_RX["en"].search(q.lower()) or MEAN_RX["ko"].search(q):
+        # a read-back of a message to pass on ('남편이 “...”라고 말할 거예요, 맞죠?', "I'll tell grandpa '...', right?")
+        # quotes the user's words as the message, not as a word the robot heard: the goal rules judge it (who is
+        # told what), pilot round 2 hl-dev-000013 KO
+        if message_readback(world, q, goal):
+            return None
         xs = mean_phrases(q, L)
         if not xs or not any(own_phrase(world, x, L, request, goal) for x in xs):
             return None
@@ -344,6 +349,24 @@ def repair(question: str, L: str, world: Any, *, request: str | None, last_answe
         yes = {"en": "Yes. ", "ko": "네. "}[L]
         return Content("yes", yes + request, True, None, "repair_confirm")
     return None
+
+
+MESSAGE_READBACK_RX = {
+    "en": re.compile(r"\b(?:i will|i'll|i'm going to|i am going to|will|is going to)\s+(?:say|tell|let|pass)\b|"
+                     r"\b(?:says|is saying|is the one saying)\b"),
+    "ko": re.compile(r"(?:말할|말하는|말해\s*줄|전할|전하는|전해\s*줄|전해\s*드릴|말씀\s*드릴|알려\s*줄|알려\s*드릴)\s*"
+                     r"(?:거|것|게|겁)")}
+
+
+def message_readback(world: Any, q: str, goal: "GoalView | None") -> bool:
+    """Does ``q`` read back a message of the request: it says someone will say something, or names a person the
+    message goes to in a role (listener / speaker, :func:`speech_role`)?"""
+    if goal is None or not any(a["pred"] == "said_to" for a in goal.atoms):
+        return False
+    t = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+    if MESSAGE_READBACK_RX["en"].search(t.lower()) or MESSAGE_READBACK_RX["ko"].search(t):
+        return True
+    return any(speech_role(world, a["args"][0], q) for a in goal.atoms if a["pred"] == "said_to")
 
 
 def _either_or(q: str) -> bool:
@@ -770,6 +793,15 @@ class GoalView:
                             or self._person_ok(args[1], q, obj=args[0]))
             return self._person_ok(args[1], q, obj=args[0])
         if p == "said_to":
+            # to the person (not "your husband is the one saying it", pilot round 2 hl-dev-000013 KO), and a quoted
+            # message is the one asked for (the same keywords a Say must have for said_to to hold)
+            if speech_role(self.w, args[0], q) == "speaker":
+                return False
+            quoted = quoted_texts(q)
+            if quoted:
+                from homeloop_robot.catalog import MESSAGES, message_matches  # robot core
+                if args[1] in MESSAGES and not any(message_matches(args[1], t, detect_lang(t)) for t in quoted):
+                    return False
             return self._person_ok(args[0], q)
         return self.subject_said(a, q)
 
@@ -790,6 +822,46 @@ class GoalView:
         other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
                           if k != here and k not in others)
         return at_here or (named and not other_place)
+
+
+# Who speaks to whom in a read-back of a message (pilot round 2, hl-dev-000013 KO: '남편이 “10분 있다가 나간다고 말해
+# 주세요”라고 말하는 거죠?' = "your husband is the one who says this?"). The person named with a dative particle (남편한테,
+# 남편에게, 할머니께) or after "tell / to" is the listener; named with a subject particle (남편이, 할머니께서) or before
+# "will say / says", the speaker. The quoted message itself is left out (it may name people of its own).
+# (an apostrophe inside an English word, "we're", is not a quote mark; a Korean particle may follow one: “...”라고)
+QUOTED_RX = re.compile(r"(?<![A-Za-z0-9])[\'\"‘’“”「」『』]((?:[^\'\"‘’“”「」『』]|(?<=[A-Za-z])[\'’](?=[A-Za-z])){2,120})"
+                       r"[\'\"‘’“”「」『』](?![A-Za-z])")
+KO_LISTENER_RX = re.compile(r"^\s*(?:분\s*)?(?:한테|에게|께(?!서)|보고|더러)")
+KO_SPEAKER_RX = re.compile(r"^\s*(?:분\s*)?(?:께서|이|가)(?![가-힣])")
+EN_LISTENER_RX = r"\b(?:to|tell|telling|let|ask|asking|inform|remind)\s+(?:the\s+|your\s+|my\s+)?{w}\b"
+EN_SPEAKER_RX = r"\b{w}\s+(?:will|is going to|is the one|says|said|wants to|would like to)\b"
+
+
+def quoted_texts(q: str) -> list[str]:
+    return [m.group(1).strip() for m in QUOTED_RX.finditer(unicodedata.normalize("NFC", str(q or "")))]
+
+
+def speech_role(world: Any, pid: str, q: str) -> str | None:
+    """"listener" / "speaker": the role ``q`` gives person ``pid`` outside quoted text; None when it says neither."""
+    t = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+    roles = set()
+    for w in _person_words(world, pid):
+        if detect_lang(w) == "ko":
+            for m in re.finditer(re.escape(w), t):
+                rest = t[m.end():]
+                if KO_LISTENER_RX.match(rest):
+                    roles.add("listener")
+                elif KO_SPEAKER_RX.match(rest):
+                    roles.add("speaker")
+        else:
+            low, ww = t.lower(), re.escape(w.lower())
+            if re.search(EN_LISTENER_RX.format(w=ww), low):
+                roles.add("listener")
+            elif re.search(EN_SPEAKER_RX.format(w=ww), low):
+                roles.add("speaker")
+    if "listener" in roles:
+        return "listener"
+    return "speaker" if roles else None
 
 
 # A robot's remark on its own understanding before a read-back (SAGE-v2 ``AssistLoop._read_back``: "I am not sure I
