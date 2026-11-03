@@ -14,7 +14,7 @@ dependencies = ["pyyaml>=6"]
 include = ["homeloop_robot*"]
 
 [tool.setuptools.package-data]
-homeloop_robot = ["houses/*.yaml", "profiles/*/*.yaml", "configs/*.yaml"]
+homeloop_robot = ["houses/*.yaml", "profiles/*/*.yaml", "configs/*.yaml", "planner/*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
