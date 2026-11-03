@@ -406,4 +406,9 @@ Place-or-hand evidence (motivates mode `reach` as the default, no parameter): in
 RoboCup@Home 2018 Restaurant: "The robot must place the order on the table. If the robot is not able to do this,
 the robot is allowed to hand over the order" (Sec. 6.4, https://athome.robocup.org/wp-content/uploads/2018/10/2018_rulebook.pdf);
 OK-Robot drops onto named receptacles in 10 real homes, no handover (https://arxiv.org/abs/2401.12202).
-`prefers_handover` (house profile, care_home_suite resident only) has no source: it is a house setting.
+`prefers_handover` (house profile: the care_home_suite resident, 70-79 and frail, and grandpa in korean_apt_59,
+70-79, who rests in bed) has no source: it is a house setting (`assumed`). It is set for two elderly people so that
+`user_needs` deliveries occur in every split, not only in the test-only care home.
+
+The robot_agent adapter's "near the person" spot (`configs/tasks.py` `person_spot`) uses a fixed radius of
+1.2 m, the outer edge of Hall's personal zone (WALTERS05 Table 1), not the judge's reach radius.

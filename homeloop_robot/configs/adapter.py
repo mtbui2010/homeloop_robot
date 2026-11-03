@@ -16,6 +16,7 @@ from pathlib import Path
 from robot_agent.contract import Geometry, Manifest, Messages, Observation, Unbindable
 
 from .backend import get_backend
+from .tasks import person_spot  # noqa: F401  (re-exported: adapter.person_spot)
 
 MANIFEST_PATH = Path(__file__).with_name("manifest.yaml")
 
@@ -98,15 +99,13 @@ class Adapter:
         target = self._resolve(obj, kind)
         w = self._world()
         if kind == "place" and spec.action in ("MoveTo", "Place") and w is not None and target in w.people:
-            # "near the person" (sage's on(obj -> person)): the support surface beside them that they can reach
-            # from where they are now; with none, putting it "at the person" is a handover
+            # "near the person" (sage's on(obj -> person)): the nearest free support surface the robot sees beside
+            # them (adapter.person_spot: geometry only, not the judge's reach test). With none, the step stays
+            # aimed at the person: MoveTo drives to them, Place fails ("a person, use handover"); the adapter never
+            # turns a Place into a handover (that is the planner's choice)
             spot = person_spot(w, target)
             if spot is not None:
                 return spec.name, {"inputs": spot}
-            if spec.action == "Place":
-                hand = self.manifest.skill_for("Handover")
-                if hand is not None:
-                    return hand.name, {"inputs": target}
         return spec.name, {"inputs": target}
 
     @property
@@ -174,14 +173,6 @@ class Adapter:
             return b.health()
         except Exception:                               # noqa: BLE001
             return {"ok": None}
-
-
-def person_spot(world, pid: str):
-    """The nearest support surface with room that person ``pid`` can reach from where they are now
-    (homeloop_robot.reach), or None."""
-    from ..reach import reachable_surfaces
-    spots = reachable_surfaces(world, pid, free_only=True)
-    return spots[0] if spots else None
 
 
 def make_adapter() -> Adapter:

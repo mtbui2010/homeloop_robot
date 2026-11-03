@@ -102,7 +102,7 @@ objects:
   - {id: matches_1, cls: matches, attrs: {color: red}, at: drawer@kitchen, alt: []}
   - {id: houseplant_1, cls: houseplant, attrs: {color: green}, at: tv_stand@living, alt: []}
 people:
-  - {id: partner_a, role: user, name: {en: wife, ko: 아내}, aliases: {en: [me, my wife], ko: [나, 와이프]},
+  - {id: partner_a, role: user, name: {en: wife, ko: 아내}, aliases: {en: [me, my wife], ko: [나, 저, 와이프]},
      age_group: "30-39", sex: female, child: false, seat: sofa@living, pos: [0.5, 0.5], alt_seats: [bed@bedroom]}
   - {id: partner_b, role: other, name: {en: husband, ko: 남편}, aliases: {en: [my husband], ko: [신랑]},
      age_group: "30-39", sex: male, child: false, seat: reading_chair@bedroom, pos: [4.5, 7.5], alt_seats: []}

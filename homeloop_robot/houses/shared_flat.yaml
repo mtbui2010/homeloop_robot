@@ -114,7 +114,7 @@ objects:
   - {id: keys_2, cls: keys, attrs: {color: yellow, owner: roommate_b}, at: shoe_cabinet@living, alt: [side_table@living]}
   - {id: lighter_1, cls: lighter, attrs: {color: blue}, at: side_table@living, alt: [shared_shelf@living]}
 people:
-  - {id: roommate_a, role: user, name: {en: roommate A, ko: A 룸메이트}, aliases: {en: [me], ko: [나]},
+  - {id: roommate_a, role: user, name: {en: roommate A, ko: A 룸메이트}, aliases: {en: [me], ko: [나, 저]},
      age_group: "20-29", sex: female, child: false, seat: desk_chair@room_a, pos: [0.5, 6.5], alt_seats: []}
   - {id: roommate_b, role: other, name: {en: roommate B, ko: B 룸메이트}, aliases: {en: [], ko: []},
      age_group: "20-29", sex: male, child: false, seat: bed@room_b, pos: [5.5, 6.5], alt_seats: []}

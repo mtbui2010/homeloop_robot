@@ -254,40 +254,76 @@ def person_view(world, pid: str, pose: Optional[PersonPose] = None, radius_m: fl
     return v
 
 
-_HAND_EN = re.compile(r"\b(hand|hands|handed)\b(?!\s+(cream|lotion|towel|towels|soap|sanitizer|sanitiser|wash|"
-                      r"mirror|bag|truck|brake|written|made|held))", re.I)
+# EN: only the request forms ask for the hand. "hand" as a verb ("hand me the cup", "hand the book to grandpa",
+# "hand it over", "I'd like it handed to me") or "in(to) <someone's> hand(s)" ("put it right in my hand"). The noun
+# after a possessive or an article never does: "my hands are full", "I just washed my hands", "a free hand".
 _HAND_EN_NOT = re.compile(r"\b(on the other hand|second[- ]hand|hand[- ]in[- ]hand|by hand|first[- ]hand|"
-                          r"hand[- ]me[- ]down)\b", re.I)
+                          r"hand[- ]me[- ]down|hand[- ]written|hand[- ]made|hand[- ]held)\b", re.I)
+_HAND_EN_IN = re.compile(r"\bin(?:to)?\s+(?:my|your|his|her|their|our|[a-z]+'s)\s+(?:(?:own|right|left)\s+)?"
+                         r"hands?\b", re.I)
+_NOT_BEFORE_VERB = {"my", "your", "his", "her", "their", "our", "its", "the", "a", "an", "one", "left", "right",
+                    "other", "free", "both", "each", "own", "steady", "spare", "bare", "helping", "upper", "front"}
+_NOT_AFTER_VERB = {"cream", "lotion", "towel", "towels", "soap", "sanitizer", "sanitiser", "wash", "mirror", "bag",
+                   "truck", "brake", "is", "are", "was", "were", "hurts", "hurt", "feels", "and", "or", "of"}
 _HAND_KO = re.compile(r"(건네|손에|손으로|손 위에|손바닥)")
 
 
+def _en_hand_verb(text: str) -> bool:
+    for m in re.finditer(r"\b(hand|handed)\b\s+(\w+)", text, re.I):
+        before = re.findall(r"[\w']+", text[:m.start()].lower())
+        prev = before[-1] if before else ""
+        if prev in _NOT_BEFORE_VERB or prev.endswith("'s"):
+            continue                                   # a noun: "my hand", "the hand", "grandpa's hand"
+        if m.group(2).lower() in _NOT_AFTER_VERB:
+            continue                                   # "hand cream", "hand towel", "hand is sore"
+        return True
+    return False
+
+
 def wording_wants_hand(text: str, lang: str) -> bool:
-    """Does the request ask for a handover in so many words? EN: "hand me", "hand it to", "put it in my
-    hand(s)" (not "hand cream", "hand towel", "by hand", ...); KO: 건네-, 손에, 손으로."""
+    """Does the request ask for a handover in so many words? EN: the verb ("hand me", "hand it to", "hand the
+    book over", "handed to me") or "in(to) my / his / her hand(s)"; never the noun after a possessive or an
+    article ("my hands are full", "I just washed my hands"), nor "hand cream", "hand towel", "by hand", ...
+    KO: 건네-, 손에, 손으로 (손이 / 손을 are the noun: "손이 없어요", "손을 씻었어요")."""
     t = str(text or "")
     if lang == "ko":
         return bool(_HAND_KO.search(t))
     t2 = _HAND_EN_NOT.sub(" ", t)
-    return bool(_HAND_EN.search(t2))
+    return bool(_HAND_EN_IN.search(t2)) or _en_hand_verb(t2)
 
 
 @dataclass(frozen=True)
 class ModeChoice:
     mode: str                        # reach | hand
-    reason: Optional[str]            # None | explicit | user_needs | no_surface
+    reason: Optional[str]            # None | explicit | user_needs | no_surface | surface_full
     surface: Optional[str]           # the surface to put it on (mode reach)
+
+
+def need(world, pid: str, text: str = "", lang: str = "en", pose: Optional[PersonPose] = None,
+         params: Optional[ReachParams] = None) -> tuple:
+    """The delivery the request and the scene require: (mode, mode_reason) of a task label. The words ask for the
+    hand -> hand (explicit); the house profile says the person needs a handover -> hand (user_needs); no support
+    surface within reach at all (geometry only: bed without a nightstand, a hallway, a seat with no table) ->
+    hand (no_surface); else reach. A reachable surface that is full right now is NOT a hand requirement: it is
+    the robot's problem (make room, or hand over; a handover always satisfies reach)."""
+    if wording_wants_hand(text, lang):
+        return "hand", "explicit"
+    if getattr(world.people[pid], "prefers_handover", False):
+        return "hand", "user_needs"
+    if not reachable_surfaces(world, pid, pose, params):
+        return "hand", "no_surface"
+    return "reach", None
 
 
 def choose_mode(world, pid: str, text: str = "", lang: str = "en", pose: Optional[PersonPose] = None,
                 params: Optional[ReachParams] = None) -> ModeChoice:
-    """How to deliver to ``pid`` from what a robot observes: the words ask for the hand -> hand (explicit);
-    the house profile says the person needs a handover -> hand (user_needs); no reachable support surface with
-    room -> hand (no_surface); else reach, on the nearest reachable support surface."""
-    if wording_wants_hand(text, lang):
-        return ModeChoice("hand", "explicit", None)
-    if getattr(world.people[pid], "prefers_handover", False):
-        return ModeChoice("hand", "user_needs", None)
+    """How a robot that sees the scene delivers to ``pid`` (the oracle's choice): what ``need`` requires, and for
+    a reach delivery the nearest reachable support surface with room; when every reachable surface is full it
+    hands over (reason ``surface_full``, a planner choice, never a task label)."""
+    mode, why = need(world, pid, text, lang, pose, params)
+    if mode == "hand":
+        return ModeChoice("hand", why, None)
     s = reachable_surfaces(world, pid, pose, params, free_only=True)
     if not s:
-        return ModeChoice("hand", "no_surface", None)
+        return ModeChoice("hand", "surface_full", None)
     return ModeChoice("reach", None, s[0])

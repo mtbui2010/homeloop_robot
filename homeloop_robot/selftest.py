@@ -51,10 +51,10 @@ def random_atom(w, rng) -> dict:
     if kind == "in":
         return {"pred": "in", "args": [rng.choice(objs), rng.choice(conts)]}
     if kind == "delivered":
-        from .reach import choose_mode
+        from .reach import need
         person = rng.choice(people)
-        m = choose_mode(w, person)
-        return {"pred": "delivered", "args": [rng.choice(objs), person], "mode": m.mode, "mode_reason": m.reason}
+        mode, why = need(w, person)
+        return {"pred": "delivered", "args": [rng.choice(objs), person], "mode": mode, "mode_reason": why}
     if kind in ("open", "closed"):
         return {"pred": kind, "args": [rng.choice(conts)]}
     if kind == "said_to":

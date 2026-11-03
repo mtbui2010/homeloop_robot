@@ -141,7 +141,7 @@ objects:
   - {id: laundry_basket_1, cls: laundry_basket, attrs: {color: blue}, at: utility_shelf@utility, alt: []}
   - {id: tv_1, cls: tv, attrs: {color: black}, at: tv_stand@living, alt: []}
 people:
-  - {id: mom, role: user, name: {en: mom, ko: 엄마}, aliases: {en: [mother, me], ko: [어머니, 나]},
+  - {id: mom, role: user, name: {en: mom, ko: 엄마}, aliases: {en: [mother, me], ko: [어머니, 나, 저]},
      age_group: "40-49", sex: female, child: false, seat: sofa@living, pos: [0.5, 2.5], alt_seats: []}
   - {id: child, role: other, name: {en: the kid, ko: 아이}, aliases: {en: [my daughter, child], ko: [딸, 애]},
      age_group: "6-9", sex: female, child: true, seat: kids_bed@room2, pos: [7.0, 8.5], alt_seats: []}

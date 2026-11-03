@@ -97,7 +97,7 @@ objects:
   - {id: houseplant_1, cls: houseplant, attrs: {color: green}, at: tv_stand@living, alt: []}
   - {id: tv_1, cls: tv, attrs: {color: black}, at: tv_stand@living, alt: []}
 people:
-  - {id: grandma, role: user, name: {en: grandma, ko: 할머니}, aliases: {en: [grandmother], ko: [어머님]},
+  - {id: grandma, role: user, name: {en: grandma, ko: 할머니}, aliases: {en: [me, grandmother], ko: [나, 저, 어머님]},
      age_group: "80-99", sex: female, child: false, frail: true, seat: armchair@living, pos: [0.5, 0.5],
      alt_seats: [bed@bedroom]}
 robot: {start: dock@living, dock: dock@living}

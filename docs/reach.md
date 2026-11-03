@@ -78,7 +78,7 @@ surface, as in real homes:
 | care_home_suite | resident (`prefers_handover: true`), recliner / bed | side table / nightstand; handover by house profile |
 | couple_flat | partner_a, sofa / bed; partner_b reading chair | side table / nightstand; none at the reading chair |
 | family_house | mom, sofa / bed / front door (walk only); dad, desk chair; child, kids bed | side table / none / none; desk; none |
-| korean_apt_59 | user, sofa / desk chair; grandpa, bed | coffee table / desk; none (no nightstand) |
+| korean_apt_59 | user, sofa / desk chair; grandpa (70-79, `prefers_handover: true`), bed | coffee table / desk; none (no nightstand); handover by house profile |
 | korean_apt_84 | mom, sofa; child, kids bed; grandma, bed | coffee table; none; none |
 | shared_flat | roommate_a, desk chair; roommate_b, bed; roommate_c, desk | desk; none; desk |
 | studio_flat | user, desk chair / bed | desk; none |
@@ -94,18 +94,34 @@ and fields do not touch the arrangement random stream.
 place, room, whether the person is walking, the house profile's `prefers_handover`, and the furniture within
 2 m (place, type, height, distance, free slots). It never gives a task's `mode` or a reach verdict.
 
-`reach.choose_mode(world, pid, text, lang)` chooses the mode from those observations and the words of the
-request:
+Two functions, one for the task label and one for the robot's own choice:
 
-1. the words ask for the hand (`reach.wording_wants_hand`: EN `hand me` / `hand it` / `in my hand(s)`, but not
-   `hand cream`, `hand towel` or `by hand`; KO `건네-`, `손에`, `손으로`): `hand` (`explicit`);
+`reach.need(world, pid, text, lang)` is what the request and the scene **require** (the bench's label):
+
+1. the words ask for the hand (`reach.wording_wants_hand`): `hand` (`explicit`). EN counts only request forms:
+   the verb (`hand me`, `hand it to`, `hand the book to grandpa`, `hand it over`, `handed to me`) or
+   `in(to) my / his / her hand(s)`. The noun after a possessive or an article never counts: `My hands are full
+   with the cooking`, `I just washed my hands`, `my hand hurts`; nor `hand cream`, `hand towel`, `by hand`.
+   KO: `건네-`, `손에`, `손으로` (`손이 없어요`, `손을 씻었어요` are the noun and do not count);
 2. the person's house profile says `prefers_handover`: `hand` (`user_needs`);
-3. no reachable support surface has a free slot: `hand` (`no_surface`);
-4. otherwise `reach`, on the nearest reachable support surface with room.
+3. no support surface is within reach at all, by geometry only (a bed without a nightstand, a hallway, a seat
+   with no table): `hand` (`no_surface`);
+4. otherwise `reach`. A reachable surface that is full right now (a nightstand holding glasses, a phone, a
+   wallet and a book) does **not** make a hand task: a real nightstand with small things on it still takes a
+   cup, and making room or handing over is the robot's problem.
 
-The bench labels its delivery atoms with this function at the task's start state. The oracle calls the same
-function with what it observes and never reads the label (see [oracle.md](oracle.md)), so a label that only
-hidden information could produce cannot happen.
+`reach.choose_mode(world, pid, text, lang)` is what a robot that sees the scene **does** (the oracle's choice):
+the mode `need` gives, and for `reach` the nearest reachable support surface with a free slot. When every
+reachable surface is full it hands over (`ModeChoice("hand", "surface_full", None)`); a handover always
+satisfies `reach`. `surface_full` is a planner choice, never a task label.
+
+The bench labels its delivery atoms with `need` at the task's start state. The oracle calls `choose_mode` with
+what it observes and never reads the label (see [oracle.md](oracle.md)), so a label that only hidden
+information could produce cannot happen.
+
+Success alone does not reward choosing `reach`: a planner that always hands over also succeeds on every
+`reach` task (a handover satisfies `reach`). The bench therefore reports how often a `reach` task was
+handed over, and the time it cost (homeloop_bench docs/metrics.md, "Delivery mode").
 
 ## Evidence for the default
 

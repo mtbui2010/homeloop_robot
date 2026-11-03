@@ -32,12 +32,28 @@ used by verify, not plan steps).
 
 ## People as places (delivery)
 
-robot_agent's planners name a person as the place to bring something to (`on(mug -> grandma)`). `env_for`
-adds an ENV entry per person (names and aliases) located at the support surface that person can reach, and
-`bind` translates `MoveTo` / `Place` of a person to the nearest reachable support surface with room
-(`adapter.person_spot`, homeloop_robot.reach) where they are now. With no such surface, `MoveTo` goes to the
-person and `Place` becomes `handover` to them. This only translates names and positions; robot_agent is not
-changed. A reach-mode delivery ([reach.md](reach.md)) is then reachable with sage's existing `on` goals.
+robot_agent's planners can name a person as the place to bring something to (`on(mug -> grandpa)`). `env_for`
+adds an ENV entry per person (names and aliases; the speaker is also `me` / `나` / `저` in every house), and
+`bind` translates `MoveTo` / `Place` of a person to `person_spot(world, pid)` (`configs/tasks.py`): the nearest
+support surface (table, desk, counter, nightstand, shelf) with a free slot in the person's room whose set-down
+spot is within 1.2 m of where the person is now (the outer edge of Hall's personal zone, WALTERS05 Table 1). This
+uses only what every planner observes (the person's position and the furniture near them, `people_now`). It
+does **not** use the judge's reach radius, height bands or posture, so the chosen surface can still be out of
+reach, and the delivery then fails. With no such surface, `MoveTo` drives to the person and `Place` stays a
+`place` aimed at the person, which fails ("a person, use handover"). The adapter never turns a `Place` into a
+`handover`: choosing a handover is the planner's decision. robot_agent is not changed.
+
+What this covers, measured (homeloop_bench data after review round 1): 3,269 of the 3,273 `reach` delivery
+atoms go to the **speaker**, and only 4 to another person. For the speaker, sage does not name a person as the
+place. With `--llm fake` (understand built from the gold goals) it asks "Where are you? Which place should I bring
+it to?", the simulated user names their seat ("I'm at the sofa."), and sage then plans `on(X -> sofa)`, a seat,
+which a `reach` delivery does not accept; or it flags "the me you mentioned is not in my plan" and stops at its
+confirmation question. `run --planner robot_agent:sage --llm fake --split dev --limit 150 --profile ideal --lang en`:
+`reach` tasks 0 / 44, `hand` 0 / 18 (34 of the 44 reach episodes asked "Where are you?"; 1 reached a `place`
+call). So the person mapping only matters for deliveries to third parties (about 0.1 % of the reach atoms), and
+sage's speaker deliveries go through its own "Where are you?" question and the seat it is told. The simulated
+user's answer is not changed to suit sage. Test: homeloop_bench `tests/test_robot_agent_adapter.py`
+(`test_sage_delivery_to_the_speaker_end_to_end`).
 
 ## How the bench drives it
 

@@ -2,6 +2,7 @@
 oracle that never reads the task's mode label (docs/reach.md)."""
 
 import dataclasses
+import math
 
 import pytest
 
@@ -175,10 +176,35 @@ def test_person_view_has_no_label():
     ("Could you hand me my glasses?", "en", True), ("Please put the remote in my hand.", "en", True),
     ("Bring me the hand cream.", "en", False), ("Bring me the hand towel, please.", "en", False),
     ("I washed it by hand; bring me the mug.", "en", False), ("Bring me my glasses.", "en", False),
+    # the noun "hands" after a possessive is not a request (review round 1: 17 tasks were mislabelled explicit)
+    ("My hands are full with the cooking. Could you bring me the cup?", "en", False),
+    ("I just washed my hands. Please bring me a towel.", "en", False),
+    ("I just wiped my hands, grab that white mug for me.", "en", False),
+    ("My hand hurts; bring me the mug.", "en", False),
+    ("Can you hand the bleach to my husband?", "en", True), ("Hand grandpa the cell phone.", "en", True),
+    ("Please put it right in his hand.", "en", True), ("I'd like it handed to me.", "en", True),
+    ("Please hand it over.", "en", True),
+    ("지금 요리하느라 손이 없어요. 컵 좀 가져다주세요.", "ko", False), ("손을 씻었어요. 수건 좀 갖다주세요.", "ko", False),
     ("안경 좀 건네주세요.", "ko", True), ("리모컨을 제 손에 쥐여 주세요.", "ko", True),
     ("안경 좀 가져다주세요.", "ko", False), ("손님 컵 좀 가져다주세요.", "ko", False)])
 def test_wording_wants_hand(text, lang, want):
     assert reach.wording_wants_hand(text, lang) is want
+
+
+def test_full_surface_is_not_a_hand_requirement():
+    """need() is geometry only: a reachable surface that is full is still reach; the robot's own choice
+    (choose_mode) is then a handover (surface_full), which satisfies reach."""
+    w = from_house("senior_flat", 0)
+    s = reach.reachable_surfaces(w, "grandma")
+    assert s
+    cap = {p: w.free_slots(p) for p in s}
+    filler = sorted(o for o in w.objects if w.objects[o].at not in s)
+    for p in s:
+        for _ in range(cap[p]):
+            w.objects[filler.pop()].at = p
+    assert all(w.free_slots(p) <= 0 for p in s)
+    assert reach.need(w, "grandma") == ("reach", None)
+    assert reach.choose_mode(w, "grandma") == reach.ModeChoice("hand", "surface_full", None)
 
 
 def test_choose_mode_reasons():
@@ -190,6 +216,8 @@ def test_choose_mode_reasons():
     fam = from_house("family_house", 0)
     fam.people_now = {"mom": {"pos": tuple(fam.place("bed@master").person_pos), "moving": False}}
     assert reach.choose_mode(fam, "mom", "") == reach.ModeChoice("hand", "no_surface", None)
+    assert reach.need(fam, "mom", "") == ("hand", "no_surface")
+    assert reach.need(from_house("korean_apt_59", 0), "grandpa", "") == ("hand", "user_needs")
 
 
 # ── oracle: chooses from words and scene, never from the label ───────────────────────────────────────────
@@ -271,7 +299,33 @@ def test_adapter_person_place_resolves_to_reachable_surface():
     set_backend(ep.robot)
     try:
         ad = make_adapter()
-        assert ad.bind({"action": "Place", "object": "mom"}) == ("handover", {"inputs": "mom"})
+        # no free surface beside her: Place stays a Place aimed at her (it fails); never a silent handover
+        assert ad.bind({"action": "Place", "object": "mom"}) == ("place", {"inputs": "mom"})
         assert ad.bind({"action": "MoveTo", "object": "mom"}) == ("move", {"inputs": "mom"})
     finally:
         reset_backend()
+
+
+@pytest.mark.parametrize("house", list_houses())
+def test_user_answers_to_me_in_every_house(house):
+    """The speaker resolves as 'me' / 나 / 저 in every house (a name translation for the adapter)."""
+    w = from_house(house, 0)
+    uid = w.user_id()
+    for name in ("me", "나", "저"):
+        assert w.resolve_person(name, None) == uid, (house, name)
+
+
+def test_person_spot_is_geometry_only():
+    """adapter.person_spot does not use the judge: nearest free support surface within Hall's 1.2 m, whatever its
+    height or the person's posture."""
+    from homeloop_robot.configs.tasks import PERSON_SPOT_RADIUS_M, person_spot
+    assert PERSON_SPOT_RADIUS_M == 1.2
+    for house in list_houses():
+        w = from_house(house, 0)
+        for pid in sorted(w.people):
+            spot = person_spot(w, pid)
+            if spot is None:
+                continue
+            pl = w.house.places[spot]
+            assert reach.is_support(pl) and w.free_slots(spot) > 0
+            assert math.dist(reach.surface_xy(pl), w.person_xy(pid)) <= 1.2 + 1e-9
