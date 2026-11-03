@@ -494,7 +494,8 @@ def recovery_call(code: Optional[str], skill: str, world: World, user, t: float,
         reach = getattr(user, "reachable", None)
         if uid is not None and (reach(xy, t) if callable(reach) else
                                 hasattr(user, "hears") and user.hears(uid, xy, t, False)):
-            return Call("ask", {"question": HELP_QUESTION.get(lang, HELP_QUESTION["en"]), "lang": lang})
+            return Call("ask", {"question": HELP_QUESTION.get(lang, HELP_QUESTION["en"]), "lang": lang,
+                                "meaning": {"qtype": "help"}})
         return Call("wait", {"seconds": RETRY_WAIT_S})
     if code in ("perception_unavailable", "blocked"):
         return Call("wait", {"seconds": RETRY_WAIT_S})

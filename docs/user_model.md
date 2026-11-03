@@ -16,7 +16,7 @@ seed give the same answers, walks and ASR errors.
 | method | what it does |
 |---|---|
 | `SimUser(world, profile, streams, lang, spec)` | `lang` = episode language (`en`/`ko`); `spec` = the task's `user` block (persona, candidates, answer, interrupt, optional `wrong_answer`, `asleep`); `None` = a generic user |
-| `answer(question, lang, robot_xy, t) -> (UserReply, Heard)` | `UserReply` = what the person says (`kind`: correct, wrong, not_sure, no_answer, yes, no; `latency_s`); `Heard` = what the robot's ASR returns |
+| `answer(question, lang, robot_xy, t, meaning=None) -> (UserReply, Heard)` | `UserReply` = what the person says (`kind`: correct, wrong, not_sure, no_answer, yes, no; `latency_s`); `Heard` = what the robot's ASR returns |
 | `help_request(question, t)` | the robot asked for help while a help-clearable fault is active; call it before `answer`; the reply is "OK, I moved it." / "치웠어요." (the robot core clears the fault with its own probability) |
 | `hear_instruction(text, lang) -> Heard` | ASR on the spoken task instruction (`app`: near-field; `voice`: near) |
 | `hears(person, robot_xy, t, broadcast)` | same room, or within `user.hearing_range_m`; `broadcast` (announce) also reaches adjacent rooms |
@@ -119,6 +119,64 @@ path only when the user is reachable.
 7. **Patience**: after `user.patience_questions` = 7 questions (ZOU Fig. 2 median) the user stops answering.
 8. **Latency**: lognormal, median 4.98 s, sigma 0.842 (from mean 7.1 s), floor 1.75 s (ZOU Sec. 3.3).
 9. **Language**: the user answers in the episode language.
+
+## Structured questions
+
+A planner may attach a **meaning** to a question: `ask(question, lang, meaning={"qtype": ..., <slots>})`. The
+user then picks the answer from the task script by qtype and slots (`homeloop_robot/intent.py`,
+`answer_structured`) instead of reading the text. The question text is still what the user hears: it is logged as
+the robot's utterance, and the answer goes through the same correctness mix (rule 5), silence, patience, latency
+and ASR noise as any answer. The meaning never changes the outcome draws of the call (it is not part of the
+outcome key). The qtype list is frozen:
+
+| qtype | slots | what the question asks | the answer from the script |
+|---|---|---|---|
+| `which_object` | `options` (the things offered), `obj` | which object the user means or wants ("Which one, the white mug or the green mug?", "What should I bring?") | the intended candidate (`spec.answer`) of an object clarification; else the requested object ("The red book.") |
+| `which_place` | `options` (places offered), `obj` (the thing to be placed) | which place, or where something should go or where the robot should go ("Where should I put the mug?", "Which shelf do you mean: A or B?") | the intended candidate of a destination clarification; else where the object goes, the place the request names, or "anywhere in the bedroom" for a room |
+| `confirm` | `goal` (a read-back sentence) or `obj` | a yes / no check of the robot's reading: its plan ("I will ... Is that right?") or one thing ("Is it the red mug?") | rule 4's yes / no on a candidate, or the read-back check ("Yes, that's right." / "No, put the blue mug on the sink.") |
+| `where_are_you` | - | where the user is now | the user's place, or where they are walking to (not informative) |
+| `where_is` | `obj` (required: an object or a person) | where an object or another person is now | its true place, unless the user does not know |
+| `repeat` | `about`: `request` or `answer` | say the request or the last answer again, or restate the task ("Could you repeat that?", "What should I do exactly?") | the request text, or the user's last answer (ASR again; not informative) |
+| `did_you_mean` | `word` (required) | a check of a word the robot may have misheard in the user's own words | "Yes. " + the request restated when the word is the user's own; else a `confirm` of that thing |
+| `what_to_say` | `person` | what message to give someone | the message of the request's `said_to` (catalog `MESSAGE_TEXT`) |
+| `help` | - | a request to clear the way / help with an obstacle | with a help-clearable fault, "OK, I moved it." (as for HELP_RX questions); else "not sure" |
+| `free` | - | none of these | the text is read by the rules (below) |
+
+Unknown qtypes, wrong slot types or a missing required slot make the meaning void (`intent.clean`): the text is
+read as free text. A qtype whose script has nothing to say gets "not sure" like an unanswerable question.
+
+**Free text** (no meaning, or `free`), in this order:
+
+1. **Rules**: `dialog.compose` (dialog policy above). When a rule answers, that is the answer (path `rules`).
+2. **LLM classifier**, only when the rules do not understand the question (rule `not_understood` /
+   `generic_user`) and the run has an LLM: `homeloop_bench/user_intent.py` maps the question onto the qtype list
+   plus slots with a fixed prompt (version `ui1`), temperature 0, seed 0, JSON output. It only classifies; the
+   answer comes from `answer_structured` (path `llm`). A `free` or unusable classification keeps "not sure".
+3. Classifications are cached per run in `<out>/llm_cache/user_intent.jsonl`, so a rerun gives the same
+   episodes. With no LLM (or `--llm fake`, or `HOMELOOP_USER_CLASSIFIER=rules`) only the rules apply
+   (`summary.json` config `user_classifier: rules`).
+
+Every answered question records how it was read: `SimUser.log[*]` and the episode's `calls[*].intent` hold
+`{path: structured | rules | llm, qtype, rule}`, `episodes.jsonl` has `dialog_paths` (counts) and `summary.json`
+has `dialog_paths` (shares). For a rules answer the qtype is the one its rule implies (`intent.rule_qtype`).
+
+**Who declares a meaning.** `oracle`: its gold clarification question (`which_object` / `which_place`, the
+candidates as options) and its help request (`help`). `knowno_like`: its choice question (`which_object`, or
+`which_place` when the options differ only in a place). `naive` never asks. robot_agent's SAGE-v2 (AssistLoop)
+writes every question in English from fixed templates and translates it just before its Ask skill; the bench
+adapter wraps `AssistLoop._ask_io` on the loop instance (robot_agent is not edited), sees the English question,
+and `homeloop_robot/configs/ra_dialog.py` (`derive`) maps it onto its template id, qtype and slots (read-back ->
+`confirm` with the read-back sentence; "Which place do you mean: A or B?" -> `which_place`; "Where are you?
+Which place should I bring it to?" -> `where_are_you`; "I couldn't find the X. Where is it?" -> `where_is`; ...;
+the list and the robot_agent function each comes from are in that file). Questions the understanding LLM writes
+itself, and robot_agent's ClosedLoop planners (grace, llm_direct), have no template: free text.
+`HOMELOOP_RA_STRUCTURED=0` turns the adapter's meanings off (ablation).
+
+**Accuracy audit.** Real robot questions from the experiment runs (exp_r2, live_smoke, the sage traces; at least
+100 EN and 100 KO, the hard cases of the sage failure analysis included) are labelled with the gold qtype by a
+3-judge agent panel (majority; disagreements listed) and compared with the simulator's reading (structured ->
+rules -> LLM, `python -m homeloop_bench.user_intent interpret`). Results: homeloop_bench
+`data/quality/sim_user_audit.json` (`n, n_en, n_ko, accuracy, accuracy_en, accuracy_ko, by_path, confusions`).
 
 ## ASR
 

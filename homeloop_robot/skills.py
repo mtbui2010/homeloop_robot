@@ -61,8 +61,10 @@ SKILL_SPECS: dict = {s.name: s for s in [
           "Say a sentence to the people in this room.", False, "speaker"),
     _spec("announce", {"text": _S, "lang": {"type": "string", "default": "en"}}, ["text"],
           "Announce a sentence to this room and the adjacent rooms.", False, "speaker"),
-    _spec("ask", {"question": _S, "lang": {"type": "string", "default": "en"}}, ["question"],
-          "Ask a question and listen for the answer.", False, "speaker"),
+    _spec("ask", {"question": _S, "lang": {"type": "string", "default": "en"},
+                  "meaning": {"type": "object", "default": None}}, ["question"],
+          "Ask a question and listen for the answer. meaning (optional): the question's structured form, "
+          "{qtype, slots} (docs/user_model.md); the user hears the question text.", False, "speaker"),
     _spec("look", {}, [], "Describe what the camera sees here: objects, containers, people.", False, "camera"),
     _spec("vlm_check", {"query": _S}, ["query"],
           "Ask the camera whether a condition holds, e.g. 'on(mug_1, table@kitchen)'.", False, "camera"),
@@ -72,6 +74,7 @@ SKILL_SPECS: dict = {s.name: s for s in [
     _spec("pose", {}, [], "Read the localization pose.", False, "base"),
 ]}
 
+_NOT_IN_KEY = ("meaning",)
 _SENSOR_DEVICE_SKILLS = ("find", "look", "vlm_check", "say", "announce", "ask", "grasp_check", "pose")
 
 
@@ -257,7 +260,8 @@ class Robot:
         if err:
             return res.fail(F.SOFTWARE, err)
         full = {k: args.get(k, v.get("default")) for k, v in spec.params.items()}
-        key = (skill, canon_args(full))
+        # the outcome draws do not depend on an ask's structured meaning (the same question gets the same draws)
+        key = (skill, canon_args({k: v for k, v in full.items() if k not in _NOT_IN_KEY}))
         nth = self._nth.get(key, 0)
         self._nth[key] = nth + 1
         u = uniforms(self.streams.rng_for("outcome", skill, key[1], nth))
@@ -301,6 +305,8 @@ class Robot:
             t = spec.params[k].get("type")
             if t == "string" and not isinstance(v, str):
                 return f"TypeError: {spec.name}() argument {k!r} must be a string, got {type(v).__name__}"
+            if t == "object" and v is not None and not isinstance(v, dict):
+                return f"TypeError: {spec.name}() argument {k!r} must be a dict, got {type(v).__name__}"
             if t == "number":
                 try:
                     float(v)
@@ -911,7 +917,7 @@ class Robot:
         res.dur = self._speech_s(question)
         return tuple(audience), res
 
-    def _sk_ask(self, res, u, t0, question, lang="en"):
+    def _sk_ask(self, res, u, t0, question, lang="en", meaning=None):
         w = self.world
         audience = self.user.ask_audience(self._xy(), t0) if hasattr(self.user, "ask_audience") else None
         if audience is None:
@@ -927,10 +933,16 @@ class Robot:
             if audience is not None:
                 return res.fail(F.TIMEOUT, "no reply: the user is not reachable", event="nobody")
             return res.fail(F.TIMEOUT, "no reply: nobody in hearing range", event="nobody")
-        helped = self._help_faults(str(question))
+        helped = self._help_faults(str(question), meaning)
         if helped:
             self.user.help_request(str(question), t0)      # before answer(): the user model's contract
-        reply, h = self.user.answer(str(question), lang or self.lang, self._xy(), t0 + res.dur)
+        if meaning is not None:
+            reply, h = self.user.answer(str(question), lang or self.lang, self._xy(), t0 + res.dur, meaning=meaning)
+        else:
+            reply, h = self.user.answer(str(question), lang or self.lang, self._xy(), t0 + res.dur)
+        intent = getattr(self.user, "last_intent", None)
+        if intent:
+            res.truth["intent"] = dict(intent)
         if reply.kind == "no_answer" or h.event == "not_heard" or not str(h.text).strip():
             res.dur += timeout
             return res.fail(F.TIMEOUT, "no reply: timed out waiting for an answer", injected=True,
@@ -945,14 +957,14 @@ class Robot:
                     res.truth.setdefault("help_cleared", []).append(k)
         return res
 
-    def _help_faults(self, question: str) -> list:
+    def _help_faults(self, question: str, meaning=None) -> list:
         """Active help-clearable faults this ask is about: the ask follows a blocked move (only quiet calls in
         between), or the question asks for help with an obstacle (HELP_RX). Any other question gets its
         ordinary answer even while a path fault exists."""
         active = [k for k in sorted(self.world.faults) if self.world.faults[k].p_help > 0]
         if not active:
             return []
-        if HELP_RX.search(question):
+        if HELP_RX.search(question) or (isinstance(meaning, dict) and meaning.get("qtype") == "help"):
             return active
         for rec in reversed(self.trace):
             if rec.get("skill") in _QUIET:

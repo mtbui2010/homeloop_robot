@@ -732,8 +732,12 @@ class GoalView:
         here = self.place_of(pid)
         at_here = bool(here and _mentions_any(q, _place_words(self.w, here)))
         named = _mentions_any(q, _person_words(self.w, pid))
+        # a place named for another part of the request (a compound read-back: "put the remote on the TV stand,
+        # then tell grandpa") is not a place named for this person
+        others = {x for a in self.atoms if a["pred"] not in ("said_to", "held_by")
+                  for x in (a.get("args") or []) if x in self.w.house.places}
         other_place = any(_mentions_any(q, _place_words(self.w, k)[:2]) for k in sorted(self.w.house.places)
-                          if k != here)
+                          if k != here and k not in others)
         return at_here or (named and not other_place)
 
 

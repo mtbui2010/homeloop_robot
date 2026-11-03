@@ -18,6 +18,7 @@ from typing import Any
 
 from homeloop_robot import asr as _asr
 from homeloop_robot import dialog
+from homeloop_robot import intent as _intent
 from homeloop_robot._hs_compat import (
     Heard,
     PersonState,
@@ -118,9 +119,13 @@ class SimUser:
         self.user_id = users[0] if users else (sorted(world.people)[0] if world.people else None)
         self.asleep = set((spec or {}).get("asleep", []) or [])
         self.n_asks = 0
+        self.last_intent: dict | None = None     # how the last answered question was read (path, qtype, rule)
         self.n_handovers = 0
         self._help: tuple[str, float] | None = None
         self.log: list[dict] = []
+        # the fallback for a free-text question the rules do not understand (docs/user_model.md "Structured
+        # questions"): ``classifier(question, lang) -> {"qtype", slots...} | None``; None = rules only
+        self.classifier = None
         self._speed = {pid: self._gait(pid) for pid in sorted(world.people)}
         self._sched = {pid: self._schedule(pid) for pid in sorted(world.people)}
 
@@ -285,8 +290,28 @@ class SimUser:
         self.log.append({"t": r6(t), "q": question, "kind": "no_answer", "why": why, "text": "", "heard": ""})
         return reply, Heard("", "not_heard")
 
-    def answer(self, question: str, lang: str, robot_xy, t: float):
+    def _content(self, question: str, L: str, meaning, kw: dict):
+        """(Content, path, qtype): structured (the planner's meaning) -> rules (dialog.compose) -> llm (the
+        classifier, only when the rules do not understand the question)."""
+        m = _intent.clean(meaning)
+        if m is not None and m["qtype"] != "free":
+            c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
+            if c is not None:
+                return c, "structured", m["qtype"]
+        c = dialog.compose(question, L, self.spec, self.world, **kw)
+        if c.rule not in _intent.NOT_CONFIDENT or self.classifier is None:
+            return c, "rules", _intent.rule_qtype(c, question, self.spec)
+        m2 = _intent.clean(self.classifier(question, L))
+        if m2 is None:
+            return c, "llm", "free"
+        c2 = _intent.answer_structured(m2, L, self.spec, self.world, **kw) if m2["qtype"] != "free" else None
+        return (c2 if c2 is not None else c), "llm", m2["qtype"]
+
+    def answer(self, question: str, lang: str, robot_xy, t: float, meaning: dict | None = None):
+        """The user's reply to ``question`` (what they hear). ``meaning``: the planner's structured form of the
+        question (``intent.QTYPES`` + slots), None = free text (docs/user_model.md)."""
         self.n_asks += 1
+        self.last_intent = None
         k = self.n_asks
         rng = self.streams.rng_for("user", "answer", k)
         uid = self.user_id
@@ -302,6 +327,7 @@ class SimUser:
         if rng.random() < self.p_no_answer:
             return self._no_answer(question, t, True, "silent")
         L = self.lang
+        path, qtype = ("structured" if _intent.clean(meaning) else "rules"), "help"
         if help_pending:
             kind, text, rule = "yes", dialog.TEXT["help_ok"][L], "help"
         else:
@@ -315,8 +341,9 @@ class SimUser:
             # the user's last reply that said something (an answer, not "not sure"): what "could you repeat?" repeats
             last = next((e for e in reversed(self.log) if e.get("text")), None)
             last = last["text"] if last is not None and last.get("kind") in ("correct", "yes", "no", "wrong") else None
-            c = dialog.compose(question, L, self.spec, self.world, knows_location=knows, other_place=other,
-                               user_place=self.place_of(uid, t), goal=gv, request=self.request, last_answer=last)
+            c, path, qtype = self._content(question, L, meaning, dict(
+                knows_location=knows, other_place=other, user_place=self.place_of(uid, t), goal=gv,
+                request=self.request, last_answer=last))
             kind, text, rule = c.kind, c.text, c.rule
             if c.informative:
                 u = rng.random()
@@ -334,7 +361,8 @@ class SimUser:
         cond = "app" if self.dialog_channel == "app" else self.asr.condition(dist(robot_xy, st.pos))
         heard = _asr.corrupt(text, L, cond, self.streams.rng_for("user", "asr", k), self.asr)
         self.log.append({"t": r6(t), "q": question, "kind": kind, "why": rule, "text": text, "heard": heard.text,
-                         "asr": heard.event, "cond": cond, "latency_s": r6(latency)})
+                         "asr": heard.event, "cond": cond, "latency_s": r6(latency), "path": path, "qtype": qtype})
+        self.last_intent = {"path": path, "qtype": qtype, "rule": rule}
         return UserReply(text, kind, r6(latency), True), heard
 
     # ------------------------------------------------------------------ handover
