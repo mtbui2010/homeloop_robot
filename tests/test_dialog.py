@@ -184,10 +184,15 @@ def test_goal_read_back():
     ok = "I will put the blue mug on the sink in the kitchen, then bring the phone to you, then open the fridge. Is that right?"
     c = _ans(ok)
     assert (c.kind, c.text, c.rule) == ("yes", "Yes, that's right.", "goal_confirm") and c.wrong_text == "No."
-    # the robot's plan keys are read as words; the user's own seat counts as "to me"
-    c = _ans("I will put the blue mug on the sink@kitchen, then put the phone on the armchair, then open the "
+    # the robot's plan keys are read as words; the user's own seat counts as "to me" when the phone is brought there
+    c = _ans("I will put the blue mug on the sink@kitchen, then bring the phone to the armchair, then open the "
              "fridge@kitchen. Is that right?")
     assert c.kind == "yes"
+    # ... but not as the place it is put down on: a seat is no support surface, and the judge fails a delivery put on
+    # it (gate pilot round 1, hl-dev-000011: grandma on the armchair said yes to the mug "on the armchair")
+    c = _ans("I will put the blue mug on the sink@kitchen, then put the phone on the armchair, then open the "
+             "fridge@kitchen. Is that right?")
+    assert (c.kind, c.text) == ("no", "No, bring the phone to me.")
     c = _ans("I will put the blue mug on the counter in the kitchen, then bring the phone to you, then open the "
              "fridge. Is that right?")
     assert (c.kind, c.text, c.rule) == ("no", "No, put the blue mug on the sink.", "goal_correct")

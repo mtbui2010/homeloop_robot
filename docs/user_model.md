@@ -121,6 +121,29 @@ path only when the user is reachable.
      with no other person named there and no place or room of another room said as where it goes there
      ('안경을 거실 탁자에 두고, 리모컨은 할아버지께 드릴게요' is a "no" for a speaker in the small room: the giving
      verb is for grandpa; fresh pilot round 3, hl-dev-000060 KO).
+   - 30-task gate, round 1 (homeloop_bench results/gate30_r27/round1):
+     - a delivery read back as a put-down ON the person's own seat, bed or the floor ("put the red mug on the
+       armchair", '침대 위에 둘게요') is a "no" ("No, bring the red mug to me."): no support surface, and the judge
+       fails it; "bring it to the armchair" still counts as "to me". A support surface the person can reach from
+       where they are now (`reach.place_reachable`) is a "yes" when they asked for the thing to be brought (mode
+       reach: "on the side table" beside grandma); a person who asked for it in the hand says "no";
+     - for a delivery, the person's place said only as a waypoint ("go to the desk_chair, then ...") does not
+       count, and the object's own part naming another person ("put the book on the grandpa") is a "no";
+     - a message is judged on the places said in its own part (its clause and a go-to or 'X에서' clause right
+       before it), not on the other parts of a compound read-back (", then go to the dock");
+     - "on the fridge" / '냉장고 위에' for a request to put it IN the fridge is a "no" ("No, put the apple in the
+       fridge.");
+     - a request that only opens (closes) a container needs the verb in the read-back ("put the microwave in the
+       kitchen" is a "no": "No, open the microwave."); with something to put in it, naming the container is enough
+       as before; "where should I put the microwave?" gets "Please don't move it, just open the microwave.";
+     - "Should I wake the kid first, or should I go to the fridge ...?" (each side another part of the request) is
+       answered with the request itself (the order asked for), not "yes";
+     - "Which place do you mean: <places in the kitchen>?" when the kitchen is only in the message to be said
+       ("tell Grandpa to head to the kitchen") -> "None of those. Please just tell grandpa: Please come to the
+       kitchen.";
+     - a turn with a second, explicit "Where are you?" sentence gets both answers ("... I'm at the sofa.");
+     - a translated read-back whose English meaning and heard text both get a "no", where the part the meaning
+       corrects is right in the heard text, is corrected for what was heard.
 5. **Correctness mix** on informative answers: wrong with `user.answer.p_wrong` = 0.173 (another candidate,
    a flipped yes/no, another place, or `spec.wrong_answer`; when no alternative exists the user is unsure
    instead; "another place" is a surface or container where an object of the task is usually kept, a catalog

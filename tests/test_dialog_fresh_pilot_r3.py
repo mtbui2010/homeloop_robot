@@ -24,7 +24,13 @@ def _episode(L, house="korean_apt_59"):
     for o, p in AT_060.items():
         ep.world.objects[o].at = p
         ep.world.initial_at[o] = p
-    ep.world.people[ep.world.user_id()].seat = SEAT
+    uid = ep.world.user_id()
+    ep.world.people[uid].seat = SEAT
+    # ... and is there (hl-dev-000060: (6.5, 6.6)): the user knows what they can reach from where they are, so the
+    # fixture's position must match the seat (it stayed on the living-room sofa, beside the coffee table)
+    ep.world.people[uid].pos = tuple(ep.world.house.places[SEAT].person_pos)
+    if uid in ep.world.people_now:
+        ep.world.people_now[uid]["pos"] = ep.world.people[uid].pos
     return ep
 
 

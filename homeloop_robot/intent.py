@@ -56,6 +56,7 @@ _RULE_QTYPE = {"self_position": "where_are_you", "repeat_answer": "repeat", "rep
                "person_location": "where_is", "location": "where_is", "location_unknown": "where_is",
                "goal_confirm": "confirm", "goal_correct": "confirm", "help": "help",
                "not_understood": "free", "generic_user": "free", "goal_message": "what_to_say",
+               "goal_open": "which_place", "goal_place_message": "which_place", "goal_order": "confirm",
                "not_in_lang": "free"}
 
 GO_TEXT = {"en": "To the {place}, please.", "ko": "{place}{ro} 가 주세요."}
@@ -340,6 +341,11 @@ def _which_place(m: dict, L: str, world: Any, goal, kw) -> "D.Content | None":
         c = D.compose_from_goal(_canon("which_place", *opts, opts=opts), L, world, goal, **kw)
         if c is not None:
             return c
+    what = obj or m.get("dropped_obj")
+    if what and not any(D._mentions_any(D._q_text(what), D._obj_words(world, o), world) for o in goal.objects()):
+        c = D.just_open_answer(world, goal, what, L)    # "where should I put the microwave?" (open it only)
+        if c is not None:
+            return c
     q = _canon("dest_obj", obj, obj=obj) if obj else _canon("dest")
     c = D.compose_from_goal(q, L, world, goal, **kw)
     if c is not None and c.rule == "goal_destination":
@@ -526,6 +532,15 @@ def first_question(question: str, L: str, cut: bool = True) -> str:
     ctx, last = " ".join(head[:-1]), head[-1]
     rx = _JOIN_KO if _hangul(last) else _JOIN_EN
     parts = rx.split(last, maxsplit=1) if cut else [last]
+    if len(parts) > 1 and rx is _JOIN_EN:
+        # "Should I wake the kid first, or should I go to the fridge ...?": the same question word on both sides of
+        # "or" is one either / or question, not a second question (gate pilot round 1, hl-dev-000024: cut to "Should
+        # I wake the kid first?" and answered "Yes, that's right.")
+        m = rx.search(last)
+        a1 = re.match(r"\s*(\w+)", parts[0])
+        a2 = re.match(r"\s*(\w+)", parts[1])
+        if m and re.search(r"\bor\b", m.group(0), re.I) and a1 and a2 and a1.group(1).lower() == a2.group(1).lower():
+            parts = [last]
     # a Korean "A하고, B하고, ..." lists steps of one question; it is cut only before a second wh question
     if len(parts) > 1 and rx is _JOIN_KO and not WH_ANY.search(parts[1]):
         parts = [last]
@@ -767,6 +782,18 @@ def text_for_rules(question: str, L: str) -> str:
     (conventions 1-2). A repeat request stays whole ("Sorry, I didn't catch that. Could you say it again?")."""
     q = strip_preamble(question)
     return first_question(q, L) if "?" in q else q
+
+
+def grounded_or_dropped(meaning: dict, world: Any, question: str = "") -> dict:
+    """:func:`ungrounded`'s meaning (or ``meaning`` itself); a which-place whose phrase was dropped keeps it as
+    ``dropped_obj``: it may still name a container the request only opens ("where should I put the microwave?"),
+    which ``_which_place`` answers with "just open it" (gate pilot round 1, hl-dev-000000 KO)."""
+    g = ungrounded(meaning, world, question)
+    if g is None:
+        return meaning
+    if g["qtype"] == "which_place" and meaning.get("obj") and "obj" not in g:
+        g = {**g, "dropped_obj": meaning["obj"]}
+    return g
 
 
 def ungrounded(meaning: dict, world: Any, question: str = "") -> dict | None:

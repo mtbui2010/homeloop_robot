@@ -606,7 +606,8 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
             return c
     # a question about the request itself: where an object goes, which one / which place, a read-back
     if goal is not None:
-        c = compose_from_goal(question, L, world, goal, knows_location=knows_location, other_place=other_place)
+        c = compose_from_goal(question, L, world, goal, knows_location=knows_location, other_place=other_place,
+                              request=request)
         if c is not None:
             return c
     # location question about an object ("where is X?"; "where should I put X?" asks where it should go, not
@@ -662,11 +663,15 @@ GOAL_TEXT = {
     "fix_to_me": {"en": "No, bring the {obj} to me.", "ko": "아니요, {obj}{eun} 저한테 갖다 주세요."},
     "fix_to_person": {"en": "No, give the {obj} to {person}.", "ko": "아니요, {obj}{eun} {person}한테 갖다 주세요."},
     "fix_open": {"en": "No, open the {place}.", "ko": "아니요, {place}{eul} 열어 주세요."},
+    "just_open": {"en": "Please don't move it, just open the {place}.", "ko": "옮기지 말고 {place}{eul} 열어만 주세요."},
+    "just_close": {"en": "Please don't move it, just close the {place}.", "ko": "옮기지 말고 {place}{eul} 닫아만 주세요."},
     "fix_close": {"en": "No, close the {place}.", "ko": "아니요, {place}{eul} 닫아 주세요."},
     "fix_go": {"en": "No, go to the {place}.", "ko": "아니요, {place}{ro} 가 주세요."},
     "fix_dock": {"en": "No, go back to the charger.", "ko": "아니요, 충전기로 돌아가 주세요."},
     "fix_say": {"en": "No, I asked you to tell {person}.", "ko": "아니요, {person}한테 말해 달라고 했어요."},
     "fix_say_msg": {"en": "No, tell {person}: {msg}", "ko": "아니요, {person}한테 \"{msg}\"라고 말해 주세요."},
+    "msg_not_place": {"en": "None of those. Please just tell {person}: {msg}",
+                      "ko": "그런 곳은 아니에요. {person}한테 \"{msg}\"라고 말해 주세요."},
     "person_at": {"en": "{person} is at the {place}.", "ko": "{person}{eun} {place}에 있어요."},
     "anywhere_in": {"en": "Anywhere in the {room} is fine.", "ko": "{room} 안이면 아무 데나 괜찮아요."},
 }
@@ -818,8 +823,10 @@ def _atoms(wants: dict | None) -> list[dict]:
         if "not" in a or a.get("pred") == "unmoved":
             continue
         if a.get("pred") == "delivered":
-            # what the user says about a delivery ("bring it to me") does not depend on reach / hand
-            a = {"pred": "held_by", "args": list(a.get("args") or [])}
+            # what the user says about a delivery ("bring it to me") does not depend on reach / hand; the mode is
+            # kept: a person who asked for something to be brought (reach) takes "on the side table beside you" for
+            # it, one who asked for it in the hand does not (:meth:`GoalView._put_down_for`)
+            a = {"pred": "held_by", "args": list(a.get("args") or []), "mode": a.get("mode")}
         out.append(a)
     return out
 
@@ -899,10 +906,26 @@ class GoalView:
         """Does the question (a read-back of the plan) state this atom the way the user asked for it?"""
         p, args = a["pred"], a["args"]
         if p in ("on", "in"):
-            return self.subject_said(a, q) and _mentions_any(q, _place_words(self.w, args[1]), self.w)
+            if not (self.subject_said(a, q) and _mentions_any(q, _place_words(self.w, args[1]), self.w)):
+                return False
+            if p == "in" and said_on_top(self.w, " , ".join(self.object_parts(q, args[0])) or q, args[1]):
+                # "put the apple ... on the fridge" for "in the fridge": on top of it (gate pilot round 1,
+                # hl-dev-000006 / 000005 / 000014: SAGE's goal was on(apple, fridge) and its gate then refused Open)
+                return False
+            return True
+        if p in ("open", "closed") and not any(b["pred"] in ("on", "in") and b["args"][1] == args[0]
+                                                for b in self.atoms):
+            # opening (closing) is the request itself: the container must be said with the verb; "put the microwave
+            # in the kitchen" names the microwave but does not open it (gate pilot round 1, hl-dev-000000 KO:
+            # '요리용 마이크로웨이브를 주방에 두겠습니다' got yes). With something to be put in it ("open the fridge and put
+            # the plate inside"), naming the container is enough, as before
+            return self.subject_said(a, q) and said_with_verb(self.w, q, args[0], "open" if p == "open" else "close")
         if p == "held_by":
             if not self.subject_said(a, q):
                 return False
+            put = self._put_down_for(args[0], args[1], q, a.get("mode"))
+            if put is not None:
+                return put
             if args[1] == self.user_id:
                 # to the speaker: "to you" / "to me", their place, or their own name ("the user", "grandma"; the
                 # robot may name the person it talks to, pilot round 1 hl-dev-000010), never an id
@@ -920,6 +943,35 @@ class GoalView:
                     return False
             return self._person_ok(args[0], q)
         return self.subject_said(a, q)
+
+    def _put_down_for(self, oid: str, pid: str, q: str, mode) -> "bool | None":
+        """A delivery read back as a put-down ("put the red mug on the armchair"): False when the place it is put on
+        is the person's own seat, bed or the floor (not a support surface; gate pilot round 1, hl-dev-000011 /
+        000005 / 000018 / 000024: grandma on the armchair said yes to the mug "on the armchair", mom in bed to the
+        vitamins "on the bed"), True when it is a support surface the person can reach where they are now and they
+        asked for it to be brought (mode reach: "on the side table" beside grandma got "No, bring the red mug to
+        me."), None otherwise (the other rules decide). Only this object's own part of the read-back counts, without
+        the places said as its source or a waypoint, and a part that names another person is not a put-down for
+        this one."""
+        q = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+        parts = self.object_parts(q, oid)
+        if not parts:
+            return None
+        own = strip_route_places(self.w, " , ".join(parts))
+        here = self.place_of(pid)
+        pl = self.w.house.places.get(here) if here else None
+        if pl is not None and not _is_support(pl) and said_put_on(self.w, own, here):
+            return False
+        if mode != "reach":
+            return None
+        bare = _blank(own, _obj_words(self.w, oid))
+        if any(_mentions_any(bare, _person_words(self.w, x), self.w) for x in sorted(self.w.people) if x != pid):
+            return None
+        from homeloop_robot.reach import place_reachable  # robot core
+        for k in sorted(self.w.house.places):
+            if said_put_on(self.w, own, k) and place_reachable(self.w, k, pid):
+                return True
+        return None
 
     def object_parts(self, q: str, oid: str) -> list[str]:
         """The parts of a read-back that are about object ``oid``: a clause (or sentence) that names it, and the
@@ -982,7 +1034,8 @@ class GoalView:
         # a quoted message is what will be said, not where: "say 'It's time for bed.'" names no bed (fresh pilot round
         # 1, hl-dev-000057 EN), as in speech_role; it may still name its listener ('"점심 준비됐어요, 아빠."')
         named = _mentions_any(q, _person_words(self.w, pid), self.w)
-        q = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+        q0 = unicodedata.normalize("NFC", str(q or ""))
+        q = QUOTED_RX.sub(" ", q0)
         here = self.place_of(pid)
         at_here = bool(here and _mentions_any(q, _place_words(self.w, here), self.w))
         # a place named for another part of the request (a compound read-back: "put the remote on the TV stand,
@@ -1001,10 +1054,30 @@ class GoalView:
                         if x in self.w.house.places}
         others |= sources
         places = sorted(self.w.house.places)
+        dock = getattr(self.w.house, "dock", None)
+        if dock in self.w.house.places and any(a["pred"] == "docked" for a in self.atoms):
+            others.add(dock)                     # "..., then go to the dock": the docked part of the request
         if obj is None:
-            other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in places
+            # a message: the places said in its own part of the read-back (the clause that says it, and a go-to
+            # clause right before it), not those of the other parts ("..., then go to the fridge in the kitchen,
+            # then put the vitamins ..., then go to the dock": gate pilot round 1, hl-dev-000024, every read-back got
+            # "No, I asked you to tell the kid.")
+            mq = message_part(self.w, q0, pid)
+            other_place = any(_mentions_any(mq, _place_words(self.w, k)[:2], self.w) for k in places
                               if k != here and k not in others)
             return at_here or (named and not other_place)
+        # a delivery: the person's place said only as a waypoint ("go to the desk_chair, then put the book on the
+        # grandpa") is not where the object goes, and a part of the read-back that brings the object to another
+        # person is not one for this person (gate pilot round 1, hl-dev-000018 EN: yes to the book "on the grandpa")
+        at_here = bool(here and _mentions_any(strip_route_places(self.w, q), _place_words(self.w, here), self.w))
+        parts = self.object_parts(q, obj)
+        if parts:
+            own = strip_route_places(self.w, " , ".join(parts))
+            bare = _blank(own, _obj_words(self.w, obj))
+            if not _mentions_any(bare, _person_words(self.w, pid), self.w) and any(
+                    _mentions_any(bare, _person_words(self.w, x), self.w) for x in sorted(self.w.people)
+                    if x != pid and x != self.user_id):
+                return False
         # a delivery: a place said as where an object comes from or where the robot goes on the way ("the remote from
         # the coffee table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not where it
         # is brought, even when that source is wrong (fresh pilot round 2, hl-dev-000060: the wrong source of the
@@ -1023,6 +1096,128 @@ class GoalView:
                 other_place = any(_mentions_any(cd, _place_words(self.w, k), self.w) for k in places
                                   if k != here and k not in sources)
         return at_here or (named and not other_place)
+
+
+def _is_support(pl) -> bool:
+    from homeloop_robot.reach import is_support  # robot core
+    return is_support(pl)
+
+
+def _blank(text: str, words) -> str:
+    """``text`` with the given names blanked out (an object's own name may hold a person word: "grandpa's mug")."""
+    t = str(text or "")
+    for w in sorted({x for x in words if x}, key=len, reverse=True):
+        t = re.sub(re.escape(w), " " * len(w), t, flags=re.I)
+    return t
+
+
+def _name_spans(world: Any, text: str, pid: str):
+    """(start, end, word) of every name of place ``pid`` in ``text`` (longer names first, no overlaps)."""
+    t = unicodedata.normalize("NFC", str(text or ""))
+    taken, out = [], []
+    for w in sorted(_place_words(world, pid), key=len, reverse=True):
+        ko = detect_lang(w) == "ko"
+        rx = re.compile(re.escape(w) if ko else r"(?<![\w])" + re.escape(w) + r"(?![\w])", 0 if ko else re.I)
+        for m in rx.finditer(t):
+            if not any(a < m.end() and m.start() < b for a, b in taken):
+                taken.append(m.span())
+                out.append((m.start(), m.end(), w))
+    return t, out
+
+
+# "on / onto / in / into (the) X" (EN, before the name); 'X에 / X 위에 / X 안에 ... 놓 / 두 / 둘 / 올려 / 넣 ...' (KO, after it)
+EN_PUT_BEFORE_RX = re.compile(r"\b(?:on|onto|on\s+top\s+of|in|into|inside)\s+(?:the\s+|your\s+|my\s+|his\s+|her\s+)?$", re.I)
+KO_PUT_AFTER_RX = re.compile(r"^\s*(?:(?:위|안|속)\s*)?(?:에다가?|에)\s*(?:\S+\s+)?(?:놓|놔|두|둘|둬|올려|올리|올릴|내려|넣)")
+EN_ON_TOP_BEFORE_RX = re.compile(r"\b(?:on|onto|on\s+top\s+of)\s+(?:the\s+|your\s+|my\s+)?$", re.I)
+KO_ON_TOP_AFTER_RX = re.compile(r"^\s*위\s*에")
+
+
+def _after(t: str, b: int) -> str:
+    """The text after a Korean name, without a clause mark the split put there ('냉장고 , 위에': a name ending in 고 / 서
+    is cut by :data:`CLAUSE_RX`, and the parts were joined with ' , ')."""
+    return re.sub(r"^\s*,\s*", " ", t[b:])
+
+
+def said_put_on(world: Any, text: str, pid: str) -> bool:
+    """Is place ``pid`` said in ``text`` as where something is put down ("on the armchair", "into the drawer",
+    '안락의자에 놓을게요', '침대 위에 둘게요')? "to the armchair" / '안락의자로 가져다 드릴게요' (bring it there) is not."""
+    t, spans = _name_spans(world, text, pid)
+    for a, b, w in spans:
+        if detect_lang(w) == "ko":
+            if KO_PUT_AFTER_RX.match(_after(t, b)):
+                return True
+        elif EN_PUT_BEFORE_RX.search(t[:a]):
+            return True
+    return False
+
+
+def said_on_top(world: Any, text: str, pid: str) -> bool:
+    """Is container ``pid`` said in ``text`` as a surface something goes ON ("on the fridge", '냉장고 위에'), and nowhere
+    as where it goes in ("in / into the fridge", '냉장고에 넣', '냉장고 안에')?"""
+    t, spans = _name_spans(world, text, pid)
+    on = inside = False
+    for a, b, w in spans:
+        if detect_lang(w) == "ko":
+            rest = _after(t, b)
+            if KO_ON_TOP_AFTER_RX.match(rest):
+                on = True
+            elif re.match(r"^\s*(?:안|속)|^\s*에\s*(?:\S+\s+)?넣", rest):
+                inside = True
+        else:
+            before = t[:a]
+            if EN_ON_TOP_BEFORE_RX.search(before):
+                on = True
+            elif re.search(r"\b(?:in|into|inside)\s+(?:the\s+|your\s+|my\s+)?$", before, re.I):
+                inside = True
+    return on and not inside
+
+
+VERB_RX = {"open": {"en": re.compile(r"\bopen", re.I), "ko": re.compile(r"열(?!쇠)")},
+           "close": {"en": re.compile(r"\b(?:close|shut)", re.I), "ko": re.compile(r"닫")}}
+
+
+def said_with_verb(world: Any, q: str, pid: str, verb: str) -> bool:
+    """Does a clause (or sentence) of read-back ``q`` that names container ``pid`` say ``verb`` (open / close)?"""
+    t = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+    rx = VERB_RX[verb]
+    cls = read_back_clauses(SENTENCE_RX.sub(",", t))
+    others = [k for k in sorted(world.house.places) if k != pid]
+    for i, cl in enumerate(cls):
+        if not _mentions_any(cl, _place_words(world, pid), world):
+            continue
+        # the clause that names it, and the next one when that names no other place ('마이크로웨이브 안에 들어가서 /
+        # 문을 열어드릴까요?', sim-user audit q0092)
+        nxt = cls[i + 1] if i + 1 < len(cls) else ""
+        if nxt and any(_mentions_any(nxt, _place_words(world, k)[:2], world) for k in others):
+            nxt = ""
+        if any(rx["en"].search(x) or rx["ko"].search(x) for x in (cl, nxt) if x):
+            return True
+    return False
+
+
+MESSAGE_CLAUSE_RX = {"en": re.compile(r"\b(?:say|says|saying|tell|telling|let\s+\w+\s+know|remind|inform|announce)\b",
+                                      re.I),
+                     "ko": re.compile(r"(?:말|전해|전하|전할|알려|알릴|여쭤)")}
+GO_CLAUSE_RX = re.compile(r"\b(?:go|goes|going|move|moving|head|heading)\b|가서|가고|이동", re.I)
+
+
+def message_part(world: Any, q: str, pid: str) -> str:
+    """The part of read-back ``q`` that says the message to ``pid``: the clauses that hold the quoted message or a
+    say / tell verb, each with a go-to clause right before it (where it is said); the whole text (quotes blanked)
+    when no clause says one."""
+    t = QUOTED_RX.sub(" «msg» ", unicodedata.normalize("NFC", str(q or "")))
+    cls = read_back_clauses(SENTENCE_RX.sub(",", t))
+    keep = set()
+    for i, cl in enumerate(cls):
+        if "«msg»" in cl or MESSAGE_CLAUSE_RX["en"].search(cl) or MESSAGE_CLAUSE_RX["ko"].search(cl):
+            keep.add(i)
+            # where it is said: a go-to clause right before it, or a Korean 'X에서' that the clause split cut off
+            # ('침실 침대에서 / “...”라고 말할 거예요', sim-user audit q0373)
+            if i > 0 and (GO_CLAUSE_RX.search(cls[i - 1]) or re.search(r"에서\s*$", cls[i - 1])):
+                keep.add(i - 1)
+    if not keep:
+        return t.replace("«msg»", " ")
+    return " , ".join(cls[i] for i in sorted(keep)).replace("«msg»", " ")
 
 
 # A place named as a source or a waypoint: "from (the) X", "go / move / head to (the) X" (English, the words before
@@ -1156,9 +1351,56 @@ def strip_plan_remarks(question: str) -> str:
     return out if out else q
 
 
+def message_room_answer(world: Any, gv: "GoalView", places: list, L: str, q: str | None = None) -> "Content | None":
+    """"Which place do you mean: the counter in the kitchen or ... the stove in the kitchen?" when the kitchen is only
+    in what the user asked the robot to SAY ("tell Grandpa to head to the kitchen"): the user says the message is the
+    point, not a place there (gate pilot round 1, hl-dev-000015: it got "Grandpa is at the bed." twice); None when
+    the offered places are not all in a room a message of the request names."""
+    from homeloop_robot.catalog import MESSAGE_TEXT  # robot core
+    rooms = {world.house.places[p].room for p in places if p in world.house.places}
+    if len(rooms) > 1 and q is not None:
+        # "drawer in the kitchen" also names the bedroom drawer: the rooms the question itself says
+        rooms = {r for r in rooms if _mentions_any(q, [w for w in (world.house.rooms[r].name.get("en"),
+                                                                   world.house.rooms[r].name.get("ko")) if w], world)}
+    if len(rooms) != 1:
+        return None
+    room = world.house.rooms.get(next(iter(rooms)))
+    if room is None:
+        return None
+    for a in gv.atoms:
+        if a["pred"] != "said_to" or a["args"][1] not in MESSAGE_TEXT:
+            continue
+        msgs = MESSAGE_TEXT[a["args"][1]]
+        if any(mentions(msgs.get(lg, ""), w, lg) for lg in ("en", "ko")
+               for w in [room.name.get(lg, "")] if w):
+            msg = msgs.get(L) or msgs.get("en", "")
+            return Content("correct", _say("msg_not_place", L, person=person_name(world, a["args"][0], L),
+                                           msg=msg.rstrip(".") if L == "ko" else msg), True, None, "goal_place_message")
+    return None
+
+
+def just_open_answer(world: Any, gv: "GoalView", text: str, L: str) -> "Content | None":
+    """"Where should I put the microwave?" when the request only opens (closes) the microwave: "Please don't move it,
+    just open the microwave." (gate pilot round 1, hl-dev-000000 KO: '마이크로웨이브를 어디에 두면 될까요?' got
+    '전자레인지요.', and SAGE then planned to put the microwave on the microwave); None when ``text`` does not name
+    such a container."""
+    t = _q_text(text)
+    for a in gv.atoms:
+        if a["pred"] not in ("open", "closed") or a["args"][0] not in world.house.places:
+            continue
+        pid = a["args"][0]
+        if any(b["pred"] in ("on", "in") and b["args"][1] == pid for b in gv.atoms):
+            continue
+        if str(text or "").strip() == pid or _mentions_any(t, _place_words(world, pid), world):
+            return Content("correct", _say("just_open" if a["pred"] == "open" else "just_close", L,
+                                           place=place_name(world, pid, L)), True, None, "goal_open")
+    return None
+
+
 def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_location: bool,
-                      other_place: str | None = None) -> Content | None:
-    """Answer content from what the user asked for, or None when no rule applies (see the section comment)."""
+                      other_place: str | None = None, request: str | None = None) -> Content | None:
+    """Answer content from what the user asked for, or None when no rule applies (see the section comment).
+    ``request``: the user's own request text (the answer to "Should I do A first, or B?")."""
     if not gv.atoms:
         return None
     q = _q_text(question)
@@ -1173,6 +1415,10 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
 
     # 1. "Where should I put / bring the X?": where the user wants it
     is_dest = asks_destination(question)
+    if is_dest and not goal_objs:
+        c = just_open_answer(world, gv, q, L)
+        if c is not None:
+            return c
     if not goal_objs and is_dest:
         # "어디에 가져다줘야 할까요?" (Korean drops the object) / "Where should I put it?": the one thing asked for;
         # "Where should they go?" / "어디에 두면 될까요?" with several things asked for: where each one goes
@@ -1217,6 +1463,17 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
         return Content("correct", name, True, _say("pick", L, name=_specific_name(world, wrong_kin[0], L)),
                        "goal_object")
 
+    # 2a. "Should I wake the kid first, or should I go to the fridge to grab the vitamins?": a choice between two
+    # parts of the request (the order), not a yes / no question nor where one thing goes: the user says the request
+    # again, in the order they asked for (gate pilot round 1, hl-dev-000024: it got "Yes, that's right.")
+    if alt and qtype == "yes_no" and not READBACK_RX.search(q):
+        sides = [x for x in ALT_RX.split(strip_plan_remarks(q), maxsplit=1) if x.strip()]
+        said = [{i for i, a in enumerate(gv.atoms) if gv.subject_said(a, x)} for x in sides]
+        # each side about another part ("bring the book and the phone to grandpa, or place them somewhere?" is one
+        # part's place on both sides: rule 2b)
+        if len(said) == 2 and said[0] and said[1] and said[0] - said[1] and said[1] - said[0]:
+            return Content("correct", request, True, None, "goal_order") if request else None
+
     # 2b. "Should I put the X on A or on B?" / "bring it to you or put it somewhere?": where it goes
     about_where = bool(re.search(r"\b(put|place|bring|take|leave|move|give|hand|somewhere|where|to you)\b", low)
                        or re.search(r"(두|놓|놔|넣|가져|갖다|어디|드릴)", q)
@@ -1240,6 +1497,10 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
                 if person != gv.user_id:
                     targets.append(gv.place_of(person))
         hits = [p for p in places if p in targets]
+        if not hits:
+            c = message_room_answer(world, gv, places, L, q)
+            if c is not None:
+                return c
         if not hits:
             # none of the offered places is where the request goes: the person it is for, or "to me"
             for a in gv.atoms:

@@ -14,6 +14,7 @@ Everything is a pure function of the episode streams; nothing reads the wall clo
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from homeloop_robot import asr as _asr
@@ -329,7 +330,26 @@ class SimUser:
         """:meth:`_content_read`, and a question that asks which object AND where it goes gets both parts
         (:meth:`_with_destination`)."""
         c, path, qt = self._content_read(question, L, meaning, kw)
-        return self._with_destination(c, question, L, kw), path, qt
+        return self._with_position(self._with_destination(c, question, L, kw), question, L, kw), path, qt
+
+    def _with_position(self, c, question: str, L: str, kw: dict):
+        """'Which place do you mean: ...? Where are you? Which place should I bring it to?' (two questions in one
+        turn): an answer to the first part also says where the user is, as a person answers both (gate pilot
+        round 1, hl-dev-000015: only the first part was answered, twice). Only when the text heard has a sentence of
+        its own that asks where the user is, and the answer is not already that."""
+        up = kw.get("user_place")
+        if c is None or up is None or c.kind != "correct" or c.rule == "self_position":
+            return c
+        sents = [x for x in re.split(r"(?<=[?.!])\s+", str(question or "").strip()) if x.strip()]
+        # (an explicit "where are you?": a plain Korean '어디 있나요?' after "I could not find the mug." asks where the mug
+        # is, sim-user audit q0182)
+        if len(sents) < 2 or not any(dialog.asks_user_position(x) for x in sents):
+            return c
+        pos = dialog.self_position_text(self.world, up[0], bool(up[1]), L)
+        if not pos or pos in c.text:
+            return c
+        return dialog.Content(c.kind, c.text + " " + pos, c.informative,
+                              (c.wrong_text + " " + pos) if c.wrong_text else c.wrong_text, c.rule)
 
     def _with_destination(self, c, question: str, L: str, kw: dict):
         """'어떤 물건을 가져다드릴지, 그리고 어디에 놓아드릴지 알려주실 수 있나요?' (which things, and where): the
@@ -363,7 +383,7 @@ class SimUser:
         meaning."""
         m = _intent.clean(meaning)
         if m is not None and m["qtype"] != "free":
-            m = _intent.ungrounded(m, self.world, question) or m
+            m = _intent.grounded_or_dropped(m, self.world, question)
             if not _intent.in_lang(question, L):
                 return _intent.not_in_lang(L), "structured_mismatch", "free"
             ct, _p, qt = self._read_text(question, L, kw)
@@ -379,6 +399,14 @@ class SimUser:
                 # user says yes / no to the sentence they heard (pilot round 1, hl-dev-000010 KO); a read-back that
                 # states nothing ("그렇게 할게요. 맞죠?") is taken from context as before
                 return ct, "structured_mismatch", qt
+            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and c.kind == "no" and ct.kind == "no"
+                    and c.text != ct.text and str(m["goal"]).strip() not in str(question)
+                    and self._heard_has_right(kw.get("goal"), str(m["goal"]), question)):
+                # both say "no", but the part the meaning corrects is right in what the user HEARD: a translated
+                # read-back may get right what its English meaning got wrong ('주스는 주방 냉장고에' for "the juice on
+                # the fridge"; gate pilot round 1, sim-user audit q0371), so the user corrects what they heard
+                self.last_reading = m
+                return ct, "structured", m["qtype"]
             if c is not None:
                 # the same meaning, but its English slot names nothing the user knows ("plates" for 접시): the
                 # answer to what was heard
@@ -388,6 +416,15 @@ class SimUser:
                     self.last_reading = m
                 return c, "structured", m["qtype"]
         return self._read_text(question, L, kw)
+
+    @staticmethod
+    def _heard_has_right(gv, meant: str, heard: str) -> bool:
+        """Is the first part of the request that read-back ``meant`` gets wrong (the one its correction names) said
+        right in the ``heard`` text?"""
+        if gv is None:
+            return False
+        bad = [a for a in gv.atoms if not gv.covered(a, meant)]
+        return bool(bad) and gv.covered(bad[0], dialog.strip_plan_remarks(dialog._q_text(heard)))
 
     def wrong_places(self) -> list[str]:
         """The places a mistaken "where" answer names: a surface or container where an object of this task is
