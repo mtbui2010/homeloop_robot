@@ -219,11 +219,14 @@ skills:
     version: "1.0"
   - name: wait
     action: Wait
-    description: "Wait a number of seconds (0 < s <= 120)."
+    # the seconds are text, as every step argument: robot_agent's planner reads a step's object as a string, and the
+    # earlier type [string, number] with "Wait a number of seconds" led to {"action": "Wait", "object": 5}, which
+    # crashed it ("'int' object has no attribute 'strip'"; gate pilot round 1, hl-dev-000028 KO)
+    description: "Wait a while; the object is the number of seconds written as text, e.g. \"5\" (0 < s <= 120)."
     params:
       type: object
       properties:
-        inputs: {type: [string, number], description: "seconds"}
+        inputs: {type: string, description: "seconds, as text (e.g. '5')"}
       required: [inputs]
     pre: []
     hold: []

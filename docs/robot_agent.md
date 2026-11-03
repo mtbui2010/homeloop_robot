@@ -55,6 +55,18 @@ meanwhile, the entry is stale like any ENV place and the check can fail, as it w
 fixed map. Tests: homeloop_bench `tests/test_reach_ra_bind.py` (the real AssistLoop bind path, every house and
 person) and `tests/test_person_move.py`.
 
+The spot is looked at again on a move to the person (`tasks.refresh_person_spot`, gate pilot round 1,
+hl-dev-000008) when the entry's spot is not usable: there was none (every support surface beside the person was full
+when the ENV was built: the nightstand beside grandma held the blue book the task moves) or it has no free room now.
+The entry then gets the free support surface beside the person now, or the stop point when there is none, in place:
+robot_agent's copies of the ENV (`AssistLoop` `Places`) share the entry dicts, so its arrival check measures the
+move against the new loc. A usable spot is kept. Test: `tests/test_person_spot_refresh.py`.
+
+Every skill's `inputs` is text: robot_agent's planner reads a step object as a string, and the Wait skill's earlier
+input type `[string, number]` with the description "Wait a number of seconds" led to `{"action": "Wait", "object": 5}`,
+which crashed it (gate pilot round 1, hl-dev-000028 KO; `tests/test_manifest_inputs.py`). The bench counts such a
+crash as status `error` (homeloop_bench docs/robot_agent.md).
+
 Person keys (R2-5 B2, pilot round 1). AssistLoop reads a goal place that normalises to `me`, `user`, `here`,
 `you`, `myself` or `person` as "the user, place unknown" and asks where they are, so no ENV key may be such a word.
 AssistLoop also reads a plan back with the ENV key itself ("I will put the mug on the {key}.", `AssistLoop.summary`),
