@@ -492,12 +492,18 @@ def strip_preamble(question: str) -> str:
 def first_question(question: str, L: str, cut: bool = True) -> str:
     """The part of ``question`` that is answered (convention 2): the sentences up to its first question (the
     ones before it give context: "I will ... Is that right?"; a context-only sentence such as "You mentioned the
-    X." is dropped), cut where that question joins a second one."""
+    X." is dropped, and so is a remark on what is not in the robot's plan put as a question when a question follows
+    it), cut where that question joins a second one."""
     q = " ".join(str(question or "").split())
     sents = [x for x in _SENT_RX.split(q) if x]
     head = []
-    for x in sents:
+    for i, x in enumerate(sents):
         if CONTEXT_RX.match(x) and len(sents) > 1:
+            continue
+        if x.endswith("?") and D._remark(x) and any(y.endswith("?") for y in sents[i + 1:]):
+            # the robot's remark on what is not in its plan, translated as a question ("김치냉장고 얘기가 제 계획에
+            # 없나요?" for "the 김치냉장고 you mentioned is not in my plan"): context, the question after it is
+            # answered (pilot round 3, hl-dev-000003 KO)
             continue
         head.append(x)
         if x.endswith("?"):
