@@ -16,7 +16,7 @@ from pathlib import Path
 from robot_agent.contract import Geometry, Manifest, Messages, Observation, Unbindable
 
 from .backend import get_backend
-from .tasks import person_key, person_spot  # noqa: F401  (re-exported: adapter.person_spot)
+from .tasks import person_key, person_keys, person_spot  # noqa: F401  (re-exported: adapter.person_spot)
 
 MANIFEST_PATH = Path(__file__).with_name("manifest.yaml")
 
@@ -75,12 +75,11 @@ class Adapter:
         return n
 
     def _person_of_key(self, key: str):
-        """The person id of an ENV person key ('person_user' -> 'user'), else None."""
+        """The person id of an ENV person key ('spot near you' -> 'user', 'husband' -> 'partner_b'), else None."""
         w = self._world()
         if w is None:
             return None
-        for pid in sorted(w.people):
-            k = person_key(pid)
+        for pid, k in sorted(person_keys(w).items()):
             if k != pid and key in (k, k.replace("_", " ")):
                 return pid
         return None
@@ -121,7 +120,7 @@ class Adapter:
             # the ENV entry's spot (env_for of the start world), the one ra_skills.move / place use for the raw
             # ENV key robot_agent's AssistLoop passes
             from .ra_skills import _person
-            per = _person(person_key(target))
+            per = _person(person_key(w, target))
             spot = per[1] if per is not None else person_spot(w, target)
             if spot is not None:
                 return spec.name, {"inputs": spot}

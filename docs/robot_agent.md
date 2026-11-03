@@ -55,10 +55,15 @@ meanwhile, the entry is stale like any ENV place and the check can fail, as it w
 fixed map. Tests: homeloop_bench `tests/test_reach_ra_bind.py` (the real AssistLoop bind path, every house and
 person) and `tests/test_person_move.py`.
 
-Reserved user words (R2-5 B2). AssistLoop reads a goal place that normalises to `me`, `user`, `here`, `you`,
-`myself` or `person` as "the user, place unknown" and asks where they are. A person whose id is such a word
-(`user` in korean_apt_59 and studio_flat) is keyed in the ENV as `person_<id>` (`tasks.person_key`) and mapped
-back to the id by `ra_skills` and `Adapter.bind` (`Handover person_user` -> `handover user`).
+Person keys (R2-5 B2, pilot round 1). AssistLoop reads a goal place that normalises to `me`, `user`, `here`,
+`you`, `myself` or `person` as "the user, place unknown" and asks where they are, so no ENV key may be such a word.
+AssistLoop also reads a plan back with the ENV key itself ("I will put the mug on the {key}.", `AssistLoop.summary`),
+so a person's key is what the user hears and is never a raw id (`person_user`, `partner_b` reached the user in
+pilot round 1). `tasks.person_keys`: the speaker's entry is `spot near you` (the read-back is said to them; its
+aliases keep their name and me / 나 / 저), anyone else's is their English name without the article (`husband`,
+`grandpa`, `kid`, `roommate b`); a name that is a reserved word, a place key or another key falls back to the id.
+`ra_skills` and `Adapter.bind` map a key back to the person id (`Handover spot near you` -> `handover user`).
+Tests: `tests/test_person_keys.py`, homeloop_bench `tests/test_reach_ra_bind.py` and `tests/test_pilot_r1.py`.
 
 What this covers, measured (homeloop_bench data after review round 1): 3,269 of the 3,273 `reach` delivery
 atoms go to the **speaker**, and only 4 to another person. For the speaker, sage does not name a person as the

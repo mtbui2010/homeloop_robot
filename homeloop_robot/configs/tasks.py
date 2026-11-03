@@ -14,10 +14,16 @@ DOCK_TASK_WORDS = ["charge", "charging", "charging station", "충전", "충전�
 PERSON_SPOT_RADIUS_M = 1.2   # Hall's personal zone, outer edge (WALTERS05 Table 1; docs/calibration.md)
 
 # robot_agent's AssistLoop reads a goal place that normalises to one of these words as "the user, place
-# unknown" (assist_loop._USER_WORDS) and asks where they are; a person whose id is such a word ('user') is keyed
-# in the ENV under a non-reserved alias (person_key) and mapped back to the id (person_target). The copy is
-# checked against robot_agent's own set by the bench test tests/test_reach_ra_bind.py.
+# unknown" (assist_loop._USER_WORDS) and asks where they are, so no ENV key may normalise to one of them. The copy
+# is checked against robot_agent's own set by the bench test tests/test_reach_ra_bind.py.
 RESERVED_USER_WORDS = frozenset({"me", "user", "here", "you", "myself", "person"})
+
+# The ENV key of the person who gives the task. robot_agent reads a plan back with the ENV key itself ("I will put
+# the mug on the {key}.", AssistLoop.summary), so a key is what the user hears: a raw id ('person_user',
+# 'partner_b') must not be one (pilot round 1, hl-dev-000010 / 000013). The speaker is addressed as "you" (the
+# read-back is said to them); "you" alone is a reserved user word, so the key names the robot's target the way a
+# robot says it to the person: the support surface beside them (the entry's spot) or, with none, where they are.
+SPEAKER_KEY = "spot near you"
 
 
 def _words(name) -> str:
@@ -28,15 +34,38 @@ def _words(name) -> str:
     return " ".join(s.lower().split())
 
 
+def _strip_article(w: str) -> str:
+    for a in ("the ", "a ", "an ", "my ", "your "):
+        if w.startswith(a):
+            return w[len(a):].strip()
+    return w
+
+
 def _reserved(key: str) -> bool:
     w = _words(key)
-    return w in RESERVED_USER_WORDS or any(w == f"{a} {u}" for a in ("the", "a", "an", "my", "your")
-                                           for u in RESERVED_USER_WORDS)
+    return w in RESERVED_USER_WORDS or _strip_article(w) in RESERVED_USER_WORDS
 
 
-def person_key(pid: str) -> str:
-    """The ENV key of person ``pid``: the id itself, or ``person_<id>`` when the id is a reserved user word."""
-    return f"person_{pid}" if _reserved(pid) else pid
+def person_keys(world) -> dict:
+    """{person id: ENV key}: the speaker -> :data:`SPEAKER_KEY`; anyone else -> their English name as people say
+    it, lower case, without the article ('husband', 'grandpa', 'kid', 'roommate b'). A name that is a reserved
+    user word, a place key or another person's key falls back to the id ('person_<id>' when the id is reserved)."""
+    uid = world.user_id() if hasattr(world, "user_id") else None
+    taken = {_words(k) for k in world.house.places}
+    out: dict = {}
+    for pid in sorted(world.people):
+        per = world.people[pid]
+        k = SPEAKER_KEY if pid == uid else _strip_article(_words((per.name or {}).get("en", "")))
+        if not k or _reserved(k) or _words(k) in taken:
+            k = f"person_{pid}" if _reserved(pid) else pid
+        taken.add(_words(k))
+        out[pid] = k
+    return out
+
+
+def person_key(world, pid: str) -> str:
+    """The ENV key of person ``pid`` of ``world`` (:func:`person_keys`)."""
+    return person_keys(world).get(pid, pid)
 
 
 def standoff_m() -> float:
@@ -55,7 +84,7 @@ def person_target(env: dict, key: str, world=None):
     if world is not None and key and world.resolve_place(key, None) is None:
         pid = world.resolve_person(key, None)
         if isinstance(pid, str):
-            e = (env or {}).get(person_key(pid))
+            e = (env or {}).get(person_key(world, pid))
             if isinstance(e, dict) and e.get("person") == pid:
                 return pid, e.get("spot")
             return pid, person_spot(world, pid)
@@ -111,8 +140,9 @@ def env_for(world: World) -> dict:
     # the person stops (skills.person_stop_xy, the robot's own rule). ra_skills.move / place of the entry go to
     # the spot (or to the person), so the robot ends at the ENV loc and robot_agent's arrival check holds.
     from ..skills import person_stop_xy
+    keys = person_keys(world)
     for pid, per in sorted(world.people.items()):
-        key = person_key(pid)
+        key = keys[pid]
         if key in env:
             continue
         spot = person_spot(world, pid)
