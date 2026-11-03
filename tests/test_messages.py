@@ -22,6 +22,12 @@ from homeloop_robot.catalog import MESSAGE_TEXT, MESSAGES, _has_keyword, message
     ("come_kitchen", "Please head to the kitchen.", "en"),
     ("lunch_ready", "Grandpa, come for lunch.", "en"),
     ("drink_water", "Please have some water.", "en"),
+    # fresh pilot round 1, hl-dev-000057: SAGE's '잠자기 시간이에요' / "It's time to sleep." to the kid
+    ("bedtime", "잠자기 시간이에요", "ko"),
+    ("bedtime", "이제 잘 시간이에요.", "ko"),
+    ("bedtime", "이제 자러 가자.", "ko"),
+    ("bedtime", "It's time to sleep.", "en"),
+    ("bedtime", "Time for bed.", "en"),
 ])
 def test_message_wordings(key, text, lang):
     assert message_matches(key, text, lang)

@@ -151,7 +151,9 @@ MESSAGES: dict = {
     "laundry_done": {"en": [["laundry", "done"], ["laundry", "finished"]],
                      "ko": [["빨래", "다"], ["세탁", "끝"], ["세탁", "됐"], ["세탁", "다 되"]]},
     "wake_up": {"en": [["wake up"], ["time to get up"], ["wake", "up"]], "ko": [["일어나"], ["일어날"]]},
-    "bedtime": {"en": [["bed"]], "ko": [["잘 시간"], ["주무"]]},
+    # fresh pilot round 1 (hl-dev-000057): "time to sleep" / '잠자기 시간이에요' said to the kid did not count
+    "bedtime": {"en": [["bed"], ["sleep"]],
+                "ko": [["잘 시간"], ["주무"], ["잠자"], ["잘 때"], ["취침"], ["자러"], ["잠들"], ["자야"]]},
     "leaving_soon": {"en": [["leaving", "minutes"], ["leave", "minutes"]], "ko": [["출발"], ["나가"]]},
     "tv_off": {"en": [["turn off", "tv"], ["switch off", "tv"]],
                "ko": [["텔레비전", "꺼"], ["티비", "꺼"], ["텔레비전", "끄"], ["티비", "끄"]]},
