@@ -571,16 +571,25 @@ class Robot:
         oid = self._resolve_obj(obj)
         if oid is None:
             return res.fail(F.ABSENT, f"{obj} not found: no such object", dur=PRECONDITION_S)
-        if isinstance(oid, list):
-            res.data["candidates"] = oid
-            return res.fail(F.ABSENT, f"{obj} not found: which one? ({', '.join(oid)})", dur=PRECONDITION_S)
         if self._camera_down(res, u):
             return res
         here = r.at
         visible = w.visible_at(here) if here else []
         res.data["place"] = self._reported_at
         if here is None and self._reported_at is None:
-            return res.fail(F.ABSENT, f"{oid} not found", event="not_at_place")
+            return res.fail(F.ABSENT, f"{obj if isinstance(oid, list) else oid} not found", event="not_at_place")
+        if isinstance(oid, list):
+            # a name several objects fit ("mug" with a red and a blue mug in the house): the camera looks for that
+            # name HERE, as a detector does. None of them in view: not found here (it was "not found: which one?"
+            # wherever the robot looked, also with both mugs in front of it, so the planner searched elsewhere; gate
+            # pilot round 1, hl-dev-000019 / 000017 / 000027). One in view: that one. Several: the detector's hit is
+            # one of them (drawn), and the result lists the ones seen here
+            seen = [o for o in oid if o in visible]
+            if not seen:
+                return res.fail(F.ABSENT, f"{obj} not found", event="not_here")
+            if len(seen) > 1:
+                res.data["candidates"] = seen
+            oid = seen[int(u[U.AUX] * len(seen)) % len(seen)]
         if oid in visible:
             if u[U.FAIL] < float(self._p("find.p_miss")):
                 return res.fail(F.ABSENT, f"{oid} not found", injected=True, event="miss")
@@ -614,6 +623,12 @@ class Robot:
         if r.holding is not None:
             return res.fail(F.GRASP_FAILED, f"could not grasp {obj}: the hand is full", dur=PRECONDITION_S)
         oid = self._resolve_obj(obj)
+        if isinstance(oid, list):
+            # "pick the mug" after a find of "mug" here: the one the camera found here (one perceived object at the
+            # robot's place that fits the name); otherwise the name stays unresolved
+            mine = [o for o in oid if o in r.perceived and r.at is not None and w.objects[o].at == r.at]
+            if len(mine) == 1:
+                oid = mine[0]
         if oid is None or isinstance(oid, list):
             if isinstance(oid, list):
                 res.data["candidates"] = oid
