@@ -38,6 +38,11 @@ SELF_WHERE = {"en": (r"\bwhere are you\b", r"\bwhere you are\b", r"\bwhere are y
               "ko": (r"어디\s*에?\s*계", r"어디\s*세요", r"어디\s*계신")}
 # plain Korean "어디(에) 있어요?" with no object / person / place named: asked of the listener, "where are you?"
 SELF_WHERE_KO_PLAIN = re.compile(r"(지금\s*)?어디\s*(에)?\s*있(어요|어|으세요|나요|니|습니까)\s*\??")
+# what may come before that plain "어디 있어요?" for it to be asked of the listener: an apology, an opener or 지금 /
+# 혹시 / 그럼. Anything else is a subject ("그거 어디 있어요?", "말씀하신 물건은 ...", "찾으시는 게 ..."): the question is
+# about that thing, not about the listener
+KO_WHERE_LEAD = re.compile(r"^(?:\s|[,.!~]|죄송한데요?|죄송하지만|죄송해요|실례지만|저기요?|근데|그런데|"
+                           r"지금|혹시|그럼|그러면|네|아)*$")
 
 # ASR repair (R2-5 B3, docs/user_model.md): "Did you mean X?" about the user's own words, and "could you repeat?"
 MEAN_RX = {"en": re.compile(r"\b(did|do) you (mean|say|want)\b|\bby\b.+\bdo you mean\b|\bwas it\b|\btypo\b"),
@@ -69,6 +74,8 @@ class Content:
 def normalize(text: str, lang: str) -> str:
     t = unicodedata.normalize("NFC", text).lower()
     t = re.sub(r"[^\w\s']", " ", t)
+    # a quote mark is not part of a word ("'sink'" names the sink); an apostrophe inside one is ("you're")
+    t = re.sub(r"(?<!\w)'|'(?!\w)", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     if lang == "ko":
         t = t.replace(" ", "")
@@ -193,7 +200,8 @@ def asks_user_position(question: str, world: Any = None) -> bool:
     if world is None:
         return False
     for seg in re.split(r"(?<=[?.!])\s*", q):
-        if SELF_WHERE_KO_PLAIN.search(seg) and not _names_anything(world, seg):
+        m = SELF_WHERE_KO_PLAIN.search(seg)
+        if m and KO_WHERE_LEAD.match(seg[:m.start()]) and not _names_anything(world, seg):
             return True
     return False
 
@@ -263,7 +271,7 @@ def names_request(question: str) -> bool:
 
 
 def repair(question: str, L: str, world: Any, *, request: str | None, last_answer: str | None,
-           goal: "GoalView | None") -> Content | None:
+           goal: "GoalView | None", spec: dict | None = None) -> Content | None:
     """ASR repair questions about the user's own words (R2-5 B3), or None.
 
     * "could you repeat?" / "다시 말씀해 주시겠어요?": the user says it again. Right after the request (or when the
@@ -281,10 +289,68 @@ def repair(question: str, L: str, world: Any, *, request: str | None, last_answe
     q = unicodedata.normalize("NFC", str(question or ""))
     if MEAN_RX["en"].search(q.lower()) or MEAN_RX["ko"].search(q):
         xs = mean_phrases(q, L)
-        if xs and any(own_phrase(world, x, L, request, goal) for x in xs):
-            yes = {"en": "Yes. ", "ko": "네. "}[L]
-            return Content("yes", yes + request, True, None, "repair_confirm")
+        if not xs or not any(own_phrase(world, x, L, request, goal) for x in xs):
+            return None
+        # "Did you mean 'sink' or 'kimchi fridge'?" is a choice, not a check of what was heard: the user picks
+        if _either_or(q):
+            return None
+        # a question that names something the request is not about ("Did you mean 'mug', the red coffee mug?" when
+        # the blue one is wanted, "'sink' or ...") is answered about that thing (clarification / goal), never "yes"
+        if _names_foreign(world, q, L, request, goal, spec):
+            return None
+        yes = {"en": "Yes. ", "ko": "네. "}[L]
+        return Content("yes", yes + request, True, None, "repair_confirm")
     return None
+
+
+def _either_or(q: str) -> bool:
+    """Two quoted phrases joined by "or" / 아니면 in one sentence ("Did you mean 'A' or 'B'?"). "Did you mean 'A'? Or
+    was 'B' a typo?" (two sentences: a check of a misheard word) is not."""
+    for seg in re.split(r"(?<=[?.!])\s*", q):
+        spans = [m.span() for m in QUOTE_RX.finditer(seg)]
+        for (_, e1), (s2, _) in zip(spans, spans[1:]):
+            if ALT_RX.search(seg[e1:s2].lower()):
+                return True
+    return False
+
+
+def _names_foreign(world: Any, q: str, L: str, request: str, goal: "GoalView | None", spec: dict | None) -> bool:
+    """Does the question name an object, place, person or task candidate that the user's request is not about?
+    A name counts as the request's own when its entity is in the goal or the name itself is a word of the request
+    ("mug" in "Put the mug on the nightstand" is; "red coffee mug" is not when the red mug is not wanted)."""
+    nreq = normalize(request, L)
+    goal_ids: set[str] = set()
+    if goal is not None:
+        goal_ids |= set(goal.objects())
+        for a in goal.atoms:
+            goal_ids |= {x for x in (a.get("args") or []) if isinstance(x, str)}
+        if goal.user_id:
+            goal_ids.add(goal.user_id)
+    intended = (spec or {}).get("intended")
+    if intended:
+        goal_ids.add(intended)
+    qt = _q_text(q)
+
+    def foreign(names) -> bool:
+        for n in names:
+            lg = detect_lang(n)
+            if n and mentions(qt, n, lg) and not (lg == L and normalize(n, L) in nreq):
+                return True
+        return False
+
+    for oid in sorted(world.objects):
+        if oid not in goal_ids and foreign(_obj_words(world, oid)):
+            return True
+    for pid in sorted(world.house.places):
+        if pid not in goal_ids and foreign(_place_words(world, pid)):
+            return True
+    for pid in sorted(world.people):
+        if pid not in goal_ids and foreign(_person_words(world, pid)):
+            return True
+    for c in (spec or {}).get("candidates") or []:
+        if c.get("id") != intended and foreign([m for lg in ("en", "ko") for m in (c.get("mentions") or {}).get(lg, [])]):
+            return True
+    return False
 
 
 def _ro(word: str) -> str:
@@ -369,7 +435,7 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
         return Content("correct", ans[L], True, wt[L] if isinstance(wt, dict) else None, "scripted_answer")
     # "Did you mean X?" about the user's own words (ASR repair)
     if request:
-        c = repair(question, L, world, request=request, last_answer=None, goal=goal)
+        c = repair(question, L, world, request=request, last_answer=None, goal=goal, spec=spec)
         if c is not None:
             return c
     # a question about the request itself: where an object goes, which one / which place, a read-back

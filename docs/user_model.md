@@ -62,7 +62,9 @@ path only when the user is reachable.
      after an answer of theirs, that answer. ASR noise applies again to what is repeated; people do not get their
      own words wrong, so the correctness mix does not apply (silence and patience still do);
    - "where are you?" (EN where are you / where you are; KO 어디(에) 계세요, 어디세요, and a plain 어디(에) 있어요? that
-     names no object, place or person), naming no candidate -> the
+     names no object, place or person and has no subject before 어디: only an opener such as 지금, 혹시, 그럼,
+     죄송한데, 저기요; "그거 어디 있어요?", "말씀하신 물건은 어디 있어요?" ask about a thing, not the listener), naming
+     no candidate -> the
      user's own place: "I'm at the sofa." / "소파에 있어요.", or while walking "I'm going to the bed." /
      "침대로 가고 있어요." (`SimUser.place_of`). People do not misstate where they are, so the correctness mix of
      rule 5 does not apply; ASR does;
@@ -76,7 +78,11 @@ path only when the user is reachable.
      the user's own request or names an object, place or person of the request -> "Yes. " / "네. " + the request
      restated. This is informative: the wrong / not-sure mix applies (a wrong draw is "not sure", since a "no" would
      deny the user's own words). X that is neither (the misheard word itself) gets no repair answer and falls
-     through to the rules below;
+     through to the rules below. Never a repair "yes": a choice between quoted phrases in one sentence ("Did you
+     mean 'sink' or 'kimchi fridge'?"), and a question that names an object, place, person or task candidate the
+     request is not about, by a name that is not a word of the request ("Did you mean 'mug', the red coffee mug?"
+     when the blue one is wanted). Those get the clarification / goal answers above and below. Quote marks are
+     punctuation when names are matched, so a quoted and an unquoted question get the same answer;
    - a question about the user's own request (when the runner has told the user model what was asked for,
      `SimUser.set_wants(goal)`; `dialog.compose_from_goal`): the user restates what they asked for, never more:
      - "where should I put / bring X?" (EN put, place, bring, take, leave, move, go ...; KO 어디에 두/놓/넣/가져/갖다 ...)
