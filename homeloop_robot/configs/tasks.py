@@ -23,7 +23,14 @@ RESERVED_USER_WORDS = frozenset({"me", "user", "here", "you", "myself", "person"
 # 'partner_b') must not be one (pilot round 1, hl-dev-000010 / 000013). The speaker is addressed as "you" (the
 # read-back is said to them); "you" alone is a reserved user word, so the key names the robot's target the way a
 # robot says it to the person: the support surface beside them (the entry's spot) or, with none, where they are.
-SPEAKER_KEY = "spot near you"
+# The key must not END in a word people say in a request: robot_agent also takes the last word of a multi-word ENV
+# head as a place phrase (understand._phrases: 'coffee table' -> 'table'), so the earlier key "spot near you" made
+# every "you" of an instruction ("Can you put ...") a mention of the speaker's spot (3947 of the 6000 dev / test EN
+# instructions): "You mentioned the you. What should I do there?" and "(the you you mentioned is not in my plan)"
+# (fresh pilot round 1, hl-dev-000057 / 000016 EN). "reach" is in no dev / test instruction
+# (tests/test_person_keys.py; the bench's tests/test_person_key_mentions.py runs robot_agent's place_mentions on
+# every dev / test instruction).
+SPEAKER_KEY = "spot within your reach"
 
 # robot_agent matches a non-ASCII place phrase as a plain substring (understand._find), so a one-syllable Korean
 # person name (나, 저, 애, 딸) would be "mentioned" inside 하나, 저녁, 나간다고, 딸기 (pilot round 2, hl-dev-000013 KO:

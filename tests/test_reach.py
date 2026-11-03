@@ -291,7 +291,7 @@ def test_adapter_person_place_resolves_to_reachable_surface():
         assert ad.bind({"action": "MoveTo", "object": "grandma"}) == ("move", {"inputs": "side_table@living"})
         assert ad.bind({"action": "Place", "object": "grandma"}) == ("place", {"inputs": "side_table@living"})
         env = env_for(ep.world)
-        # the ENV is keyed by the person's name key (the speaker: "spot near you"), not the raw id
+        # the ENV is keyed by the person's name key (the speaker: "spot within your reach"), not the raw id
         assert env[person_key(ep.world, "grandma")]["loc"]["x"] == ep.world.place("side_table@living").pos[0]
     finally:
         reset_backend()

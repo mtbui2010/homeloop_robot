@@ -578,8 +578,10 @@ SEARCH_RX = re.compile(r"\b(look|find|search)\b")
 ALT_RX = re.compile(r"\bor\b|아니면|또는|이나|거나")
 READBACK_RX = re.compile(r"\bI will\b|\bI'll\b|\bI'm going to\b|\bI am going to\b|겠습니다|게요|놓아요|둬요|넣어요|"
                          r"맞죠|맞나요|맞습니까")
-ME_RX = {"en": re.compile(r"\b(you|your hand|to me|hand it|give it)\b"),
-         "ko": re.compile(r"(드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신)")}
+# (the speaker's ENV key "spot within your reach" is read back as "on the spot within your reach"; in Korean "손이 닿는
+# 곳 / 손 닿는 자리")
+ME_RX = {"en": re.compile(r"\b(you|your hand|your reach|to me|hand it|give it)\b"),
+         "ko": re.compile(r"(드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신|손이?\s*닿는)")}
 DOCK_WORDS = ("dock", "charg", "충전")
 
 

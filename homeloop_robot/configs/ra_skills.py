@@ -63,7 +63,7 @@ def _env() -> dict:
 
 
 def _person(target: str):
-    """(person id, spot or None) when ``target`` names a person (an ENV person key such as 'spot near you', a
+    """(person id, spot or None) when ``target`` names a person (an ENV person key such as 'spot within your reach', a
     person id or name), else None. robot_agent's AssistLoop passes the raw ENV key of a MoveTo / Place
     (assist_loop._bind), whatever the adapter's bind returned, so the person is resolved here."""
     from .tasks import person_target

@@ -109,7 +109,7 @@ class Adapter:
         return n
 
     def _person_of_key(self, key: str):
-        """The person id of an ENV person key ('spot near you' -> 'user', 'husband' -> 'partner_b'), else None."""
+        """The person id of an ENV person key ('spot within your reach' -> 'user', 'husband' -> 'partner_b'), else None."""
         w = self._world()
         if w is None:
             return None

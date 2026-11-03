@@ -22,7 +22,7 @@ def _confirm(L, heard, goal_en, house="korean_apt_59", goal=MUG_GOAL, req=MUG_RE
     return r, u.log[-1]
 
 
-@pytest.mark.parametrize("dest,ok", [("the spot near you", True), ("the user", True), ("you", True),
+@pytest.mark.parametrize("dest,ok", [("the spot near you", True), ("the spot within your reach", True), ("the user", True), ("you", True),
                                      ("the person_user", False), ("the grandpa", False)])
 def test_read_back_to_the_speaker(dest, ok, monkeypatch):
     g = f"I will put the green mug {SRC}on {dest}."
@@ -47,6 +47,10 @@ def test_korean_read_back_answered_for_what_was_heard(monkeypatch):
     assert r.kind == "no" and log["path"] == "structured_mismatch", (r.text, log)
     r, log = _confirm("ko", "녹색 머그잔을 당신 근처 자리에 놓겠습니다. 맞죠?",
                       f"I will put the green mug {SRC}on the spot near you.", monkeypatch=monkeypatch)
+    assert r.kind == "yes" and log["path"] == "structured", (r.text, log)
+    # the speaker's ENV key "spot within your reach" (fresh pilot round 1) as a Korean robot says it
+    r, log = _confirm("ko", "녹색 머그잔을 손이 닿는 곳에 놓겠습니다. 맞죠?",
+                      f"I will put the green mug {SRC}on the spot within your reach.", monkeypatch=monkeypatch)
     assert r.kind == "yes" and log["path"] == "structured", (r.text, log)
 
 

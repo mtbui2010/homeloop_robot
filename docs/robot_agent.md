@@ -59,10 +59,15 @@ Person keys (R2-5 B2, pilot round 1). AssistLoop reads a goal place that normali
 `you`, `myself` or `person` as "the user, place unknown" and asks where they are, so no ENV key may be such a word.
 AssistLoop also reads a plan back with the ENV key itself ("I will put the mug on the {key}.", `AssistLoop.summary`),
 so a person's key is what the user hears and is never a raw id (`person_user`, `partner_b` reached the user in
-pilot round 1). `tasks.person_keys`: the speaker's entry is `spot near you` (the read-back is said to them; its
+pilot round 1). `tasks.person_keys`: the speaker's entry is `spot within your reach` (the read-back is said to them; its
 aliases keep their name and me / 나 / 저), anyone else's is their English name without the article (`husband`,
 `grandpa`, `kid`, `roommate b`); a name that is a reserved word, a place key or another key falls back to the id.
-`ra_skills` and `Adapter.bind` map a key back to the person id (`Handover spot near you` -> `handover user`).
+`ra_skills` and `Adapter.bind` map a key back to the person id (`Handover spot within your reach` -> `handover
+user`). The key must not end in a word of everyday requests: robot_agent also takes the last word of a multi-word
+ENV head as a place phrase (`understand._phrases`), so the earlier key `spot near you` made every "you" ("Can you
+put ...", 3,947 of 6,000 dev / test EN instructions) a mention of the speaker's spot: "You mentioned the you. What
+should I do there?" (fresh pilot round 1, hl-dev-000057 / 000016; `tests/test_dialog_fresh_pilot_r1.py`, homeloop_bench
+`tests/test_person_key_mentions.py`).
 Tests: `tests/test_person_keys.py`, homeloop_bench `tests/test_reach_ra_bind.py` and `tests/test_pilot_r1.py`.
 
 What this covers, measured (homeloop_bench data after review round 1): 3,269 of the 3,273 `reach` delivery
