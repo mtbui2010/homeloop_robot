@@ -565,9 +565,9 @@ class Robot:
     def _sk_find(self, res, u, t0, obj):
         w, r = self.world, self.world.robot
         res.dur = _uniform(u[U.DUR], self._p("find.duration_s"))
-        if r.at is None:
-            if self._reported_at is None:
-                return res.fail(F.UNREACHABLE, f"cannot reach {obj}: not at a place", dur=PRECONDITION_S)
+        # not at a place (e.g. after a move to a person who has no surface beside them): the robot still looks
+        # around where it stands, and what it looks for is not seen there -> absent (pilot round 2, hl-dev-000010;
+        # it was "unreachable", a hint that the object is out of reach, which a robot that only looked cannot know)
         oid = self._resolve_obj(obj)
         if oid is None:
             return res.fail(F.ABSENT, f"{obj} not found: no such object", dur=PRECONDITION_S)
@@ -579,6 +579,8 @@ class Robot:
         here = r.at
         visible = w.visible_at(here) if here else []
         res.data["place"] = self._reported_at
+        if here is None and self._reported_at is None:
+            return res.fail(F.ABSENT, f"{oid} not found", event="not_at_place")
         if oid in visible:
             if u[U.FAIL] < float(self._p("find.p_miss")):
                 return res.fail(F.ABSENT, f"{oid} not found", injected=True, event="miss")
