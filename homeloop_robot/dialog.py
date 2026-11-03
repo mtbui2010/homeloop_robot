@@ -93,14 +93,41 @@ def _spans(q: str, m: str, lang: str) -> list[tuple[int, int]]:
     return out
 
 
+def ko_plural_forms(phrase: str) -> list[str]:
+    """A Korean name of several words and its forms with the plural marker 들 on a word before the head noun: '아이
+    책상' -> ['아이 책상', '아이들 책상'] ("the kids' desk"; 들 attaches to a noun, fresh pilot round 2,
+    hl-dev-000057 KO: '아이들 책상' was read as the study desk). One word, or an English name: the name itself."""
+    words = str(phrase or "").split()
+    if detect_lang(str(phrase or "")) != "ko" or len(words) < 2:
+        return [phrase]
+    out = [phrase]
+    for i, w in enumerate(words[:-1]):
+        if _hangul_word(w) and not w.endswith("들"):
+            out.append(" ".join(words[:i] + [w + "들"] + words[i + 1:]))
+    return out
+
+
+def _hangul_word(w: str) -> bool:
+    return bool(w) and all("가" <= ch <= "힣" for ch in w)
+
+
 def mentions(text: str, phrase: str, lang: str, world: Any = None) -> bool:
     """Does ``text`` name ``phrase``? With ``world``, longest match (R2-6 H2): an occurrence inside a longer name
     of a DIFFERENT thing of the world, one that is not itself also called ``phrase``, does not count. 냉장고 in
     김치냉장고 and "fridge" in "kimchi fridge" name the kimchi fridge, not the fridge; "cup" in "red cup" still
-    names a cup (the red cup is called "cup" too)."""
+    names a cup (the red cup is called "cup" too). A Korean name is also named with the plural marker 들 on a word
+    before its head ('아이들 책상' names '아이 책상', :func:`ko_plural_forms`)."""
     q, m = normalize(text, lang), normalize(phrase, lang)
     if not m:
         return False
+    if lang == "ko":
+        forms = [f for f in dict.fromkeys(normalize(x, lang) for x in ko_plural_forms(phrase)) if f]
+        if len(forms) > 1:
+            return any(_mentions_norm(q, f, lang, world) for f in forms)
+    return _mentions_norm(q, m, lang, world)
+
+
+def _mentions_norm(q: str, m: str, lang: str, world: Any = None) -> bool:
     spans = _spans(q, m, lang)
     if not spans or world is None:
         return bool(spans)
@@ -128,7 +155,7 @@ def _compound_names(world: Any, lang: str) -> list[tuple[str, frozenset]]:
     groups += [_person_words(world, p) for p in sorted(getattr(world, "people", {}) or {})]
     out = []
     for g in groups:
-        names = frozenset(normalize(x, lang) for x in g if x and detect_lang(x) == lang)
+        names = frozenset(normalize(f, lang) for x in g if x and detect_lang(x) == lang for f in ko_plural_forms(x))
         out += [(n, names) for n in sorted(names) if n]
     cache[lang] = out
     return out
@@ -917,9 +944,40 @@ class GoalView:
         for o in sorted(x for x in objs if x in self.w.objects):
             others |= {x for x in (self.w.objects[o].at, (getattr(self.w, "initial_at", None) or {}).get(o))
                        if x in self.w.house.places}
-        other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
+        # a place said as where an object comes from or where the robot goes on the way ("the remote from the coffee
+        # table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not where it is brought,
+        # even when that source is wrong (fresh pilot round 2, hl-dev-000060: the wrong source of the remote and the
+        # speaker's seat in a go-to clause made a right delivery to grandpa "not covered")
+        qd = strip_route_places(self.w, q)
+        other_place = any(_mentions_any(qd, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
                           if k != here and k not in others)
         return at_here or (named and not other_place)
+
+
+# A place named as a source or a waypoint: "from (the) X", "go / move / head to (the) X" (English, the words before
+# the name); 'X에 있는', 'X에 놓인', 'X 위에 있는', 'X에서', 'X에 가서', 'X(으)로 가서' (Korean, the particles after it)
+EN_ROUTE_BEFORE_RX = re.compile(r"\b(?:from|(?:go|goes|going|move|moving|head|heading)\s+(?:over\s+)?to)\s+"
+                                r"(?:the\s+|your\s+|my\s+)?$")
+KO_ROUTE_AFTER_RX = re.compile(r"^\s*(?:(?:위|안)?에\s*(?:있는|있던|놓인|놓여\s*있는|가서|가서요)|(?:위|안)?에서|"
+                               r"(?:으로|로)\s*(?:가서|이동))")
+
+
+def strip_route_places(world: Any, q: str) -> str:
+    """``q`` without the place names said as where an object comes from or where the robot goes on the way
+    (:data:`EN_ROUTE_BEFORE_RX`, :data:`KO_ROUTE_AFTER_RX`); a place named as where something goes stays. The longer
+    names go first, so "from the kid's desk" leaves no "desk"."""
+    t = unicodedata.normalize("NFC", str(q or ""))
+    words = sorted({w for k in getattr(world.house, "places", {}) for w in _place_words(world, k)}, key=len, reverse=True)
+    for w in words:
+        ko = detect_lang(w) == "ko"
+        rx = re.compile(re.escape(w) if ko else r"(?<![\w])" + re.escape(w) + r"(?![\w])", 0 if ko else re.I)
+        out, i = [], 0
+        for m in rx.finditer(t):
+            if (KO_ROUTE_AFTER_RX.match(t[m.end():]) if ko else EN_ROUTE_BEFORE_RX.search(t[:m.start()])):
+                out += [t[i:m.start()], " " * len(m.group(0))]
+                i = m.end()
+        t = "".join(out) + t[i:]
+    return t
 
 
 # Who speaks to whom in a read-back of a message (pilot round 2, hl-dev-000013 KO: '남편이 “10분 있다가 나간다고 말해

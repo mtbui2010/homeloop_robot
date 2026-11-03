@@ -58,7 +58,9 @@ path only when the user is reachable.
    one that is not itself also called by the shorter name, does not count, so 냉장고 inside 김치냉장고 and "fridge"
    inside "kimchi fridge" name the kimchi fridge only; "cup" inside "red cup" still names the red cup. A quoted
    either / or ("'A' or 'B'?") naming one candidate is a choice and gets the clarify answer
-   (tests/test_dialog_longest_match.py).
+   (tests/test_dialog_longest_match.py). A Korean name of several words is also named with the plural marker 들 on
+   a word before its head ('아이들 책상' names '아이 책상', the kid's desk, not the study desk 책상;
+   `dialog.ko_plural_forms`; fresh pilot round 2, hl-dev-000057, tests/test_dialog_fresh_pilot_r2.py).
 4. **Content**, first rule that applies:
    - ASR repair, "could you repeat?" (EN repeat, say that / it again, pardon, come again, didn't catch that; KO 다시
      (한 번) 말씀해, 뭐라고 하셨어요, 한 번 더 말씀해, 잘 못 들었어요) -> the user says it again: right after the request,
@@ -205,6 +207,12 @@ that and says the request again (`repeat`; fresh pilot round 1, hl-dev-000060 KO
   wrong message is corrected by the message ("No, tell the kid: It is time for bed.", template `fix_say_msg`);
   the speaker's spot read back as "the spot within your reach" / "손이 닿는 곳" is the speaker (hl-dev-000057 /
   000060).
+- A place said as where an object comes from or where the robot goes on the way ("the remote from the coffee
+  table", "go to the desk chair, then ...", '커피 테이블에 있는 리모컨', '의자에 가서') is not a place the object is
+  brought to, even when that source is wrong; a place named as where it goes still is (`dialog.strip_route_places`;
+  fresh pilot round 2, hl-dev-000060: a wrong source made the right delivery to grandpa "not covered", and the
+  correction repeated what the robot had said instead of naming the glasses that went to the living room;
+  tests/test_dialog_fresh_pilot_r2.py).
 
 **Heard-text check: the meaning must match what the user hears** (both languages; R2-7 note, review round 1).
 No real user hears a planner's meaning, only its text. A meaning counts only when the text the user hears says it
