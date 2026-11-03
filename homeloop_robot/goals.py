@@ -250,13 +250,37 @@ def holds(a: dict, world) -> bool:
         # home does not tell dad (docs/world.md, Goals)
         lang = getattr(world, "lang", None)
         for u in world.utterances:
-            if args[0] in u.heard_by and message_matches(args[1], u.text, lang or u.lang):
+            if args[0] in u.heard_by and message_matches(args[1], u.text, lang or u.lang) and \
+                    not relayed_request(world, args[0], u.text):
                 return True
         return False
     if p == "unmoved":
         o = objs.get(args[0])
         return bool(o and o.at == world.initial_at.get(args[0]) and world.robot.holding != args[0])
     raise GoalError(f"unknown predicate {p!r}")
+
+
+# A request to tell someone, said to that person ("남편한테 가서 10분 있다가 나간다고 말해 주세요." / "Let my husband know
+# we're leaving in ten minutes." said to the husband): the user's request relayed word for word, not the message
+# (pilot round 3, hl-dev-000013 KO; docs/world.md, Goals). It names the listener as the one to be told
+# (``dialog.speech_role`` = listener) and asks or announces the telling (a tell verb; in Korean a quoted clause
+# "...다고 / 라고" with a verb after it). A message that only names its listener ("남편한테 전화 왔어요.", "There is a
+# call for you.") is delivered.
+RELAY_RX = {"en": re.compile(r"\b(?:tell|telling|let\s+(?:\S+\s+){1,3}know|inform|remind|pass\s+(?:it|this|that)\s+on)\b",
+                             re.I),
+            "ko": re.compile(r"(?:[다라자냐래]고|라는\s*말을?)\s*\S{0,6}?\s*(?:주세요|줘|주시|줄래|드릴|드리|드려|할게|하겠)|"
+                             r"(?:말해|말씀|전해|전달해|알려)\s*(?:주세요|줘|주시|줄래|드릴|드리|드려)")}
+
+
+def relayed_request(world, pid: str, text: str) -> bool:
+    """True when ``text`` said to ``pid`` is a request to tell ``pid`` (see :data:`RELAY_RX`)."""
+    from .dialog import quoted_texts, speech_role
+    if speech_role(world, pid, text) != "listener":
+        return False
+    t = str(text or "")
+    for q in quoted_texts(t):
+        t = t.replace(q, " ")
+    return bool(RELAY_RX["en"].search(t) or RELAY_RX["ko"].search(t))
 
 
 def evaluate(goal: dict, world) -> GoalEval:
