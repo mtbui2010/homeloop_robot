@@ -326,6 +326,31 @@ class SimUser:
         return (c2 if c2 is not None else c), "llm", m2["qtype"]
 
     def _content(self, question: str, L: str, meaning, kw: dict):
+        """:meth:`_content_read`, and a question that asks which object AND where it goes gets both parts
+        (:meth:`_with_destination`)."""
+        c, path, qt = self._content_read(question, L, meaning, kw)
+        return self._with_destination(c, question, L, kw), path, qt
+
+    def _with_destination(self, c, question: str, L: str, kw: dict):
+        """'어떤 물건을 가져다드릴지, 그리고 어디에 놓아드릴지 알려주실 수 있나요?' (which things, and where): the
+        answer names the things and where they go, as a person answers both parts of one question (fresh pilot
+        round 1, hl-dev-000060 KO: only the objects were said)."""
+        gv = kw.get("goal")
+        ql = dialog._q_text(question)
+        if c is None or c.rule != "goal_object" or c.kind != "correct" or gv is None or \
+                not dialog.asks_destination(question) or \
+                dialog.LOC_RX["en"].search(ql.lower()) or dialog.LOC_RX["ko"].search(ql):
+            return c          # (a "... and where is it now?" asks where it is, not where it goes)
+        objs = [o for o in dict.fromkeys(gv.objects())]
+        if not objs:
+            return c
+        dest = dialog._dest_answer(gv, objs, L)
+        if not dest or dest in c.text:
+            return c
+        return dialog.Content(c.kind, c.text + " " + dest, c.informative,
+                              (c.wrong_text + " " + dest) if c.wrong_text else c.wrong_text, c.rule)
+
+    def _content_read(self, question: str, L: str, meaning, kw: dict):
         """(Content, path, qtype): structured (the planner's meaning) -> rules -> llm (``_read_text``).
 
         A meaning about a phrase that names nothing in the house is read as "say the task again"

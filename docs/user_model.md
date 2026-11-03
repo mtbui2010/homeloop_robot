@@ -185,7 +185,26 @@ read as free text. A qtype whose script has nothing to say gets "not sure" like 
 **A meaning about nothing.** A `which_object` / `which_place` meaning whose `obj` names nothing in the house
 (SAGE's "What should I do with the chicken bring?" about an ASR fragment) cannot be answered about that thing: a
 "where ...?" question keeps `which_place` without the object, otherwise the user says the task again (`repeat`)
-(`intent.ungrounded`).
+(`intent.ungrounded`). The same holds for a `did_you_mean` whose word is not the user's and names nothing in the
+house: SAGE's "'언경'과 '리컨 갖단 드'는 무슨 뜻이에요?" quotes words it misheard, and a user who said 안경 / 리모컨 hears
+that and says the request again (`repeat`; fresh pilot round 1, hl-dev-000060 KO).
+
+**Answers to two parts and to several things** (fresh pilot round 1, `tests/test_dialog_fresh_pilot_r1.py`):
+- "Where are the reading glasses and the remote now?" names two things of the request: the answer says where each
+  one is ("The black glasses are on the desk in the study. The black remote control is on the sofa."); an object
+  is left out only where its name is inside a longer name of another object that is named ("book" in "red book";
+  `dialog.mentioned_objects`). Before, only the objects with the longest name were kept, so the remote's place was
+  never said (hl-dev-000016).
+- A place is named with its room when its name alone ends another place's name ("desk" and "kid's desk": "the desk
+  in the study"; `dialog.clear_place_name`), and "Which desk do you mean?" gets the desk an object of the request
+  is on when no offered place is where the request goes (hl-dev-000016).
+- "Which things, and where?" ('어떤 물건을 가져다드릴지, 그리고 어디에 놓아드릴지 알려주실 수 있나요?') gets the things
+  and where they go (`SimUser._with_destination`; hl-dev-000060 KO).
+- In a read-back, a quoted message names no place ("say 'It's time for bed.'" is not the bed), the sources of all
+  objects of the request are not "another place" for a person, and a read-back with the right person but the
+  wrong message is corrected by the message ("No, tell the kid: It is time for bed.", template `fix_say_msg`);
+  the speaker's spot read back as "the spot within your reach" / "손이 닿는 곳" is the speaker (hl-dev-000057 /
+  000060).
 
 **Heard-text check: the meaning must match what the user hears** (both languages; R2-7 note, review round 1).
 No real user hears a planner's meaning, only its text. A meaning counts only when the text the user hears says it

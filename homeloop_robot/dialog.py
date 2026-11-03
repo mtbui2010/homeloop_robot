@@ -211,27 +211,98 @@ def person_name(world: Any, pid: str, lang: str) -> str:
 
 
 def mentioned_objects(world: Any, question: str) -> list[str]:
-    """Object ids whose most specific name appears in the question (both languages)."""
-    hits: dict[str, int] = {}
+    """Object ids the question names, by their most specific name (both languages): an object named only where a
+    longer name of another object is named ("book" inside "red book") is left out, so "the red book or the book?"
+    keeps the red one only when nothing else is named, while "the reading glasses and the remote" names both (the
+    earlier rule kept only the objects with the longest name anywhere in the question: the remote was dropped,
+    fresh pilot round 1, hl-dev-000016)."""
+    found: dict[str, list] = {}
     for oid in sorted(world.objects):
         for lang in ("en", "ko"):
+            q = normalize(question, lang)
             for n in object_names(world, oid, lang):
                 if mentions(question, n, lang, world):
-                    hits[oid] = max(hits.get(oid, 0), len(normalize(n, lang)))
-    if not hits:
+                    m = normalize(n, lang)
+                    found.setdefault(oid, []).extend((lang, a, b, len(m)) for a, b in _spans(q, m, lang))
+    if not found:
         return []
-    best = max(hits.values())
-    return sorted(o for o, n in hits.items() if n == best)
+    out = []
+    for o, spans in found.items():
+        others = [x for p, sp in found.items() if p != o for x in sp]
+        if any(not any(lg2 == lg and n2 > n and a2 <= a and b <= b2 for lg2, a2, b2, n2 in others)
+               for lg, a, b, n in spans):
+            out.append(o)
+    return sorted(out)
 
 
-def location_text(world: Any, oid: str, lang: str) -> str:
-    at = world.objects[oid].at
+def clear_place_name(world: Any, pid: str, lang: str) -> str:
+    """The place's name, with its room when the name alone is the end of another place's name in the house ("desk"
+    and "kid's desk": "the desk in the study"), as a person says where something is when "the desk" could be heard
+    as either (fresh pilot round 1, hl-dev-000016: "It's on the desk." then "Which desk do you mean?")."""
+    name = place_name(world, pid, lang)
+    pl = world.house.places.get(pid)
+    if pl is None or not name:
+        return name
+    n = normalize(name, lang)
+    for k, other in world.house.places.items():
+        o = normalize(place_name(world, k, lang), lang)
+        if k != pid and o != n and (o.endswith(" " + n) if lang == "en" else o.endswith(n)):
+            room = world.house.rooms.get(pl.room)
+            rname = (room.name.get(lang) or room.name.get("en", "")) if room is not None else ""
+            if not rname or normalize(rname, lang) in n:
+                return name
+            return f"{name} in the {rname}" if lang == "en" else f"{rname} {name}"
+    return name
+
+
+def location_text(world: Any, oid: str, lang: str, at: str | None = None) -> str:
+    """Where object ``oid`` is ("It's on the desk in the study."); ``at``: another place to name instead."""
+    at = at or world.objects[oid].at
     if at == "robot":
         return TEXT["robot"][lang]
     if at.startswith("person:"):
         return TEXT["person"][lang].format(person=person_name(world, at.split(":", 1)[1], lang))
     key = "in" if getattr(world.objects[oid], "inside", False) else "on"
-    return TEXT[key][lang].format(place=place_name(world, at, lang))
+    pl = world.house.places.get(at)
+    if pl is not None and at != world.objects[oid].at:
+        key = "in" if getattr(pl, "kind", "") == "container" else "on"
+    return TEXT[key][lang].format(place=clear_place_name(world, at, lang))
+
+
+LOC_NAMED = {"on": {"en": "The {obj} is on the {place}.", "ko": "{obj}{eun} {place} 위에 있어요."},
+             "in": {"en": "The {obj} is in the {place}.", "ko": "{obj}{eun} {place} 안에 있어요."},
+             "robot": {"en": "You are holding the {obj}.", "ko": "{obj}{eun} 지금 들고 있잖아요."},
+             "person": {"en": "{person} has the {obj}.", "ko": "{obj}{eun} {person}한테 있어요."}}
+
+
+def locations_text(world: Any, objs: list, lang: str, wrong_at: str | None = None) -> str:
+    """Where each of several objects is, each named ("The black glasses are on the desk in the study. The black
+    remote control is on the sofa."): a "where are X and Y?" answered for both (fresh pilot round 1,
+    hl-dev-000016). ``wrong_at``: a mistaken place for the first one (the wrong-answer draw)."""
+    if len(objs) == 1:
+        return location_text(world, objs[0], lang, wrong_at)
+    out = []
+    for i, o in enumerate(objs):
+        at = (wrong_at if i == 0 and wrong_at else None) or world.objects[o].at
+        name = _specific_name(world, o, lang)
+        if at == "robot":
+            key, kw = "robot", {}
+        elif at.startswith("person:"):
+            key, kw = "person", {"person": person_name(world, at.split(":", 1)[1], lang)}
+        else:
+            pl = world.house.places.get(at)
+            inside = (getattr(pl, "kind", "") == "container") if at != world.objects[o].at else \
+                bool(getattr(world.objects[o], "inside", False))
+            key, kw = ("in" if inside else "on"), {"place": clear_place_name(world, at, lang)}
+        fmt = LOC_NAMED[key][lang]
+        if lang == "ko":
+            t = _ko(fmt, obj=name, **kw)
+        else:
+            t = fmt.format(obj=name, **kw)
+            if name.endswith("s") and not name.endswith("ss") and key in ("on", "in"):
+                t = t.replace(" is ", " are ", 1)      # "the glasses are", "the keys are"
+        out.append(t[:1].upper() + t[1:])
+    return " ".join(out)
 
 
 def asks_user_position(question: str, world: Any = None) -> bool:
@@ -520,6 +591,13 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
         objs = mentioned_objects(world, question)
         if len(objs) > 1 and spec.get("intended") in objs:
             objs = [spec["intended"]]
+        asked = [o for o in objs if goal is not None and o in goal.objects()]
+        if len(objs) > 1 and len(asked) >= 2:
+            # "where are the glasses and the remote?": where each one is
+            if not knows_location:
+                return Content("not_sure", TEXT["dont_know"][L], False, None, "location_unknown")
+            return Content("correct", locations_text(world, asked[:3], L), True,
+                           locations_text(world, asked[:3], L, other_place) if other_place else None, "location")
         if len(objs) == 1:
             if not knows_location:
                 return Content("not_sure", TEXT["dont_know"][L], False, None, "location_unknown")
@@ -561,6 +639,7 @@ GOAL_TEXT = {
     "fix_go": {"en": "No, go to the {place}.", "ko": "아니요, {place}{ro} 가 주세요."},
     "fix_dock": {"en": "No, go back to the charger.", "ko": "아니요, 충전기로 돌아가 주세요."},
     "fix_say": {"en": "No, I asked you to tell {person}.", "ko": "아니요, {person}한테 말해 달라고 했어요."},
+    "fix_say_msg": {"en": "No, tell {person}: {msg}", "ko": "아니요, {person}한테 \"{msg}\"라고 말해 주세요."},
     "person_at": {"en": "{person} is at the {place}.", "ko": "{person}{eun} {place}에 있어요."},
     "anywhere_in": {"en": "Anywhere in the {room} is fine.", "ko": "{room} 안이면 아무 데나 괜찮아요."},
 }
@@ -744,7 +823,8 @@ class GoalView:
             return _say("to_me", L)
         return _say("to_person", L, person=person_name(self.w, a["args"][1], L))
 
-    def fix_text(self, a: dict, L: str) -> str:
+    def fix_text(self, a: dict, L: str, q: str | None = None) -> str:
+        """The correction of atom ``a`` the read-back ``q`` got wrong."""
         p, args = a["pred"], a["args"]
         if p in ("on", "in", "held_by"):
             obj = _specific_name(self.w, args[0], L)
@@ -762,6 +842,14 @@ class GoalView:
         if p == "docked":
             return _say("fix_dock", L)
         if p == "said_to":
+            if q is not None and self._person_ok(args[0], q) and speech_role(self.w, args[0], q) != "speaker":
+                # the right person, the wrong message: the user corrects what is to be said (fresh pilot round 1,
+                # hl-dev-000057: "No, I asked you to tell the kid." when the kid was named)
+                from homeloop_robot.catalog import MESSAGE_TEXT  # robot core
+                msg = (MESSAGE_TEXT.get(args[1]) or {}).get(L)
+                if msg:
+                    return _say("fix_say_msg", L, person=person_name(self.w, args[0], L),
+                                msg=msg.rstrip(".") if L == "ko" else msg)
             return _say("fix_say", L, person=person_name(self.w, args[0], L))
         return GOAL_TEXT["no"][L]
 
@@ -810,16 +898,24 @@ class GoalView:
     def _person_ok(self, pid: str, q: str, obj: str | None = None) -> bool:
         """The person is named, or their place is; a place named for them must be where they are. ``obj``: the
         object brought to them, whose own place may be named as where it comes from ("the mug from the counter")."""
+        # a quoted message is what will be said, not where: "say 'It's time for bed.'" names no bed (fresh pilot round
+        # 1, hl-dev-000057 EN), as in speech_role; it may still name its listener ('"점심 준비됐어요, 아빠."')
+        named = _mentions_any(q, _person_words(self.w, pid), self.w)
+        q = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
         here = self.place_of(pid)
         at_here = bool(here and _mentions_any(q, _place_words(self.w, here), self.w))
-        named = _mentions_any(q, _person_words(self.w, pid), self.w)
         # a place named for another part of the request (a compound read-back: "put the remote on the TV stand,
         # then tell grandpa") is not a place named for this person
         others = {x for a in self.atoms if a["pred"] not in ("said_to", "held_by")
                   for x in (a.get("args") or []) if x in self.w.house.places}
-        if obj is not None and obj in self.w.objects:
-            # where the object is / was at the start: the source of the delivery
-            others |= {x for x in (self.w.objects[obj].at, (getattr(self.w, "initial_at", None) or {}).get(obj))
+        # where the objects of the request are / were at the start: the sources of the deliveries, this one's and
+        # the other objects' ("the glasses from the TV stand ..., then the remote ... to grandpa": the TV stand is
+        # the glasses' source, not a place for grandpa; fresh pilot round 1, hl-dev-000060)
+        objs = {x for a in self.atoms if a["pred"] in ("on", "in", "held_by") for x in a["args"][:1]}
+        if obj is not None:
+            objs.add(obj)
+        for o in sorted(x for x in objs if x in self.w.objects):
+            others |= {x for x in (self.w.objects[o].at, (getattr(self.w, "initial_at", None) or {}).get(o))
                        if x in self.w.house.places}
         other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
                           if k != here and k not in others)
@@ -987,6 +1083,17 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
                     if here:
                         txt = _say("person_at", L, person=person_name(world, person, L), place=place_name(world, here, L))
                         return Content("correct", txt[:1].upper() + txt[1:], True, None, "goal_place")
+        if not hits and knows_location:
+            # none of the offered places is where the request goes, but one is where an object of the request is
+            # now: that one, named so it is not taken for the other ("Which desk do you mean?" -> "The desk in the
+            # study."; fresh pilot round 1, hl-dev-000016)
+            src = [p for p in places for o in dict.fromkeys(gv.objects())
+                   if o in world.objects and world.objects[o].at == p]
+            if src:
+                others = [p for p in places if p not in src]
+                return Content("correct", _say("pick", L, name=clear_place_name(world, src[0], L)), True,
+                               _say("pick", L, name=clear_place_name(world, others[0], L)) if others else None,
+                               "goal_place")
         if hits:
             others = [p for p in places if p not in targets]
             return Content("correct", _say("pick", L, name=place_name(world, hits[0], L)), True,
@@ -1029,5 +1136,5 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
             bad = [a for a in rel if not gv.covered(a, q)]
             if not bad:
                 return Content("yes", _say("yes", L), True, _say("no", L), "goal_confirm")
-            return Content("no", gv.fix_text(bad[0], L), True, _say("yes", L), "goal_correct")
+            return Content("no", gv.fix_text(bad[0], L, q), True, _say("yes", L), "goal_correct")
     return None

@@ -244,6 +244,12 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
         c = D.repair(q, L, world, request=request, last_answer=None, goal=goal, spec=spec) if request else None
         if c is not None:
             return c
+        if not _named(world, m["word"]) and not _places_in(world, m["word"]):
+            # "'언경'과 '리컨 갖단 드'는 무슨 뜻이에요?": the robot quotes words it misheard, which name nothing in the
+            # house and are not the user's words; the user hears that they were misheard and says the request again
+            # (convention 3, as for an ASR fragment taken for an object; fresh pilot round 1, hl-dev-000060 KO)
+            return answer_structured({"qtype": "repeat", "about": "request"}, L, spec, world, user_place=user_place,
+                                     goal=goal, request=request, last_answer=last_answer, **kw)
         # not a word of the user's own request: a check of that thing ("Did you mean the blue book?")
         return answer_structured({"qtype": "confirm", "obj": m["word"]}, L, spec, world, user_place=user_place,
                                  goal=goal, request=request, last_answer=last_answer, **kw)
@@ -377,6 +383,13 @@ def _where_is(obj: str, L: str, spec: dict, world: Any, goal, knows_location: bo
     objs = D.mentioned_objects(world, obj)
     if len(objs) > 1:
         want = [o for o in objs if o == spec.get("intended") or (goal is not None and o in goal.objects())]
+        if len(want) >= 2:
+            # "Where are the reading glasses and the remote now?": where each one is (fresh pilot round 1,
+            # hl-dev-000016: only the glasses' place was given, so the robot took it for the remote too)
+            if not knows_location:
+                return D.Content("not_sure", D.TEXT["dont_know"][L], False, None, "location_unknown")
+            return D.Content("correct", D.locations_text(world, want[:3], L), True,
+                             D.locations_text(world, want[:3], L, other_place) if other_place else None, "location")
         objs = want[:1] if len(want) == 1 else objs
     if len(objs) == 1:
         if not knows_location:
@@ -535,6 +548,27 @@ def _places_in(world: Any, text: str) -> list:
             if getattr(world.house.places[pid], "kind", "") != "floor" and D._mentions_any(t, D._place_words(world, pid), world)]
 
 
+def _places_headed(world: Any, x: str, L: str) -> list:
+    """The places of the house that "which <x>" asks between: those whose name (or an alias) in ``L`` is ``x`` or
+    ends in it ("which desk": the desk and the kid's desk; not the desk chair)."""
+    n = D.normalize(x, L)
+    if L == "ko":
+        n = re.sub(r"(?:이요|요)$", "", n)          # "어느 책상이요?"
+    if not n:
+        return []
+    out = []
+    for pid, pl in sorted(world.house.places.items()):
+        if getattr(pl, "kind", "") == "floor":
+            continue
+        names = [pl.name.get(L, "")] + list((getattr(pl, "aliases", None) or {}).get(L) or [])
+        for nm in names:
+            m = D.normalize(nm, L)
+            if m and (m == n or (m.endswith(" " + n) if L == "en" else m.endswith(n))):
+                out.append(pid)
+                break
+    return out
+
+
 def _named(world: Any, x: str) -> bool:
     """Does ``x`` name a thing or a person of the house?"""
     x = D._q_text(x)
@@ -632,6 +666,13 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
     # which place: "which drawer / 어떤 서랍", or a choice among places only
     w = (WHICH_KO if ko else WHICH_EN).search(sent)
     if w and (any(n in w["x"].lower() for n in PLACE_NOUNS) or (_places_in(world, w["x"]) and not _named(world, w["x"]))):
+        # "Which desk do you mean?" in a house with a desk and a kid's desk: a choice between those (fresh pilot round
+        # 1, hl-dev-000016: answered with the destination, never which desk)
+        fam = _places_headed(world, _strip_obj(w["x"]), L)
+        if len(fam) >= 2 and not any(n in w["x"].lower() for n in PLACE_NOUNS):
+            # (the English names: the goal rules match options on the places' English words)
+            return {"qtype": "which_place", "options": [D.place_name(world, p, "en") for p in fam][:6]}, \
+                "free_which_place"
         return {"qtype": "which_place"}, "free_which_place"
     if (w or ALT_RX.search(q)) and not D.mentioned_objects(world, q) and not (w and _thing_word(world, sent)):
         pl = _places_in(world, q)

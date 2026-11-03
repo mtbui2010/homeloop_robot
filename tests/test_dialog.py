@@ -240,7 +240,11 @@ def test_goal_more_question_forms():
 
 
 def test_which_place_to_look_is_a_location_question():
+    # both asked-about objects are of the request: where each one is (fresh pilot round 1, hl-dev-000016: the
+    # longest name used to drop the other one)
     c = _ans("Which place should I look for the blue mug and the phone?")
+    assert c.rule == "location" and c.text == "The blue mug is on the counter. The phone is on the coffee table."
+    c = _ans("Which place should I look for the blue mug?")
     assert c.rule == "location" and c.text == "It's on the counter."
 
 
