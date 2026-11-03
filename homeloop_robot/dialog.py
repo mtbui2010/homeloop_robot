@@ -786,6 +786,32 @@ class GoalView:
         return at_here or (named and not other_place)
 
 
+# A robot's remark on its own understanding before a read-back (SAGE-v2 ``AssistLoop._read_back``: "I am not sure I
+# understood (the X you mentioned is not in my plan; you did not say the Y)." and its Korean translations: "(당신이
+# 말한 '나'는 제 계획에 없고 ...)", "냉장고 말씀하신 거 제가 이해한 게 맞는지 확신이 안 돼요.", "조리대 얘기한 거 제가 계획에
+# 없고, ..."). It says what is NOT in the plan, so the things it names are not part of the read-back.
+REMARK_PAREN_RX = re.compile(r"\s*[(（]([^()（）]*)[)）]")
+REMARK_RX = {"en": re.compile(r"\bnot\s+sure\s+(?:if\s+|that\s+|whether\s+)?i\s+(?:understood|understand)\b|"
+                              r"\bnot\s+in\s+my\s+plan\b|\byou\s+did(?:\s+not|n'?t)\s+(?:say|mention)\b", re.I),
+             "ko": re.compile(r"계획에|계획엔|확신이\s*(?:안|없)|이해(?:한|했|하지|를)\s*(?:건지|게|것|는지|지|못)|모르겠|"
+                              r"언급\s*(?:안|하지|없)|말씀\s*(?:안|하지\s*않)|얘기\s*안|포함(?:된|되지|하지)\s*(?:건|것|않)")}
+
+
+def _remark(s: str) -> bool:
+    return bool(REMARK_RX["en"].search(s) or REMARK_RX["ko"].search(s))
+
+
+def strip_plan_remarks(question: str) -> str:
+    """The question without the robot's remarks on what is not in its plan (the parentheticals and sentences
+    :data:`REMARK_RX` finds); the text itself when nothing else is left."""
+    q = str(question or "")
+    t = re.sub(r"\.{2,}|…", ",", q)                     # "아들, 나, 아이, 저... 모두 제가 계획에 ...": one sentence
+    t = REMARK_PAREN_RX.sub(lambda m: "" if _remark(m.group(1)) else m.group(0), t)
+    keep = [s for s in re.split(r"(?<=[.!?])\s+", t.strip()) if s and not _remark(s)]
+    out = " ".join(keep).strip()
+    return out if out else q
+
+
 def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_location: bool,
                       other_place: str | None = None) -> Content | None:
     """Answer content from what the user asked for, or None when no rule applies (see the section comment)."""
@@ -912,8 +938,11 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
                     txt = _say("person_at", L, person=person_name(world, pid, L), place=place_name(world, here, L))
                     return Content("correct", txt[:1].upper() + txt[1:], True, None, "person_location")
 
-    # 5. yes / no: a read-back of the whole plan, or a question about one part of the request
+    # 5. yes / no: a read-back of the whole plan, or a question about one part of the request. A remark on what
+    # the robot did not understand ("I am not sure I understood (the TV stand you mentioned is not in my plan).")
+    # is not part of the plan read back: what it names is not checked against the request
     if qtype == "yes_no":
+        q = strip_plan_remarks(q)
         readback = bool(READBACK_RX.search(q))
         rel = gv.atoms if readback else [a for a in gv.atoms if gv.subject_said(a, q)]
         if rel:
