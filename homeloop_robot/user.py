@@ -290,22 +290,51 @@ class SimUser:
         self.log.append({"t": r6(t), "q": question, "kind": "no_answer", "why": why, "text": "", "heard": ""})
         return reply, Heard("", "not_heard")
 
-    def _content(self, question: str, L: str, meaning, kw: dict):
-        """(Content, path, qtype): structured (the planner's meaning) -> rules (dialog.compose) -> llm (the
-        classifier, only when the rules do not understand the question)."""
-        m = _intent.clean(meaning)
-        if m is not None and m["qtype"] != "free":
-            c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
+    def _read_text(self, question: str, L: str, kw: dict):
+        """(Content, path, qtype) of a free-text question: rules (the free-text conventions of ``intent.read_free``,
+        then ``dialog.compose`` on the question as it is answered) -> llm (the classifier, only when the rules do
+        not understand it)."""
+        r = _intent.read_free(question, L, self.world)
+        if r is not None and r[0]["qtype"] == "free":        # a remark: nothing to answer
+            return _intent._not_sure(L, self.spec or {}), "rules", "free"
+        if r is not None:
+            c = _intent.answer_structured(r[0], L, self.spec, self.world, **kw)
             if c is not None:
-                return c, "structured", m["qtype"]
-        c = dialog.compose(question, L, self.spec, self.world, **kw)
+                return c, "rules", r[0]["qtype"]
+        qt = _intent.text_for_rules(question, L)
+        c = dialog.compose(qt, L, self.spec, self.world, **kw)
         if c.rule not in _intent.NOT_CONFIDENT or self.classifier is None:
-            return c, "rules", _intent.rule_qtype(c, question, self.spec)
-        m2 = _intent.clean(self.classifier(question, L))
+            return c, "rules", _intent.rule_qtype(c, qt, self.spec)
+        m2 = _intent.clean(self.classifier(_intent.strip_preamble(question), L))
         if m2 is None:
             return c, "llm", "free"
+        m2 = _intent.ungrounded(m2, self.world, question) or m2
         c2 = _intent.answer_structured(m2, L, self.spec, self.world, **kw) if m2["qtype"] != "free" else None
         return (c2 if c2 is not None else c), "llm", m2["qtype"]
+
+    def _content(self, question: str, L: str, meaning, kw: dict):
+        """(Content, path, qtype): structured (the planner's meaning) -> rules -> llm (``_read_text``).
+
+        A meaning about a phrase that names nothing in the house is read as "say the task again"
+        (``intent.ungrounded``). In a Korean episode the meaning counts only when the Korean text the user hears
+        reads the same way (the planner may derive its meaning from an English question that was translated
+        badly): otherwise the user answers what it heard (path ``structured_mismatch``)."""
+        m = _intent.clean(meaning)
+        if m is not None and m["qtype"] != "free":
+            m = _intent.ungrounded(m, self.world, question) or m
+            ct = None
+            if L == "ko":
+                ct, _p, qt = self._read_text(question, L, kw)
+                if qt != m["qtype"]:
+                    return ct, "structured_mismatch", qt
+            c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
+            if c is not None:
+                # the same meaning, but its English slot names nothing the user knows ("plates" for 접시): the
+                # answer to what was heard
+                if ct is not None and c.rule in _intent.NOT_CONFIDENT and ct.rule not in _intent.NOT_CONFIDENT:
+                    c = ct
+                return c, "structured", m["qtype"]
+        return self._read_text(question, L, kw)
 
     def answer(self, question: str, lang: str, robot_xy, t: float, meaning: dict | None = None):
         """The user's reply to ``question`` (what they hear). ``meaning``: the planner's structured form of the

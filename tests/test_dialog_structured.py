@@ -95,7 +95,8 @@ def test_which_place_gives_the_intended_destination(L):
 
 @pytest.mark.parametrize("L,txt", [("en", "On the TV stand, please."), ("ko", "티비장 위에")])
 def test_which_place_with_an_object_is_its_destination(L, txt):
-    r, log = _ask(L, "?", {"qtype": "which_place", "obj": "remote"})
+    # in a Korean episode the meaning counts when the Korean text heard reads the same way (structured_mismatch)
+    r, log = _ask(L, {"en": "?", "ko": "리모컨 어디에 둘까요?"}[L], {"qtype": "which_place", "obj": "remote"})
     assert log["why"] == "goal_destination" and txt in r.text
 
 
@@ -103,45 +104,49 @@ def test_which_place_with_an_object_is_its_destination(L, txt):
 def test_confirm_read_back(L):
     good = "I will put the remote on the TV stand, then say \"Dinner is ready.\" to grandpa."
     bad = "I will put the remote on the coffee table, then say \"Dinner is ready.\" to grandpa."
-    r, log = _ask(L, "확인할게요" if L == "ko" else "OK?", {"qtype": "confirm", "goal": good})
+    q = "그렇게 할게요. 맞죠?" if L == "ko" else "OK?"
+    r, log = _ask(L, q, {"qtype": "confirm", "goal": good})
     assert r.kind == "yes" and log["why"] == "goal_confirm"
-    r, log = _ask(L, "확인할게요" if L == "ko" else "OK?", {"qtype": "confirm", "goal": bad})
+    r, log = _ask(L, q, {"qtype": "confirm", "goal": bad})
     assert r.kind == "no" and log["why"] == "goal_correct"
 
 
 @pytest.mark.parametrize("L", ["en", "ko"])
 def test_confirm_one_candidate(L):
-    r, _ = _ask(L, "?", {"qtype": "confirm", "obj": "green mug"}, GLASS_SPEC, GLASS_GOAL, GLASS_REQ)
+    r, _ = _ask(L, {"en": "?", "ko": "초록색 머그컵 맞아요?"}[L], {"qtype": "confirm", "obj": "green mug"}, GLASS_SPEC,
+                GLASS_GOAL, GLASS_REQ)
     assert r.kind == "yes"
-    r, _ = _ask(L, "?", {"qtype": "confirm", "obj": "white mug"}, GLASS_SPEC, GLASS_GOAL, GLASS_REQ)
+    r, _ = _ask(L, {"en": "?", "ko": "하얀 머그컵 맞아요?"}[L], {"qtype": "confirm", "obj": "white mug"}, GLASS_SPEC,
+                GLASS_GOAL, GLASS_REQ)
     assert r.kind == "no" and r.text.endswith(GLASS_SPEC["answer"][L][1:] if L == "ko" else "green one, please.")
 
 
 @pytest.mark.parametrize("L,where", [("en", "sofa"), ("ko", "소파")])
 def test_where_are_you(L, where):
-    r, log = _ask(L, "?", {"qtype": "where_are_you"})
+    r, log = _ask(L, {"en": "?", "ko": "지금 어디 계세요?"}[L], {"qtype": "where_are_you"})
     assert where in r.text and log["why"] == "self_position"
 
 
 @pytest.mark.parametrize("L,obj,txt", [("en", "remote", "coffee table"), ("ko", "리모컨", "거실 탁자"),
                                        ("en", "grandpa", "bed"), ("ko", "할아버지", "침대")])
 def test_where_is_object_or_person(L, obj, txt):
-    r, log = _ask(L, "?", {"qtype": "where_is", "obj": obj})
+    q = {"리모컨": "리모컨 어디 있어요?", "할아버지": "할아버지 어디 계세요?"}.get(obj, "?")
+    r, log = _ask(L, q, {"qtype": "where_is", "obj": obj})
     assert txt in r.text and log["why"] in ("location", "person_location")
 
 
 @pytest.mark.parametrize("L", ["en", "ko"])
 def test_repeat_and_did_you_mean(L):
-    r, log = _ask(L, "?", {"qtype": "repeat"})
+    r, log = _ask(L, {"en": "?", "ko": "다시 말씀해 주시겠어요?"}[L], {"qtype": "repeat"})
     assert r.text == FETCH_REQ[L] and log["why"] == "repeat_request"
     word = {"en": "TV stand", "ko": "할아버지"}[L]
-    r, log = _ask(L, "?", {"qtype": "did_you_mean", "word": word})
+    r, log = _ask(L, {"en": "?", "ko": "할아버지라고 하셨어요?"}[L], {"qtype": "did_you_mean", "word": word})
     assert r.kind == "yes" and r.text.endswith(FETCH_REQ[L]) and log["why"] == "repair_confirm"
 
 
 @pytest.mark.parametrize("L,txt", [("en", "Dinner is ready."), ("ko", "저녁 준비됐어요.")])
 def test_what_to_say_is_the_message(L, txt):
-    r, log = _ask(L, "?", {"qtype": "what_to_say", "person": "grandpa"})
+    r, log = _ask(L, {"en": "?", "ko": "할아버지께 뭐라고 말씀드릴까요?"}[L], {"qtype": "what_to_say", "person": "grandpa"})
     assert txt in r.text and log["why"] == "goal_message"
 
 
@@ -206,7 +211,8 @@ def test_mix_and_silence_unchanged_for_structured_questions(L):
     heard_diff = 0
     n = 6000
     for _ in range(n):
-        r, h = u.answer("?", L, xy, 0.0, meaning={"qtype": "which_object", "options": ["white mug", "green mug"]})
+        q = {"en": "?", "ko": "하얀 머그컵이요, 초록색 머그컵이요?"}[L]
+        r, h = u.answer(q, L, xy, 0.0, meaning={"qtype": "which_object", "options": ["white mug", "green mug"]})
         kinds[r.kind] += 1
         heard_diff += r.kind != "no_answer" and h.text != r.text
         u.log.clear()

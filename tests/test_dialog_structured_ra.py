@@ -66,7 +66,7 @@ def test_issue_questions():
     q = U.issue_question([{"kind": "verb", "what": "bring"}], places)
     assert derive(q)["qtype"] == "which_object"
     q = U.issue_question([{"kind": "place", "what": "sofa"}], places)
-    assert derive(q)["qtype"] == "free"
+    assert derive(q)["qtype"] == "repeat"         # an open "what should I do there?": the task again
 
 
 def test_conflict_and_misheard_and_yes_or_no():

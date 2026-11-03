@@ -50,7 +50,9 @@ TEMPLATES = [
     # assist_loop._ground_goals / understand.issue_question ("unsaid")
     ("where_put", r"Where should I put the (?P<obj>.+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
     # understand.issue_question ("place"): an open question about a place the person named
-    ("mentioned_place", r"You mentioned the (?P<what>.+?)\. What should I do there\?", "free", lambda m: {}),
+    # (an open "what should I do?": the person says the task again, homeloop_robot.intent convention 3)
+    ("mentioned_place", r"You mentioned the (?P<what>.+?)\. What should I do there\?", "repeat",
+     lambda m: {"about": "request"}),
     # understand.issue_question ("object")
     ("do_with", r"What should I do with the (?P<obj>.+?)\?", "which_place", lambda m: {"obj": m["obj"]}),
     # assist_loop._understand_round / _read_back: the task itself, again
