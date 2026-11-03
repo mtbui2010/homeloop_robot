@@ -151,17 +151,48 @@ read as free text. A qtype whose script has nothing to say gets "not sure" like 
 
 **Free text** (no meaning, or `free`), in this order:
 
-1. **Rules**: `dialog.compose` (dialog policy above). When a rule answers, that is the answer (path `rules`).
+1. **Rules**, first the reading conventions of spoken dialog (`intent.read_free`), then `dialog.compose` (dialog
+   policy above) on the part of the question that is answered (`intent.text_for_rules`). The conventions:
+   1. the robot's own re-ask preamble ("Sorry, I didn't hear you.", "Sorry, I may have misheard you.",
+      "죄송해요, 잘 안 들렸어요.") is not a request to repeat, and a context sentence ("You mentioned the X.",
+      "X 얘기하셨죠?") is not the question: the question after it is read;
+   2. a compound question is answered from its **first** question ("Where is the red book, and where should I
+      bring it to?" -> where it is); sentences before the first "?" are context (a read-back); a Korean list of
+      steps ("A하고, B하고, ... 맞나요?") is one question;
+   3. an open "what should I do (there)?", "which things ... and where?" with nothing specific named, or "what
+      should I do with X?" where X names nothing in the house -> `repeat` (the user says the task again); "what
+      does 'X' mean?" about a short quoted word -> `did_you_mean`;
+   4. "Where is X?" naming a thing or person of the house (also after "I couldn't find X.") -> `where_is`;
+      "which drawer / 어떤 서랍", a choice between two places, "어디에 둘까요?" -> `which_place`; a choice between
+      two things -> `which_object`; one proposal ("Should I ...?", "...드릴까요?") or a read-back with a tag
+      ("맞죠?", "Is that right?") -> `confirm`; "What should I tell X?" -> `what_to_say`; a remark with no
+      question, or a request for the user to do the task ("Can you bring me the mug?") -> `free` (not sure).
+   When a rule answers, that is the answer (path `rules`).
 2. **LLM classifier**, only when the rules do not understand the question (rule `not_understood` /
-   `generic_user`) and the run has an LLM: `homeloop_bench/user_intent.py` maps the question onto the qtype list
-   plus slots with a fixed prompt (version `ui1`), temperature 0, seed 0, JSON output. It only classifies; the
-   answer comes from `answer_structured` (path `llm`). A `free` or unusable classification keeps "not sure".
+   `generic_user`) and the run has an LLM: `homeloop_bench/user_intent.py` maps the question (preamble removed)
+   onto the qtype list plus slots with a fixed prompt (version `ui2`: the qtype list with examples and the same
+   reading conventions), temperature 0, seed 0, JSON output. It only classifies; the answer comes from
+   `answer_structured` (path `llm`). A `free` or unusable classification keeps "not sure".
 3. Classifications are cached per run in `<out>/llm_cache/user_intent.jsonl`, so a rerun gives the same
    episodes. With no LLM (or `--llm fake`, or `HOMELOOP_USER_CLASSIFIER=rules`) only the rules apply
    (`summary.json` config `user_classifier: rules`).
 
+**A meaning about nothing.** A `which_object` / `which_place` meaning whose `obj` names nothing in the house
+(SAGE's "What should I do with the chicken bring?" about an ASR fragment) cannot be answered about that thing: a
+"where ...?" question keeps `which_place` without the object, otherwise the user says the task again (`repeat`)
+(`intent.ungrounded`).
+
+**Korean: the meaning must match the heard text.** robot_agent's adapter derives the meaning from SAGE's English
+question before translation, but a Korean user hears the translation. In a Korean episode the meaning counts only
+when the Korean text, read by the free-text chain above (rules, then the classifier), gives the same qtype;
+otherwise the user answers what it heard (that reading, or "not sure") and the answer is recorded with path
+`structured_mismatch` ("Where are you?" translated as "여기 있어요?" is not a question about the user's position).
+When the qtypes agree but the English slot names nothing the user knows ("plates" for 접시), the answer to the
+heard text is used. English episodes hear the template itself and are not checked. The share of
+`structured_mismatch` answers is in each run's `summary.json` `dialog_paths` (one language per run).
+
 Every answered question records how it was read: `SimUser.log[*]` and the episode's `calls[*].intent` hold
-`{path: structured | rules | llm, qtype, rule}`, `episodes.jsonl` has `dialog_paths` (counts) and `summary.json`
+`{path: structured | structured_mismatch | rules | llm, qtype, rule}`, `episodes.jsonl` has `dialog_paths` (counts) and `summary.json`
 has `dialog_paths` (shares). For a rules answer the qtype is the one its rule implies (`intent.rule_qtype`).
 
 **Who declares a meaning.** `oracle`: its gold clarification question (`which_object` / `which_place`, the
@@ -176,11 +207,41 @@ the list and the robot_agent function each comes from are in that file). Questio
 itself, and robot_agent's ClosedLoop planners (grace, llm_direct), have no template: free text.
 `HOMELOOP_RA_STRUCTURED=0` turns the adapter's meanings off (ablation).
 
-**Accuracy audit.** Real robot questions from the experiment runs (exp_r2, live_smoke, the sage traces; at least
-100 EN and 100 KO, the hard cases of the sage failure analysis included) are labelled with the gold qtype by a
-3-judge agent panel (majority; disagreements listed) and compared with the simulator's reading (structured ->
-rules -> LLM, `python -m homeloop_bench.user_intent interpret`). Results: homeloop_bench
-`data/quality/sim_user_audit.json` (`n, n_en, n_ko, accuracy, accuracy_en, accuracy_ko, by_path, confusions`).
+**Accuracy audit** (`python -m homeloop_bench.sim_user_audit`; result `homeloop_bench/data/quality/sim_user_audit.json`).
+
+- *Set* (fixed, `homeloop_bench/data/quality/sim_user_audit/questions.jsonl`): 533 real robot questions (266 EN, 267
+  KO) taken from the runs: live_smoke sage EN/KO (282), the R2-6 sage traces (183), with 313 questions of
+  tasks in the sage failure analysis tagged by their `causes.tsv` cause (`context.hard_case`), exp_r2 oracle (61) and progprompt_like (5), and the early R2-5 probe (2). Each row has
+  the task id and, for a Korean sage question, the English question SAGE wrote before translation (`robot_en`,
+  from the translation prompt in the trace or the run's LLM cache; one untranslated English question is its own
+  English).
+- *Gold*: three independent agent judges labelled every question with a qtype and slots from what the person
+  hears (`labels_{1,2,3}.json`). Gold is the qtype of at least two judges; the 4 questions where all three differ
+  are listed in `disagreements` and left out (`n_disagree_excluded`).
+- *Simulator reading*: each question goes through the chain of an episode of its task (profile ideal, seed 0):
+  structured (the meaning the run's planner attached, rebuilt the way the run built it: SAGE's template via
+  `configs/ra_dialog.derive`, the oracle's gold question or help request, none for the others), the Korean
+  heard-text check, rules, then the classifier (qwen3-vl:8b-instruct on GPU 0, cached in
+  `sim_user_audit/user_intent_cache.jsonl`, so the audit reruns without a server).
+- *Score*: a reading is correct when its qtype is gold and, when both sides give it, its key slot (where_is
+  `obj`, did_you_mean `word`, repeat `about`, what_to_say `person`) matches a gold judge's value (same words, or
+  naming the same object of the house). A rules reading by `dialog.compose` has no slots: only its qtype counts.
+
+| | n | accuracy | EN | KO | structured | rules | llm | structured_mismatch |
+|---|---|---|---|---|---|---|---|---|
+| before the fixes (robot a3e97d7, bench 5215e4c; prompt ui1) | 529 | 0.758 | 0.788 | 0.728 | 0.913 (61 %) | 0.503 (27 %) | 0.540 (12 %) | - |
+| after (prompt ui2) | 529 | **0.953** | **0.966** | **0.940** | 0.985 (63 %) | 0.917 (27 %) | 0.829 (7 %) | 0.867 (3 %) |
+
+(accuracy of each path, with its share of the 529 questions). The fixes were made from this set's confusions:
+the conventions above, SAGE's "You mentioned the X. What should I do there?" read as `repeat` (it was `free`),
+the Korean heard-text check (R2-7 note) and prompt ui2. The set was not changed (no question was dropped or
+relabelled), but the result is an in-sample number: the conventions were written while reading these errors, so
+accuracy on new robot questions may be lower. The before row is the same set and scorer run on the code before
+the fixes (`sim_user_audit/baseline.json`). Remaining confusions after the fixes (25 of 529): mostly an English or
+Korean question that offers an action and a place in one sentence ("Should I bring the blue book to the bed, or
+do you want me to hold them there?": gold which_place, read as a proposal), robot remarks the judges call `free`
+but the rules read as a proposal, and English slots that name an object by another word ("plates" for 접시). The
+oracle's episodes (50 dev tasks, real, seed 0, EN and KO) are unchanged by the fixes.
 
 ## ASR
 
