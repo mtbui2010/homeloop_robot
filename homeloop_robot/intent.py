@@ -18,7 +18,8 @@ The qtype list is frozen (docs/user_model.md). Slots:
 qtype           slots (all optional unless marked)
 ==============  =====================================================================================
 which_object    options: [names], the objects offered ("the red mug or the blue mug"); obj
-which_place     options: [place names / ids]; obj: the object whose destination is asked
+which_place     options: [place names / ids]; obj: the object whose destination is asked; verb: open | close
+                (which container / door to open or close: "What should I open?")
 confirm         goal: a read-back of the plan ("I will put the mug on the counter."); obj: one thing
                 ("is it the red mug?"); options are not used
 where_are_you   -
@@ -39,10 +40,11 @@ from homeloop_robot import dialog as D
 
 QTYPES = ("which_object", "which_place", "confirm", "where_are_you", "where_is", "repeat", "did_you_mean",
           "what_to_say", "help", "free")
-SLOTS = {"which_object": ("options", "obj"), "which_place": ("options", "obj"), "confirm": ("goal", "obj"),
+SLOTS = {"which_object": ("options", "obj"), "which_place": ("options", "obj", "verb"), "confirm": ("goal", "obj"),
          "where_are_you": (), "where_is": ("obj",), "repeat": ("about",), "did_you_mean": ("word",),
          "what_to_say": ("person",), "help": (), "free": ()}
 REQUIRED = {"where_is": "obj", "did_you_mean": "word"}
+VERBS = {"open": "open", "close": "close", "shut": "close"}      # which_place.verb
 PATHS = ("structured", "structured_mismatch", "rules", "llm")
 # the rules found nothing they understand: the classifier (when there is one) is asked
 NOT_CONFIDENT = ("not_understood", "generic_user")
@@ -87,6 +89,10 @@ def clean(meaning: Any) -> dict | None:
         elif k == "about":
             if str(v) in ("request", "answer"):
                 out[k] = str(v)
+        elif k == "verb":
+            v = VERBS.get(str(v).strip().lower())
+            if v:
+                out[k] = v
         else:
             out[k] = str(v).strip()
     if qt in REQUIRED and REQUIRED[qt] not in out:
@@ -245,6 +251,8 @@ def _which_object(m: dict, L: str, world: Any, goal, kw) -> "D.Content | None":
 def _which_place(m: dict, L: str, world: Any, goal, kw) -> "D.Content | None":
     if goal is None:
         return None
+    if m.get("verb"):
+        return _what_to_open(m["verb"], L, world, goal)
     opts = m.get("options") or []
     obj = m.get("obj")
     if len(opts) >= 2 and not obj:
@@ -275,6 +283,19 @@ def _which_place(m: dict, L: str, world: Any, goal, kw) -> "D.Content | None":
             return D.Content("correct", D._say("pick", L, name=D.place_name(world, a["args"][0], L)), True, None,
                              "goal_place")
     return None
+
+
+def _what_to_open(verb: str, L: str, world: Any, goal) -> "D.Content | None":
+    """ "What should I open / close?": the container or door the request opens / closes ("The fridge."); for open,
+    else the container something is to be put in; None when the request opens / closes nothing."""
+    pred = "open" if verb == "open" else "closed"
+    hits = [a["args"][0] for a in goal.atoms if a["pred"] == pred]
+    if not hits and verb == "open":
+        hits = [a["args"][1] for a in goal.atoms if a["pred"] == "in"
+                and getattr(world.house.places.get(a["args"][1]), "kind", "") == "container"]
+    if not hits:
+        return None
+    return D.Content("correct", D._say("pick", L, name=D.place_name(world, hits[0], L)), True, None, "goal_place")
 
 
 def _where_is(obj: str, L: str, spec: dict, world: Any, goal, knows_location: bool, other_place) -> "D.Content":
@@ -461,6 +482,11 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
         if _short(quoted[0]):
             return {"qtype": "did_you_mean", "word": quoted[0]}, "free_quoted_word"
         return {"qtype": "repeat", "about": "request"}, "free_quoted_request"
+    # which thing to open / close: "What should I open?" / "뭘 열까요?"
+    v = (WHAT_VERB_KO.search(sent) if ko else WHAT_VERB_EN.match(sent.strip()))
+    if v:
+        return {"qtype": "which_place", "verb": VERBS.get(v["verb"].lower(), "open" if v["verb"] == "열" else "close")}, \
+            "free_what_to_open"
     # an open "what should I do (there)?"
     if not ko:
         m = OPEN_DO_EN.match(sent.strip())
@@ -528,6 +554,10 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
     return None
 
 
+WHAT_VERB_EN = re.compile(r"^(?:which\s+one|what)\s+(?:should|shall|do\s+you\s+want)\s+(?:i|me)\s+(?:to\s+)?"
+                          r"(?P<verb>open|close|shut)\s*\??\s*$", re.I)
+WHAT_VERB_KO = re.compile(r"(?:무엇|뭘|뭐|어떤\s*(?:것|거|걸)|어느\s*(?:것|거|걸|쪽))(?:을|를)?\s*(?:좀\s*)?(?P<verb>열|닫)"
+                          r"(?:까요|을까요|어야|아야|으면|면|어\s*드릴|아\s*드릴)")
 DEST_KO = re.compile(r"어디(?:에|로)?\s*(?:다\s*)?(?:두|놓|넣|갖다|가져다|가져가|옮기|옮겨)")
 PROPOSE_EN = re.compile(r"^(?:should|shall)\s+(?:i|the robot|we)\b|^(?:do you want|would you like)\s+me\s+to\b", re.I)
 PROPOSE_KO = re.compile(r"(?:드릴|해\s*드릴|할|갈|놓을|둘|넣을|줄|올|전할|말할|가져갈)까요\s*\??$|(?:해|말해|가져다|갖다)\s*줘요\s*\?$|"

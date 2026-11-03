@@ -42,7 +42,7 @@ TEMPLATES = [
     ("which_x", r"Which (?P<what>[^?:]+?) do you mean: " + _OPT + r"\?", "which_place",
      lambda m: {"options": _opts(m["opts"])}),
     # assist_loop._ground_container
-    ("which_drawer", r"Which drawer should I (?:open|close)\?", "which_place", lambda m: {}),
+    ("which_drawer", r"Which drawer should I (?P<verb>open|close)\?", "which_place", lambda m: {"verb": m["verb"]}),
     # assist_loop._ground_template
     ("what_to_say", r"What should I say\?", "what_to_say", lambda m: {}),
     ("where_go", r"Where should I go\?", "which_place", lambda m: {}),
@@ -59,8 +59,10 @@ TEMPLATES = [
     ("what_to_do", r"(?:Sorry\. )?What should I do(?: exactly)?\?", "repeat", lambda m: {"about": "request"}),
     ("other_words", r"Sorry, I did not understand\. Could you say the task in other words\?", "repeat",
      lambda m: {"about": "request"}),
-    # understand.issue_question ("verb"): "you asked me to bring something"
-    ("what_verb", r"What should I (?P<verb>[a-z]+(?: [a-z]+)?)\?", "which_object", lambda m: {}),
+    # understand.issue_question ("verb"): the request says open / close (understand._VERB: "open", "close", which
+    # also reads "shut") and no goal does it: which container or door to open / close, a place, with the verb kept;
+    # only these verbs, so the LLM's own "What should I tell dad?" gets no meaning
+    ("what_verb", r"What should I (?P<verb>open|close|shut)\?", "which_place", lambda m: {"verb": m["verb"]}),
     # understand.misheard_question with no earlier question
     ("say_again", r"(?:Sorry, I may have misheard you\. )?Could you say that again\?", "repeat",
      lambda m: {"about": "request"}),

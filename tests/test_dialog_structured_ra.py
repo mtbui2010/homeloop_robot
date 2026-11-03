@@ -63,8 +63,11 @@ def test_issue_questions():
     assert m["template"] == ["which_x"]
     q = U.issue_question([{"kind": "object", "what": "towel"}], places)
     assert derive(q)["qtype"] == "which_place" and derive(q)["obj"] == "towel"
-    q = U.issue_question([{"kind": "verb", "what": "bring"}], places)
-    assert derive(q)["qtype"] == "which_object"
+    # the verb issue: robot_agent's own verbs (understand._VERB), a question about which container / door
+    assert set(U._VERB) == {"open", "close"}
+    for verb in U._VERB:
+        q = U.issue_question([{"kind": "verb", "what": verb}], places)
+        assert derive(q) == {"qtype": "which_place", "verb": verb, "template": ["what_verb"]}
     q = U.issue_question([{"kind": "place", "what": "sofa"}], places)
     assert derive(q)["qtype"] == "repeat"         # an open "what should I do there?": the task again
 
@@ -110,6 +113,9 @@ def test_assist_loop_templates(q, qt, slots):
 
 def test_llm_own_question_has_no_meaning():
     assert derive("Do you want the mug washed first?") is None
+    # "What should I <verb>?" is a template only for robot_agent's open / close verb issue
+    for q in ("What should I tell dad?", "What should I do first?", "What should I bring?"):
+        assert derive(q) is None, q
     assert derive("") is None
     # the LLM's words first, then a template: the template gives the meaning
     m = derive("Hmm, two shelves. Which place do you mean: shelf in the kitchen or shelf in the living?")

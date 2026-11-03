@@ -136,7 +136,7 @@ outcome key). The qtype list is frozen:
 | qtype | slots | what the question asks | the answer from the script |
 |---|---|---|---|
 | `which_object` | `options` (the things offered), `obj` | which object the user means or wants ("Which one, the white mug or the green mug?", "What should I bring?") | the intended candidate (`spec.answer`) of an object clarification; else the requested object ("The red book.") |
-| `which_place` | `options` (places offered), `obj` (the thing to be placed) | which place, or where something should go or where the robot should go ("Where should I put the mug?", "Which shelf do you mean: A or B?") | the intended candidate of a destination clarification; else where the object goes, the place the request names, or "anywhere in the bedroom" for a room |
+| `which_place` | `options` (places offered), `obj` (the thing to be placed), `verb` (`open` / `close`: which container or door) | which place, or where something should go or where the robot should go ("Where should I put the mug?", "Which shelf do you mean: A or B?", "What should I open?") | the intended candidate of a destination clarification; with `verb`, the container the request opens / closes ("The fridge."); else where the object goes, the place the request names, or "anywhere in the bedroom" for a room |
 | `confirm` | `goal` (a read-back sentence) or `obj` | a yes / no check of the robot's reading: its plan ("I will ... Is that right?") or one thing ("Is it the red mug?") | rule 4's yes / no on a candidate, or the read-back check ("Yes, that's right." / "No, put the blue mug on the sink.") |
 | `where_are_you` | - | where the user is now | the user's place, or where they are walking to (not informative) |
 | `where_is` | `obj` (required: an object or a person) | where an object or another person is now | its true place, unless the user does not know |
@@ -202,7 +202,9 @@ writes every question in English from fixed templates and translates it just bef
 adapter wraps `AssistLoop._ask_io` on the loop instance (robot_agent is not edited), sees the English question,
 and `homeloop_robot/configs/ra_dialog.py` (`derive`) maps it onto its template id, qtype and slots (read-back ->
 `confirm` with the read-back sentence; "Which place do you mean: A or B?" -> `which_place`; "Where are you?
-Which place should I bring it to?" -> `where_are_you`; "I couldn't find the X. Where is it?" -> `where_is`; ...;
+Which place should I bring it to?" -> `where_are_you`; "I couldn't find the X. Where is it?" -> `where_is`;
+"What should I open / close?" (understand.issue_question's verb issue, only robot_agent's verbs open / close /
+shut) -> `which_place` with `verb`; ...;
 the list and the robot_agent function each comes from are in that file). Questions the understanding LLM writes
 itself, and robot_agent's ClosedLoop planners (grace, llm_direct), have no template: free text.
 `HOMELOOP_RA_STRUCTURED=0` turns the adapter's meanings off (ablation).
