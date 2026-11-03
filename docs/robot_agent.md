@@ -91,7 +91,10 @@ AssistLoop in tests/test_say_lang_ra.py).
 (top 3 by similarity into its prompts). 12 examples, 7 EN and 5 KO, in robot_agent's memory format, written for
 `example_flat` (the bench's progprompt example house, used by no split): delivery to a surface beside the person
 (`Place` on the person) and by handover, open before pick, putting into a closed container, messages, refusals,
-a two-object task. Extra fields (`lang`, `shows`, `house`, `goal`, `origin`) are ignored by robot_agent and used by
+a two-object task. Every example is hand-written for example_flat (its `origin` says so) and has a goal that no
+dev / test task has: its objects and messages were chosen for that (the two messages, `take_umbrella` and
+`bath_ready`, are `catalog.EXAMPLE_MESSAGES`, used by no task; pilot round 2 replaced seeds whose goals were
+dev / test goals, e.g. said_to(son, leaving_soon)). Extra fields (`lang`, `shows`, `house`, `goal`, `origin`) are ignored by robot_agent and used by
 the tests: tests/test_seed_pool.py (format, coverage, embodiplan's action model with this robot's plan actions) and
 the bench's tests/test_seed_pool_leak.py (no dev / test leak; each plan reaches its goal on the mock robot). The
 bench's `robot_agent:sage_norag` runs the same SAGE without the pool. robot_agent also hands the pool to its other

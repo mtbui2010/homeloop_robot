@@ -162,6 +162,16 @@ MESSAGES: dict = {
 }
 
 # a canonical sentence per message key that satisfies its first keyword set (the oracle says it)
+# Messages of robot_agent:sage's seed pool only (planner/seed_memory.jsonl, hand-written for the example house
+# example_flat). No task of the benchmark uses them, so no seed example has the goal of a dev / test task (R2-7 review
+# add-on 1: the seeds said come_kitchen / leaving_soon, the goal of 112 / 72 dev + test tasks). They are kept out of
+# MESSAGES, so the task generator, the selftest and the keyword planners never see them; goals and message_matches
+# accept them.
+EXAMPLE_MESSAGES: dict = {
+    "take_umbrella": {"en": [["umbrella"]], "ko": [["우산"]]},
+    "bath_ready": {"en": [["bath", "ready"]], "ko": [["목욕물"], ["목욕", "준비"]]},
+}
+
 MESSAGE_TEXT: dict = {
     "dinner_ready": {"en": "Dinner is ready.", "ko": "저녁 준비됐어요. 저녁 드세요."},
     "lunch_ready": {"en": "Lunch is ready.", "ko": "점심 준비됐어요."},
@@ -207,7 +217,7 @@ def _has_keyword(t: str, k: str) -> bool:
 def message_matches(key: str, text: str, lang: str) -> bool:
     """True when ``text`` contains every keyword of one alternative of ``MESSAGES[key][lang]``
     (:func:`_has_keyword`)."""
-    alts = (MESSAGES.get(key) or {}).get(lang) or []
+    alts = (MESSAGES.get(key) or EXAMPLE_MESSAGES.get(key) or {}).get(lang) or []
     t = unicodedata.normalize("NFC", text or "").lower()
     return any(all(_has_keyword(t, k.lower()) for k in alt) for alt in alts)
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .catalog import MESSAGES, message_matches
+from .catalog import EXAMPLE_MESSAGES, MESSAGES, message_matches
 
 PREDS = {
     "on": 2, "in": 2, "open": 1, "closed": 1, "robot_at": 1, "held_by": 2, "holding": 1,
@@ -203,7 +203,7 @@ def validate(goal: dict, world) -> list:
         elif p == "said_to":
             if args[0] not in world.people:
                 errs.append(f"{w}: unknown person {args[0]!r}")
-            if args[1] not in MESSAGES:
+            if args[1] not in MESSAGES and args[1] not in EXAMPLE_MESSAGES:
                 errs.append(f"{w}: unknown message key {args[1]!r}")
 
     for a in goal["all"]:
