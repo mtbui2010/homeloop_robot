@@ -54,7 +54,11 @@ path only when the user is reachable.
    `yes_no`; otherwise `other`.
 3. **Mentions**: candidate mentions of the task (`spec.candidates[*].mentions`) and object names (catalog class
    name, colour + name) are matched in both languages after normalization (case, punctuation; Korean spaces
-   ignored).
+   ignored). Longest match first (R2-6 H2): an occurrence inside a longer name of a different thing of the house,
+   one that is not itself also called by the shorter name, does not count, so 냉장고 inside 김치냉장고 and "fridge"
+   inside "kimchi fridge" name the kimchi fridge only; "cup" inside "red cup" still names the red cup. A quoted
+   either / or ("'A' or 'B'?") naming one candidate is a choice and gets the clarify answer
+   (tests/test_dialog_longest_match.py).
 4. **Content**, first rule that applies:
    - ASR repair, "could you repeat?" (EN repeat, say that / it again, pardon, come again, didn't catch that; KO 다시
      (한 번) 말씀해, 뭐라고 하셨어요, 한 번 더 말씀해, 잘 못 들었어요) -> the user says it again: right after the request,

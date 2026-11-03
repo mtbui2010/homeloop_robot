@@ -72,6 +72,26 @@ sage's speaker deliveries go through its own "Where are you?" question and the s
 user's answer is not changed to suit sage. Test: homeloop_bench `tests/test_robot_agent_adapter.py`
 (`test_sage_delivery_to_the_speaker_end_to_end`).
 
+## Say language
+
+robot_agent passes `lang` only to Ask. `say` / `announce` (configs/ra_skills.py) therefore take the language from
+the sentence itself (`speech_lang`): Hangul -> ko, Latin letters -> en, neither -> the given `lang` or the
+episode's language. A Korean message is said in Korean and reaches a Korean listener; an English sentence in a
+Korean episode stays English (R2-6 H1, tests/test_say_lang.py; the bench runs a KO message task through the real
+AssistLoop in tests/test_say_lang_ra.py).
+
+## Seed pool
+
+`planner/seed_memory.jsonl` (manifest `planner.seed_memory`) is the pool of solved examples SAGE retrieves from
+(top 3 by similarity into its prompts). 12 examples, 7 EN and 5 KO, in robot_agent's memory format, written for
+`example_flat` (the bench's progprompt example house, used by no split): delivery to a surface beside the person
+(`Place` on the person) and by handover, open before pick, putting into a closed container, messages, refusals,
+a two-object task. Extra fields (`lang`, `shows`, `house`, `goal`, `origin`) are ignored by robot_agent and used by
+the tests: tests/test_seed_pool.py (format, coverage, embodiplan's action model with this robot's plan actions) and
+the bench's tests/test_seed_pool_leak.py (no dev / test leak; each plan reaches its goal on the mock robot). The
+bench's `robot_agent:sage_norag` runs the same SAGE without the pool. robot_agent also hands the pool to its other
+planners (grace, llm_direct's examples), as it does for any robot that ships one.
+
 ## How the bench drives it
 
 `homeloop_bench`'s robot_agent adapter sets the backend to an episode-bound proxy (its `call` goes
