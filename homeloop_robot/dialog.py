@@ -82,13 +82,56 @@ def normalize(text: str, lang: str) -> str:
     return t
 
 
-def mentions(text: str, phrase: str, lang: str) -> bool:
+def _spans(q: str, m: str, lang: str) -> list[tuple[int, int]]:
+    """Where normalised phrase ``m`` occurs in normalised text ``q``: any position in Korean (spaces are removed,
+    particles attach), on word boundaries in English. Positions are in ``q`` padded with one space each side."""
+    hay, needle = (f" {q} ", m) if lang == "ko" else (f" {q} ", f" {m} ")
+    out, i = [], hay.find(needle)
+    while i >= 0:
+        out.append((i, i + len(needle)))
+        i = hay.find(needle, i + 1)
+    return out
+
+
+def mentions(text: str, phrase: str, lang: str, world: Any = None) -> bool:
+    """Does ``text`` name ``phrase``? With ``world``, longest match (R2-6 H2): an occurrence inside a longer name
+    of a DIFFERENT thing of the world, one that is not itself also called ``phrase``, does not count. 냉장고 in
+    김치냉장고 and "fridge" in "kimchi fridge" name the kimchi fridge, not the fridge; "cup" in "red cup" still
+    names a cup (the red cup is called "cup" too)."""
     q, m = normalize(text, lang), normalize(phrase, lang)
     if not m:
         return False
-    if lang == "ko":
-        return m in q
-    return f" {m} " in f" {q} "
+    spans = _spans(q, m, lang)
+    if not spans or world is None:
+        return bool(spans)
+    longer = [(sp, names) for n, names in _compound_names(world, lang) if len(n) > len(m) and m in n
+              and m not in names for sp in _spans(q, n, lang)]
+    if not longer:
+        return True
+    return any(not any(a <= s and e <= b for (a, b), _ in longer) for s, e in spans)
+
+
+def _compound_names(world: Any, lang: str) -> list[tuple[str, frozenset]]:
+    """(normalised name, normalised names of the same thing) for every object, place and person of ``world``
+    in ``lang``; cached on the world (names do not change during an episode)."""
+    cache = getattr(world, "_hl_names_cache", None)
+    if cache is None:
+        cache = {}
+        try:
+            world._hl_names_cache = cache
+        except AttributeError:                    # a world that takes no attributes: no cache
+            pass
+    if lang in cache:
+        return cache[lang]
+    groups = [_obj_words(world, o) for o in sorted(getattr(world, "objects", {}) or {})]
+    groups += [_place_words(world, p) for p in sorted(world.house.places)] if getattr(world, "house", None) else []
+    groups += [_person_words(world, p) for p in sorted(getattr(world, "people", {}) or {})]
+    out = []
+    for g in groups:
+        names = frozenset(normalize(x, lang) for x in g if x and detect_lang(x) == lang)
+        out += [(n, names) for n in sorted(names) if n]
+    cache[lang] = out
+    return out
 
 
 def detect_lang(text: str) -> str:
@@ -173,7 +216,7 @@ def mentioned_objects(world: Any, question: str) -> list[str]:
     for oid in sorted(world.objects):
         for lang in ("en", "ko"):
             for n in object_names(world, oid, lang):
-                if mentions(question, n, lang):
+                if mentions(question, n, lang, world):
                     hits[oid] = max(hits.get(oid, 0), len(normalize(n, lang)))
     if not hits:
         return []
@@ -211,9 +254,9 @@ def _names_anything(world: Any, text: str) -> bool:
     if mentioned_objects(world, text):
         return True
     for pid in sorted(world.house.places):
-        if _mentions_any(_q_text(text), _place_words(world, pid)):
+        if _mentions_any(_q_text(text), _place_words(world, pid), world):
             return True
-    return any(_mentions_any(text, _person_words(world, pid)) for pid in sorted(world.people))
+    return any(_mentions_any(text, _person_words(world, pid), world) for pid in sorted(world.people))
 
 
 def _strip_det(x: str, L: str) -> str:
@@ -334,7 +377,7 @@ def _names_foreign(world: Any, q: str, L: str, request: str, goal: "GoalView | N
     def foreign(names) -> bool:
         for n in names:
             lg = detect_lang(n)
-            if n and mentions(qt, n, lg) and not (lg == L and normalize(n, L) in nreq):
+            if n and mentions(qt, n, lg, world) and not (lg == L and normalize(n, L) in nreq):
                 return True
         return False
 
@@ -398,7 +441,7 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
     ans = spec.get("answer")
 
     def in_any_lang(phrases: dict) -> bool:
-        return any(mentions(question, p, lg) for lg in ("en", "ko") for p in (phrases or {}).get(lg, []))
+        return any(mentions(question, p, lg, world) for lg in ("en", "ko") for p in (phrases or {}).get(lg, []))
 
     # "where are you?" (naming no candidate): the user says where they are (or where they are walking to); people
     # do not get their own position wrong, so the answer is not informative in the correctness-mix sense (ASR
@@ -422,12 +465,14 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
         hit = [c for c in cands if in_any_lang(c.get("mentions"))]
         others = [c for c in cands if c.get("id") != intended]
         wrong = candidate_text(others[0], L) if others else None
-        if qtype == "yes_no" and len(hit) == 1:
+        # "A or B?" naming one candidate and something else is a choice, not a yes / no question
+        either = bool(hit) and _either_or(_q_text(question))
+        if qtype == "yes_no" and len(hit) == 1 and not either:
             if hit[0].get("id") == intended:
                 return Content("yes", TEXT["yes"][L], True,
                                TEXT["no"][L] + lower_first(wrong) if wrong else None, "yes_no_intended")
             return Content("no", TEXT["no"][L] + lower_first(ans[L]), True, TEXT["yes"][L], "yes_no_other")
-        if qtype == "wh" or len(hit) >= 2:
+        if qtype == "wh" or len(hit) >= 2 or either:
             return Content("correct", ans[L], True, wrong, "clarify_answer")
     # a resolution the task scripts (safety clarification, confirmation of a refused request)
     if ans and not cands and qtype in ("wh", "yes_no"):
@@ -571,8 +616,8 @@ def _place_words(world: Any, pid: str) -> list[str]:
     return [w for w in dict.fromkeys(out) if w]
 
 
-def _mentions_any(q: str, phrases) -> bool:
-    return any(mentions(q, p, lg) for p in phrases for lg in ("en", "ko") if detect_lang(p) == lg)
+def _mentions_any(q: str, phrases, world: Any = None) -> bool:
+    return any(mentions(q, p, lg, world) for p in phrases for lg in ("en", "ko") if detect_lang(p) == lg)
 
 
 def _person_words(world: Any, pid: str) -> list[str]:
@@ -699,29 +744,29 @@ class GoalView:
         """Does the question name what the atom is about (its object / container / person / place)?"""
         p, args = a["pred"], a["args"]
         if p in ("on", "in", "held_by"):
-            return _mentions_any(q, _obj_words(self.w, args[0]))
+            return _mentions_any(q, _obj_words(self.w, args[0]), self.w)
         if p in ("open", "closed", "robot_at"):
-            return _mentions_any(q, _place_words(self.w, args[0]))
+            return _mentions_any(q, _place_words(self.w, args[0]), self.w)
         if p == "robot_at_any":
-            return any(_mentions_any(q, _place_words(self.w, x)) for x in args)
+            return any(_mentions_any(q, _place_words(self.w, x), self.w) for x in args)
         if p == "docked":
             return any(k in q.lower() for k in DOCK_WORDS)
         if p == "said_to":
-            return _mentions_any(q, _person_words(self.w, args[0]))
+            return _mentions_any(q, _person_words(self.w, args[0]), self.w)
         return False
 
     def covered(self, a: dict, q: str) -> bool:
         """Does the question (a read-back of the plan) state this atom the way the user asked for it?"""
         p, args = a["pred"], a["args"]
         if p in ("on", "in"):
-            return self.subject_said(a, q) and _mentions_any(q, _place_words(self.w, args[1]))
+            return self.subject_said(a, q) and _mentions_any(q, _place_words(self.w, args[1]), self.w)
         if p == "held_by":
             if not self.subject_said(a, q):
                 return False
             if args[1] == self.user_id:
                 here = self.place_of(args[1])
                 return bool(ME_RX["en"].search(q.lower()) or ME_RX["ko"].search(q)
-                            or (here and _mentions_any(q, _place_words(self.w, here))))
+                            or (here and _mentions_any(q, _place_words(self.w, here), self.w)))
             return self._person_ok(args[1], q)
         if p == "said_to":
             return self._person_ok(args[0], q)
@@ -730,13 +775,13 @@ class GoalView:
     def _person_ok(self, pid: str, q: str) -> bool:
         """The person is named, or their place is; a place named for them must be where they are."""
         here = self.place_of(pid)
-        at_here = bool(here and _mentions_any(q, _place_words(self.w, here)))
-        named = _mentions_any(q, _person_words(self.w, pid))
+        at_here = bool(here and _mentions_any(q, _place_words(self.w, here), self.w))
+        named = _mentions_any(q, _person_words(self.w, pid), self.w)
         # a place named for another part of the request (a compound read-back: "put the remote on the TV stand,
         # then tell grandpa") is not a place named for this person
         others = {x for a in self.atoms if a["pred"] not in ("said_to", "held_by")
                   for x in (a.get("args") or []) if x in self.w.house.places}
-        other_place = any(_mentions_any(q, _place_words(self.w, k)[:2]) for k in sorted(self.w.house.places)
+        other_place = any(_mentions_any(q, _place_words(self.w, k)[:2], self.w) for k in sorted(self.w.house.places)
                           if k != here and k not in others)
         return at_here or (named and not other_place)
 
@@ -749,7 +794,7 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
     q = _q_text(question)
     qtype = classify(question)
     low = q.lower()
-    goal_objs = [o for o in dict.fromkeys(gv.objects()) if _mentions_any(q, _obj_words(world, o))]
+    goal_objs = [o for o in dict.fromkeys(gv.objects()) if _mentions_any(q, _obj_words(world, o), world)]
     alt = bool(ALT_RX.search(low))
     wrong_place = None
     if other_place is not None:
@@ -785,7 +830,7 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
 
     # 2. "Which one: the red book or the blue book?": the object the user asked for
     specific = [o for o in sorted(world.objects)
-                if any(mentions(q, n, lg) for lg in ("en", "ko") for n in object_names(world, o, lg)[:1])]
+                if any(mentions(q, n, lg, world) for lg in ("en", "ko") for n in object_names(world, o, lg)[:1])]
     if (qtype == "wh" or alt) and len(goal_objs) == 1 and len(specific) >= 2 and goal_objs[0] in specific:
         other = next(o for o in specific if o != goal_objs[0])
         return Content("correct", _say("pick", L, name=_specific_name(world, goal_objs[0], L)), True,
@@ -805,12 +850,12 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
     # 2b. "Should I put the X on A or on B?" / "bring it to you or put it somewhere?": where it goes
     about_where = bool(re.search(r"\b(put|place|bring|take|leave|move|give|hand|somewhere|where|to you)\b", low)
                        or re.search(r"(두|놓|놔|넣|가져|갖다|어디|드릴)", q)
-                       or any(_mentions_any(q, _place_words(world, k)[:2]) for k in sorted(world.house.places)))
+                       or any(_mentions_any(q, _place_words(world, k)[:2], world) for k in sorted(world.house.places)))
     if goal_objs and alt and about_where and qtype in ("wh", "yes_no") and not READBACK_RX.search(q):
         return Content("correct", _dest_answer(gv, goal_objs, L), True, wrong_place, "goal_destination")
 
     # 3. "Which place do you mean: A or B or C?": the place the request names
-    places = [pid for pid in sorted(world.house.places) if _mentions_any(q, _place_words(world, pid)[:2])]
+    places = [pid for pid in sorted(world.house.places) if _mentions_any(q, _place_words(world, pid)[:2], world)]
     if (qtype == "wh" or alt) and len(places) >= 2:
         targets = []
         for a in gv.atoms:
@@ -852,14 +897,14 @@ def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_
                 continue
             words = [w for w in (room.name.get("en"), room.name.get("ko"), room.id) if w]
             asks_place = re.search(r"\b(which|what|where)\b", low) or re.search(r"(어디|어느|어떤|무슨)", q)
-            if asks_place and _mentions_any(q, words):
+            if asks_place and _mentions_any(q, words, world):
                 return Content("correct", _say("anywhere_in", L, room=room.name.get(L, room.name.get("en", room.id))),
                                True, None, "goal_room")
 
     # 4. "Where is <person>?": where that person is now (a household member knows, unless they do not)
     if qtype == "wh" and (LOC_RX["en"].search(low) or LOC_RX["ko"].search(q) or "where" in low or "어디" in q):
         for pid in sorted(world.people):
-            if pid != gv.user_id and _mentions_any(q, _person_words(world, pid)):
+            if pid != gv.user_id and _mentions_any(q, _person_words(world, pid), world):
                 if not knows_location:
                     return Content("not_sure", TEXT["dont_know"][L], False, None, "location_unknown")
                 here = gv.place_of(pid)

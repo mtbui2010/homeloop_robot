@@ -192,7 +192,7 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
     if qt == "confirm":
         text = m.get("goal") or m.get("obj") or ""
         if cands and ans:
-            hit = [c for c in cands if any(D.mentions(text, p, lg) for lg in ("en", "ko")
+            hit = [c for c in cands if any(D.mentions(text, p, lg, world) for lg in ("en", "ko")
                                            for p in (c.get("mentions") or {}).get(lg, []))]
             if len(hit) == 1:
                 if hit[0].get("id") == intended:
@@ -233,7 +233,7 @@ def _which_object(m: dict, L: str, world: Any, goal, kw) -> "D.Content | None":
     # "What should I bring?" (no options): the thing(s) the user asked for
     objs = list(dict.fromkeys(goal.objects()))
     if m.get("obj"):
-        named = [o for o in objs if D._mentions_any(m["obj"], D._obj_words(world, o))]
+        named = [o for o in objs if D._mentions_any(m["obj"], D._obj_words(world, o), world)]
         objs = named or objs
     if not objs:
         return None
@@ -291,7 +291,7 @@ def _where_is(obj: str, L: str, spec: dict, world: Any, goal, knows_location: bo
         return D.Content("correct", D.location_text(world, objs[0], L), True, wrong, "location")
     for pid in sorted(world.people):
         uid = goal.user_id if goal is not None else None
-        if pid != uid and D._mentions_any(obj, D._person_words(world, pid)):
+        if pid != uid and D._mentions_any(obj, D._person_words(world, pid), world):
             if not knows_location:
                 return D.Content("not_sure", D.TEXT["dont_know"][L], False, None, "location_unknown")
             here = goal.place_of(pid) if goal is not None else getattr(world.people[pid], "seat", None)
@@ -305,7 +305,7 @@ def _what_to_say(person: str | None, L: str, spec: dict, world: Any, goal) -> "D
     from homeloop_robot.catalog import MESSAGE_TEXT
     atoms = [a for a in (goal.atoms if goal is not None else []) if a["pred"] == "said_to"]
     if person and len(atoms) > 1:
-        named = [a for a in atoms if D._mentions_any(person, D._person_words(world, a["args"][0]))]
+        named = [a for a in atoms if D._mentions_any(person, D._person_words(world, a["args"][0]), world)]
         atoms = named or atoms
     if not atoms or atoms[0]["args"][1] not in MESSAGE_TEXT:
         return _not_sure(L, spec)
