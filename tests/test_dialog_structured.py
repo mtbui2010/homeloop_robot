@@ -206,20 +206,30 @@ def _rate_ok(k, n, p):
     return abs(k / n - p) <= 4 * sd + 1e-9
 
 
-@pytest.mark.parametrize("L", ["en", "ko"])
-def test_mix_and_silence_unchanged_for_structured_questions(L):
+def _mix(L, meaning, n):
     ep, u = _user(L, GLASS_SPEC, GLASS_GOAL, GLASS_REQ, profile="real")
     u.patience = 10 ** 6
     xy = tuple(ep.world.people["user"].pos)
     kinds = collections.Counter()
     heard_diff = 0
-    n = 6000
+    q = {"en": "Which one, the white mug or the green mug?", "ko": "하얀 머그컵이요, 초록색 머그컵이요?"}[L]
     for _ in range(n):
-        q = {"en": "Which one, the white mug or the green mug?", "ko": "하얀 머그컵이요, 초록색 머그컵이요?"}[L]
-        r, h = u.answer(q, L, xy, 0.0, meaning={"qtype": "which_object", "options": ["white mug", "green mug"]})
+        r, h = u.answer(q, L, xy, 0.0, meaning=meaning)
         kinds[r.kind] += 1
         heard_diff += r.kind != "no_answer" and h.text != r.text
         u.log.clear()
+    return u, kinds, heard_diff
+
+
+@pytest.mark.parametrize("L", ["en", "ko"])
+def test_mix_and_silence_unchanged_for_structured_questions(L):
+    """The structured question gets the same answer mix as the same question in free text, draw for draw (same
+    seeds), and that mix matches the profile within 4 binomial standard deviations (test-time budget: 1,500 draws
+    each instead of 6,000 structured draws; the paired comparison is exact, so it checks more, not less)."""
+    n = 1500
+    u, kinds, heard_diff = _mix(L, {"qtype": "which_object", "options": ["white mug", "green mug"]}, n)
+    _u0, kinds0, _hd0 = _mix(L, None, n)
+    assert kinds == kinds0, (kinds, kinds0)                 # the meaning does not change the outcome draws
     answered = n - kinds["no_answer"]
     assert _rate_ok(kinds["no_answer"], n, u.p_no_answer)
     assert _rate_ok(kinds["wrong"], answered, u.p_wrong)
