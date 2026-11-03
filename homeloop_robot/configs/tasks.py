@@ -133,6 +133,40 @@ def person_spot(world, pid: str, radius_m: float = PERSON_SPOT_RADIUS_M):
     return sorted(best)[0][1] if best else None
 
 
+def person_loc(world, pid: str, spot) -> tuple:
+    """(ENV loc, height) of person ``pid``'s entry: the support surface ``spot`` beside them, or, with none, where a
+    move to the person stops (skills.person_stop_xy, the robot's own rule)."""
+    from ..skills import person_stop_xy
+    if spot is not None:
+        p = world.house.places[spot]
+        return {"x": float(p.pos[0]), "y": float(p.pos[1]), "rz": float(p.yaw_deg)}, float(p.height_m)
+    xy = world.person_xy(pid)
+    sx, sy = person_stop_xy(world, xy, standoff_m())
+    return {"x": float(sx), "y": float(sy), "rz": float(math.degrees(math.atan2(xy[1] - sy, xy[0] - sx)))}, 0.0
+
+
+def refresh_person_spot(env: dict, pid: str, world):
+    """The spot of person ``pid``'s ENV entry, looked at again in ``world`` (the scene now) when the entry's spot is
+    no longer usable: there was none (every surface beside the person was full when the ENV was built) or it has no
+    free room now. Then the entry gets the free support surface beside the person now (:func:`person_spot`), or the
+    stop point when there is none, IN PLACE: robot_agent's copies of the ENV share the entry dicts, so its arrival
+    check measures the move against the new loc. A usable spot is kept. Gate pilot round 1, hl-dev-000008: the
+    nightstand beside grandma held the blue book the task moves, so her entry had no spot, and the water bottle could
+    not be put down beside her after the book was gone ("a person, use handover"). Returns the spot (None: none)."""
+    e = next((v for _k, v in sorted((env or {}).items()) if isinstance(v, dict) and v.get("person") == pid), None)
+    if e is None:
+        return person_spot(world, pid)
+    old = e.get("spot")
+    if old is not None and old in world.house.places and world.free_slots(old) > 0:
+        return old
+    new = person_spot(world, pid)
+    if new == old:
+        return old
+    e["loc"], e["height"] = person_loc(world, pid, new)
+    e["spot"] = new
+    return new
+
+
 def env_for(world: World) -> dict:
     """Per place: {loc: {x, y, rz}, height, default_mode, aliases, openable} keyed by place id."""
     env = {}
@@ -162,21 +196,13 @@ def env_for(world: World) -> dict:
     # personal zone (person_spot, geometry only) and records it as ``spot``; with none, it stands where a move to
     # the person stops (skills.person_stop_xy, the robot's own rule). ra_skills.move / place of the entry go to
     # the spot (or to the person), so the robot ends at the ENV loc and robot_agent's arrival check holds.
-    from ..skills import person_stop_xy
     keys = person_keys(world)
     for pid, per in sorted(world.people.items()):
         key = keys[pid]
         if key in env:
             continue
         spot = person_spot(world, pid)
-        if spot is not None:
-            p = world.house.places[spot]
-            loc, height = {"x": float(p.pos[0]), "y": float(p.pos[1]), "rz": float(p.yaw_deg)}, float(p.height_m)
-        else:
-            xy = world.person_xy(pid)
-            sx, sy = person_stop_xy(world, xy, standoff_m())
-            loc = {"x": float(sx), "y": float(sy), "rz": float(math.degrees(math.atan2(xy[1] - sy, xy[0] - sx)))}
-            height = 0.0
+        loc, height = person_loc(world, pid, spot)
         aliases, seen = [], set()
         for a in [f for n in [per.name.get("en", ""), per.name.get("ko", "")] + list(per.aliases.get("en") or []) +
                   list(per.aliases.get("ko") or []) + ([key.replace("_", " ")] if key != pid else [])

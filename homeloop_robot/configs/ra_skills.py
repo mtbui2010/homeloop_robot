@@ -82,6 +82,14 @@ def move(node=None, inputs: str = "", **params) -> dict:
     per = _person(str(inputs or "").strip())
     if per is not None:
         pid, spot = per
+        world = getattr(get_backend(), "world", None)
+        if world is not None:
+            # the robot looks at the person's surroundings as they are now (tasks.refresh_person_spot)
+            from .tasks import refresh_person_spot
+            try:
+                spot = refresh_person_spot(_env(), pid, world)
+            except Exception:                           # noqa: BLE001 - no ENV entry to refresh: as before
+                pass
         return _run("move", target=spot or pid)
     out = _run("move", target=str(inputs))
     world = getattr(get_backend(), "world", None)
