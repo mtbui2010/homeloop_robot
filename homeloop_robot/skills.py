@@ -25,6 +25,51 @@ from .types import FailureCode, FaultState, SkillResult, SkillSpec, UserEvent, U
 from .world import dist
 
 F = FailureCode
+# words a description may end with that name the object's packaging, not another object (a "milk pack" is the milk
+# carton; a "milk glass" is not): general English / Korean packaging nouns (design choice)
+PACKAGING = {"en": ("pack", "packet", "carton", "bottle", "box", "bag", "jar", "can", "tin", "tub", "container", "case"),
+             "ko": ("팩", "통", "병", "상자", "박스", "봉지", "캔", "곽")}
+
+
+def detector_hits(world, query) -> list:
+    """The objects a free-text detector query names (sorted ids): a catalog name / alias of the object is in the
+    query as whole words (EN) or a part of it (KO, no spaces after norm), the query ends with that name or a
+    packaging noun (PACKAGING), and no colour word in the query contradicts the object's colour."""
+    from .catalog import COLORS
+    from .world import LANGS, norm
+    q = norm(query)
+    if not q:
+        return []
+    qw = q.split()
+    said_cols = {k for k, v in COLORS.items() for lg in LANGS
+                 if (re.search(rf"(?<!\w){re.escape(norm(v[lg]))}(?!\w)", q) if lg == "en" else norm(v[lg]) in q)}
+    out = []
+    for oid in sorted(world.objects):
+        o = world.objects[oid]
+        c = CLASSES[o.cls]
+        col = o.attrs.get("color")
+        if col and said_cols and col not in said_cols:
+            continue
+        hit = False
+        for lg in LANGS:
+            for n in [c.name[lg]] + list((c.aliases or {}).get(lg) or []):
+                nn = norm(n)
+                if not nn:
+                    continue
+                if lg == "en":
+                    nw = nn.split()
+                    hit = set(nw) <= set(qw) and (qw[-1] in nw or qw[-1] in PACKAGING["en"])
+                else:
+                    hit = nn in q and (q.endswith(nn) or any(q.endswith(nn + p) for p in PACKAGING["ko"]))
+                if hit:
+                    break
+            if hit:
+                break
+        if hit:
+            out.append(oid)
+    return out
+
+
 PRECONDITION_S = 1.0          # simulated time of a call that fails a true-state precondition (design choice)
 HANDOVER_RANGE_M = 3.0        # handover("") looks for the nearest person within this distance
 HANDOVER_TIMEOUT_DEFAULT_S = 60.0   # time spent when a handover is not taken and the user model gives no latency
@@ -399,7 +444,14 @@ class Robot:
         return False
 
     def _resolve_obj(self, name):
-        return self.world.resolve_object(name, None)
+        """What the camera / grasp skills look for: the object's catalog name or alias (exact), else a detector
+        query naming it with extra words, as an open-vocabulary detector reads a description (``detector_hits``:
+        "white milk pack" finds the milk carton; milestone 5 round 1, KO hl-dev-000003)."""
+        oid = self.world.resolve_object(name, None)
+        if oid is not None:
+            return oid
+        hits = detector_hits(self.world, name)
+        return None if not hits else hits[0] if len(hits) == 1 else hits
 
     def _floor_of(self, xy) -> str:
         rid = self.world.room_of(xy) or sorted(self.world.house.rooms)[0]
