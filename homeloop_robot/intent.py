@@ -242,7 +242,7 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
                          "self_position")
     if qt == "did_you_mean":
         q = _canon("mean", m["word"], word=m["word"])
-        c = D.repair(q, L, world, request=request, last_answer=None, goal=goal, spec=spec) if request else None
+        c = D.repair(q, L, world, request=request, last_answer=last_answer, goal=goal, spec=spec) if request else None
         if c is not None:
             return c
         if not _named(world, m["word"]) and not _places_in(world, m["word"]):
@@ -289,6 +289,9 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
                                      D.TEXT["no"][L] + D.lower_first(wrong) if wrong else None, "yes_no_intended")
                 return D.Content("no", D.TEXT["no"][L] + D.lower_first(ans[L]), True, D.TEXT["yes"][L],
                                  "yes_no_other")
+        if ans and not cands and goal is None:
+            c = D.plan_readback_answer(text, L, world, request, structured=True) if m.get("goal") else None
+            return c if c is not None else _scripted(spec, L)
         if ans and not cands:
             return _scripted(spec, L)
         if goal is not None and text:

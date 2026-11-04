@@ -435,17 +435,23 @@ def repair(question: str, L: str, world: Any, *, request: str | None, last_answe
         if message_readback(world, q, goal):
             return None
         xs = mean_phrases(q, L)
-        if not xs or not any(own_phrase(world, x, L, request, goal) for x in xs):
+        # a word of the user's own LAST ANSWER is theirs too ("Did you mean 'wardrobe'?" after "it is in the
+        # wardrobe"): the user confirms it and says that answer again, not the request
+        said = request
+        if xs and not any(own_phrase(world, x, L, request, goal) for x in xs) and last_answer \
+                and any(own_phrase(world, x, L, last_answer, goal) for x in xs):
+            said = last_answer
+        if not xs or not any(own_phrase(world, x, L, said, goal) for x in xs):
             return None
         # "Did you mean 'sink' or 'kimchi fridge'?" is a choice, not a check of what was heard: the user picks
         if _either_or(q):
             return None
         # a question that names something the request is not about ("Did you mean 'mug', the red coffee mug?" when
         # the blue one is wanted, "'sink' or ...") is answered about that thing (clarification / goal), never "yes"
-        if _names_foreign(world, q, L, request, goal, spec):
+        if _names_foreign(world, q, L, request + (" " + last_answer if said != request else ""), goal, spec):
             return None
         yes = {"en": "Yes. ", "ko": "네. "}[L]
-        return Content("yes", yes + request, True, None, "repair_confirm")
+        return Content("yes", yes + said, True, None, "repair_confirm")
     return None
 
 
@@ -465,6 +471,36 @@ def message_readback(world: Any, q: str, goal: "GoalView | None") -> bool:
     if MESSAGE_READBACK_RX["en"].search(t.lower()) or MESSAGE_READBACK_RX["ko"].search(t):
         return True
     return any(speech_role(world, a["args"][0], q) for a in goal.atoms if a["pred"] == "said_to")
+
+
+PLAN_READBACK_RX = {
+    "en": re.compile(r"\b(?:i will|i'll|i am going to|i'm going to)\b.*\b(?:is that (?:right|correct)|right|correct)\s*\?\s*$",
+                     re.I | re.S),
+    "ko": re.compile(r"(?:게요|겠어요|겠습니다|할 거예요|할게요|ㄹ게요)[.!\s]*(?:맞아요|맞나요|맞죠|맞습니까|맞을까요)\s*\?\s*$")}
+
+
+def is_plan_readback(question: str) -> bool:
+    """Is ``question`` the robot reading back what it will do and asking if that is right (not a question
+    about a refusal)?"""
+    q = unicodedata.normalize("NFC", str(question or ""))
+    return bool(PLAN_READBACK_RX["en"].search(q) or PLAN_READBACK_RX["ko"].search(q))
+
+
+def plan_readback_answer(question: str, L: str, world: Any, request: str | None, *, structured: bool = False) -> "Content | None":
+    """The answer to a plan read-back when the task scripts no goal view (a refused request): the user said what
+    they want, so the read-back that names every object of the request is right ("Yes, that's right."); one
+    that leaves an object of the request out (a model that heard another word) is wrong and the user says the
+    request again. None when ``question`` is no read-back or the request is not known."""
+    if not request or not (structured or is_plan_readback(question)):
+        return None
+    want = set(mentioned_objects(world, request))
+    if not want or want <= set(mentioned_objects(world, question)):
+        return Content("yes", TEXT_GOAL_YES[L], True, None, "plan_readback")
+    return Content("no", TEXT_GOAL_NO[L] + " " + request, True, None, "plan_readback")
+
+
+TEXT_GOAL_YES = {"en": "Yes, that's right.", "ko": "네, 맞아요."}
+TEXT_GOAL_NO = {"en": "No.", "ko": "아니요."}
 
 
 def _either_or(q: str) -> bool:
@@ -595,13 +631,19 @@ def compose(question: str, answer_lang: str, spec: dict | None, world: Any, *, k
             return Content("no", TEXT["no"][L] + lower_first(ans[L]), True, TEXT["yes"][L], "yes_no_other")
         if qtype == "wh" or len(hit) >= 2 or either:
             return Content("correct", ans[L], True, wrong, "clarify_answer")
+    # a read-back of the plan is answered about the plan, not with the script for a refusal (the user asked for
+    # it; "Oh, right. Never mind." answers an explanation)
+    if ans and not cands and goal is None:
+        c = plan_readback_answer(question, L, world, request)
+        if c is not None:
+            return c
     # a resolution the task scripts (safety clarification, confirmation of a refused request)
     if ans and not cands and qtype in ("wh", "yes_no"):
         wt = spec.get("wrong_answer")
         return Content("correct", ans[L], True, wt[L] if isinstance(wt, dict) else None, "scripted_answer")
     # "Did you mean X?" about the user's own words (ASR repair)
     if request:
-        c = repair(question, L, world, request=request, last_answer=None, goal=goal, spec=spec)
+        c = repair(question, L, world, request=request, last_answer=last_answer, goal=goal, spec=spec)
         if c is not None:
             return c
     # a question about the request itself: where an object goes, which one / which place, a read-back

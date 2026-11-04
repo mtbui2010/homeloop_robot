@@ -57,7 +57,7 @@ places:
      pos: [1.9, 6.7], yaw_deg: 180, height_m: 0.6, clutter: low, capacity: 3, tags: [], person_pos: [0.5, 7.0]}
   nightstand@bedroom:
     {room: bedroom, kind: surface, name: {en: nightstand, ko: 협탁}, aliases: {en: [bedside table], ko: [침대 옆 탁자]},
-     top: [0.7, 6.5], pos: [1.25, 5.85], yaw_deg: 130, height_m: 0.6, clutter: medium, capacity: 5, tags: [electrical]}
+     top: [0.7, 6.5], pos: [1.25, 5.85], yaw_deg: 130, height_m: 0.6, clutter: medium, capacity: 5, tags: []}
   wardrobe@bedroom:
     {room: bedroom, kind: container, container: {type: cabinet, openable: true, opened: false},
      name: {en: wardrobe, ko: 옷장}, aliases: {en: [closet], ko: []},
