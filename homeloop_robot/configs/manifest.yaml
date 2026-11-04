@@ -15,11 +15,12 @@ geometry: {arrive_tol_m: 0.3, reach_m: 0.78, reach_far_m: 1.0}
 # bench's leak test (tests/test_seed_pool_leak.py) check it. robot_agent:sage_norag runs without it.
 planner:
   seed_memory: ../planner/seed_memory.jsonl
-  # SAGE-v2 (robot_agent docs/env.md): the run's caps sum to the bench's 30-call episode budget (26 planning + 4
-  # translation calls); what the robot says is translated by the model the round-3 A/B chose
+  # SAGE-v2 (robot_agent docs/env.md): the run's caps sum to the bench's 30-call episode budget (22 planning + 8
+  # translation calls: one per user utterance and what the robot says); what the robot says is translated by the model the round-3 A/B chose
   # (homeloop_bench data/quality/translate_ab.json, Apache-2.0); search legs without a replan
-  llm_budget: 26
-  translate_budget: 4
+  llm_budget: 22
+  translate_budget: 8
+  input_pivot: none
   translate_model: qwen3-vl:30b-a3b-instruct
   search_legs: true
   notes:

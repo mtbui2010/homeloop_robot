@@ -138,7 +138,7 @@ The ENV gives no house `tags`, no catalog `SPOKEN` aliases of objects and no lab
 
 ## Planner settings (round 3)
 
-`manifest.yaml` `planner:` sets `llm_budget: 26` and `translate_budget: 4` (the bench's 30-call episode cap,
+`manifest.yaml` `planner:` sets `llm_budget: 22` and `translate_budget: 8` (the bench's 30-call episode cap,
 split), `translate_model: qwen3-vl:30b-a3b-instruct` (the translation A/B winner,
 homeloop_bench `data/quality/translate_ab.json`) and `search_legs: true`. `limits.payload_kg: 1.5` is ASSUMED
 (docs/calibration.md "Payload"). The Korean phrases of robot_agent's fixed questions and read-backs are in
