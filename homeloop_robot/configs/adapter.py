@@ -108,6 +108,7 @@ _KO_PHRASES = {
     "q_unclear_task": "죄송해요, 잘 이해하지 못했어요. 다른 말로 다시 말씀해 주시겠어요?",
     "q_what_exactly": "정확히 뭘 할까요?",
     "q_what_do": "죄송해요. 그럼 뭘 할까요?",
+    "q_which_part": "어느 부분이 맞지 않나요? 무엇을 가져올지, 어디에 둘지, 아니면 누구에게 줄지 알려 주세요.",
     "iss_place": "{what} 말씀하셨는데 제 계획에 없어요",
     "iss_unsaid": "{what} 얘기는 못 들었어요",
     "iss_object": "{what}, 제 계획에 없어요",

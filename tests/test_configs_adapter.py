@@ -113,3 +113,11 @@ def test_env_dock_aliases_name_charging():
     assert {"charge", "충전"} <= set(env["dock@living"]["aliases"])
     env = env_for(from_house("shared_flat", 0))
     assert "room A bed in room A" not in env["bed@room_a"]["aliases"]
+
+
+def test_korean_choice_question_for_a_refused_reading():
+    """q_which_part (robot_agent's dialogue convergence) is said from the pack, in Hangul, without a translator."""
+    import re
+    from homeloop_robot.configs.adapter import PHRASES
+    ko = PHRASES["q_which_part"]["ko"]
+    assert re.search(r"[가-힣]", ko) and not re.search(r"[一-鿿]", ko) and ko.endswith("주세요.")
