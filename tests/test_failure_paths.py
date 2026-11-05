@@ -180,3 +180,16 @@ def test_ask_reaches_the_user_through_the_app_from_another_room():
     ep.user.dialog_channel = "voice"
     r = go(ep, "ask", question="Where should I put the remote control?")
     assert not r.ok and r.code == F.TIMEOUT and "hearing range" in r.msg
+
+
+def test_pose_reading_uses_the_sensor_rate_not_the_motion_rate():
+    """The pose read after a move is a sensor call (docs/failure_model.md rule 5.1): at a motion rate of 1 and a
+    sensor rate of 0 it never faults, and at a sensor rate of 1 it always does."""
+    ep = episode(profile=patched(hw__p_per_motion_call=0.0, hw__p_per_sensor_call=0.0))
+    assert go(ep, "pose").ok
+    ep = episode(profile=patched(hw__p_per_motion_call=1.0, hw__p_per_sensor_call=0.0))
+    assert go(ep, "pose").ok
+    assert go(ep, "move", target="counter@kitchen").code == F.HW_FAULT          # a motion call still faults
+    ep = episode(profile=patched(hw__p_per_motion_call=0.0, hw__p_per_sensor_call=1.0))
+    r = go(ep, "pose")
+    assert r.code == F.HW_FAULT and r.injected

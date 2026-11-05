@@ -410,9 +410,11 @@ class Robot:
             return (a + b) / 2.0
         return 1.0
 
-    def _hw(self, res, u, device) -> bool:
-        """Rule 1: hardware fault on this call. True when it fired (res failed)."""
-        motion = device in ("base", "arm")
+    def _hw(self, res, u, device, motion=None) -> bool:
+        """Rule 1: hardware fault on this call. True when it fired (res failed). The rate is the motion-call rate
+        for a base / arm primitive (navigate, pick, drop: how the published rate was counted) and the sensor-call
+        rate for a reading (``motion=False``: the pose read after a move is a sensor call on the base)."""
+        motion = device in ("base", "arm") if motion is None else motion
         pr = float(self._p("hw.p_per_motion_call" if motion else "hw.p_per_sensor_call"))
         if u[U.HW] < pr:
             persistent = u[U.HW_PERSIST] < float(self._p("hw.p_persistent"))
@@ -1173,7 +1175,7 @@ class Robot:
 
     def _sk_pose(self, res, u, t0):
         w, r = self.world, self.world.robot
-        if self._hw(res, u, "base"):
+        if self._hw(res, u, "base", motion=False):
             res.dur = PRECONDITION_S
             return res
         res.dur = float(self._p("pose.duration_s"))

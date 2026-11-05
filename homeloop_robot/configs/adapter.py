@@ -116,6 +116,7 @@ _KO_PHRASES = {
     "say_stopped": "알겠어요, 멈췄어요.",
     "say_no_answer": "답을 듣지 못해서 여기서 멈출게요.",
     "say_not_confirmed": "무엇을 할지 확인하지 못해서 여기서 멈출게요.",
+    "say_could_not_do": "죄송해요, 일을 끝내지 못했어요.",
     "say_gave_up": "죄송해요, 어떤 일을 원하시는지 아직 잘 이해하지 못했어요.",
     "say_untranslated": "죄송해요, 지금은 그 말씀을 드리기 어려워요.",
     "llm_budget": "죄송해요, 정해진 횟수 안에 이 일을 해결하지 못해서 멈출게요.",
