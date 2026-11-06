@@ -176,11 +176,12 @@ def refresh_person_spot(env: dict, pid: str, world):
         # arrival check go there; hl-dev-000021 EN sage_gold: the nightstand, 3 of 4 slots taken, was full after the
         # glass was put on it, so the spot was dropped and the robot looked at the glass from the stop point)
         return old
-    xy = world.seen_xy(pid)             # where the robot last saw them (stale when they left its view)
-    new = person_spot(world, pid, xy=xy)
-    if new == old:
-        return old
-    e["loc"], e["height"] = person_loc(world, pid, new, xy=xy)
+    new = person_spot(world, pid, xy=world.seen_xy(pid))    # where the robot last saw them (stale when they left)
+    # The ENV loc of an entry with no spot is the point a move to the person stops at, and that move ends at the
+    # person's TRUE position (skills._sk_move reads it from the user model): both come from world.person_xy, so a
+    # person who sat down elsewhere after the ENV was built is not walked to from a stale stop point. Hence the
+    # loc is refreshed also when the spot stays None (it used to return early on new == old).
+    e["loc"], e["height"] = person_loc(world, pid, new, xy=world.person_xy(pid))
     e["spot"] = new
     return new
 
