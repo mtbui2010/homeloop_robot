@@ -82,3 +82,36 @@ def test_a_usable_spot_is_kept():
     assert e["spot"] == "side_table@living"
     loc = dict(e["loc"])
     assert refresh_person_spot(env, "grandma", w) == "side_table@living" and e["loc"] == loc
+
+
+def test_a_spot_filled_by_the_robots_own_delivery_is_kept(backend):
+    """hl-dev-000021 EN (sage_gold): the nightstand beside grandma (capacity 4) held 3 things; the robot put the glass
+    on it (full, 0 free). The next MoveTo to her dropped the spot, so the final look was made from the stop point
+    and the glass 'was not found'. A spot the robot's own delivery filled stays the spot (consistency fix)."""
+    ep = make_episode("senior_flat", 0, "ideal", 0)
+    w = ep.world
+    env = env_for(w)
+    key = person_key(w, "grandma")
+    e = env[key]
+    spot = e["spot"]
+    assert spot is not None
+    others = [o for o in w.objects_at(spot)]
+    cap = w.house.places[spot].capacity
+    for o in others[cap - 1:]:                                         # 021's start: one slot left on the spot
+        w.objects[o].at = "floor@" + w.house.places[spot].room if ("floor@" + w.house.places[spot].room) in w.house.places else "floor@living"
+    for o in [x for x in ("remote_1", "candle_1", "houseplant_1", "mug_1") if x not in w.objects_at(spot)]:
+        if w.free_slots(spot) > 1:
+            w.objects[o].at, w.objects[o].inside = spot, False
+    assert w.free_slots(spot) == 1, (spot, w.free_slots(spot))
+    backend(ep, env)
+    glass = "glass_2"
+    w.objects[glass].at, w.objects[glass].inside = "shelf@kitchen", False
+    assert ra_skills.move(None, inputs="shelf@kitchen")["isdone"]
+    assert ra_skills.find(None, inputs=ra_skills._name(w, glass))["isdone"]
+    assert ra_skills.pick(None, inputs=ra_skills._name(w, glass))["isdone"]
+    assert ra_skills.move(None, inputs=key)["isdone"]
+    assert ra_skills.place(None, inputs=key)["isdone"]
+    assert w.objects[glass].at == spot and w.free_slots(spot) == 0
+    assert refresh_person_spot(env, "grandma", w) == spot and e["spot"] == spot       # the old code returned another
+    assert ra_skills.move(None, inputs=key)["isdone"]
+    assert math.dist(w.robot.pose[:2], (e["loc"]["x"], e["loc"]["y"])) <= 0.3

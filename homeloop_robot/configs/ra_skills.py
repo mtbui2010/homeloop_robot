@@ -117,11 +117,22 @@ def pick(node=None, inputs: str = "", **params) -> dict:
 def place(node=None, inputs: str = "", **params) -> dict:
     """Place; on a person: on the spot of their ENV entry. With no spot it stays a place on the person, which
     fails ("a person, use handover"): a Place is never turned into a handover here."""
+    world = getattr(get_backend(), "world", None)
+    held = getattr(getattr(world, "robot", None), "holding", None)      # what the robot has in the gripper
     per = _person(str(inputs or "").strip())
     if per is not None:
         pid, spot = per
-        return _run("place", target=spot or pid)
-    return _run("place", target=str(inputs))
+        return _placed(_run("place", target=spot or pid), world, spot or pid, held)
+    return _placed(_run("place", target=str(inputs)), world, str(inputs), held)
+
+
+def _placed(out: dict, world, target: str, held) -> dict:
+    """Remember a successful Place (where the robot's own delivery went): tasks.refresh_person_spot keeps a spot that
+    delivery filled."""
+    if out.get("isdone") and world is not None and target in world.house.places:
+        from .tasks import note_placed
+        note_placed(world, target, held)
+    return out
 
 
 def _person_id(name: str) -> str:

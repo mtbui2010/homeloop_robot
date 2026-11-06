@@ -145,6 +145,18 @@ def person_loc(world, pid: str, spot, xy=None) -> tuple:
     return {"x": float(sx), "y": float(sy), "rz": float(math.degrees(math.atan2(xy[1] - sy, xy[0] - sx)))}, 0.0
 
 
+def note_placed(world, place: str, obj: str | None) -> None:
+    """The robot put ``obj`` down on ``place`` (its own successful Place): it remembers where its own delivery went."""
+    if world is not None and obj:
+        # (robot-side memory kept on the world object the backend gives: {place: {object ids}})
+        world.__dict__.setdefault("_robot_placed", {}).setdefault(place, set()).add(obj)
+
+
+def _holds_own_delivery(world, place: str) -> bool:
+    return any(o in world.objects and world.objects[o].at == place
+               for o in getattr(world, "_robot_placed", {}).get(place, ()))
+
+
 def refresh_person_spot(env: dict, pid: str, world):
     """The spot of person ``pid``'s ENV entry, looked at again in ``world`` (the scene now) when the entry's spot is
     no longer usable: there was none (every surface beside the person was full when the ENV was built) or it has no
@@ -159,7 +171,10 @@ def refresh_person_spot(env: dict, pid: str, world):
     if "loc" not in e:
         return None                     # people tracking off: the robot knows no position to look at
     old = e.get("spot")
-    if old is not None and old in world.house.places and world.free_slots(old) > 0:
+    if old is not None and old in world.house.places and (world.free_slots(old) > 0 or _holds_own_delivery(world, old)):
+        # (a spot the robot's own delivery just filled is still the place beside the person: the final look and the
+        # arrival check go there; hl-dev-000021 EN sage_gold: the nightstand, 3 of 4 slots taken, was full after the
+        # glass was put on it, so the spot was dropped and the robot looked at the glass from the stop point)
         return old
     xy = world.seen_xy(pid)             # where the robot last saw them (stale when they left its view)
     new = person_spot(world, pid, xy=xy)
