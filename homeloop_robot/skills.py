@@ -203,6 +203,9 @@ class Robot:
         self.events: list = []               # every user event delivered (interruptions)
         self.pending_events: list = []       # delivered since the last pop_events()
         self.n_calls = 0
+        self._idle_run_s = 0.0       # time waited without a skill call (idle), since the last skill call
+        self.idle_total_s = 0.0
+        self._n_idle_clears = 0
         self.n_motion = 0
         self._nth: dict = {}
         self._interrupts: list = []          # (after_motion_calls, UserEvent)
@@ -265,8 +268,30 @@ class Robot:
     def reported_at(self):
         return self._reported_at
 
+    def idle(self, seconds: float) -> float:
+        """The robot waits ``seconds`` without calling a skill (a control loop sleeping between sensor polls): simulated
+        time passes, and a wait of at least ``WAIT_CLEARS_S`` in a row has the effect of the ``wait`` skill on a camera
+        fault that clears on waiting. The same for every robot (consistency fix, not a change of rates). Returns the
+        seconds that passed."""
+        dt = max(0.0, float(seconds))
+        if dt <= 0.0:
+            return 0.0
+        self.clock.advance(dt)
+        self.idle_total_s += dt
+        self._idle_run_s += dt
+        f = self.world.faults.get("camera")
+        if f is not None and f.clears_on == "wait" and self._idle_run_s >= WAIT_CLEARS_S:
+            self._idle_run_s = 0.0
+            u = uniforms(self.streams.rng_for("outcome", "idle", self._n_idle_clears))
+            self._n_idle_clears += 1
+            if u[U.FAIL] < f.p_clear:
+                del self.world.faults["camera"]
+        self.sync_people()
+        return dt
+
     def call(self, skill: str, /, **args) -> SkillResult:
         t0 = self.clock.t
+        self._idle_run_s = 0.0
         res = self._call(skill, args, t0)
         dur = max(0.0, float(res.dur))
         self.clock.advance(dur)
