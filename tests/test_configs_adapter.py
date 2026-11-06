@@ -121,3 +121,9 @@ def test_korean_choice_question_for_a_refused_reading():
     from homeloop_robot.configs.adapter import PHRASES
     ko = PHRASES["q_which_part"]["ko"]
     assert re.search(r"[가-힣]", ko) and not re.search(r"[一-鿿]", ko) and ko.endswith("주세요.")
+
+
+def test_pack_says_the_restated_readback_lead_in_korean():
+    """V1 (lab round 3): the restated read-back is a lead sentence + the ordinary read-back phrase, both data of the pack."""
+    from homeloop_robot.configs.adapter import PHRASES
+    assert PHRASES["rb_restated"]["ko"] and PHRASES["q_confirm"]["ko"]
