@@ -113,6 +113,10 @@ path only when the user is reachable.
        (or all going to the same place) -> where it goes; an empty slot ("Where should I put the ?") is not
        answered;
      - open questions ("What should I do?", "What else?") are not answered from the request;
+   - knowledge state (consistency fix, not a change of rates): what the user has said about where an object is
+     holds for the rest of the episode. After "I don't know" it does not name the place later, and after naming
+     it, it does not say it does not know. The `user.p_location_unknown` draw is still taken on every ask (the
+     random streams do not shift) but only the first one per object counts;
    - "where is X?" about one object -> its true place ("It's on the counter." / "조리대 위에 있어요."), unless the
      user does not know (`user.p_location_unknown`); "where should I put X?" is not read as "where is X?";
    - otherwise "I'm not sure what you mean." / "무슨 말씀인지 잘 모르겠어요." (the generic user: "I don't know.");

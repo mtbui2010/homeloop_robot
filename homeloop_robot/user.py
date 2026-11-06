@@ -123,6 +123,10 @@ class SimUser:
         self.last_intent: dict | None = None     # how the last answered question was read (path, qtype, rule)
         self.last_reading: dict | None = None    # the meaning (qtype + slots) it was answered by, None = a rule's
         self.n_handovers = 0
+        # what the user has already said about where things are, per object named in the question (True = told a
+        # place, False = said it does not know): a person does not say "I don't know" and later name the place
+        # (consistency fix, docs/user_model.md "Knowledge state"); the key () is a question that names no object
+        self._loc_known: dict[tuple, bool] = {}
         self._help: tuple[str, float] | None = None
         self.log: list[dict] = []
         # the fallback for a free-text question the rules do not understand (docs/user_model.md "Structured
@@ -442,6 +446,15 @@ class SimUser:
                      w.house.places[pid])) for c in classes)]
         return usual or places
 
+    _LOCATION_RULES = ("location", "location_unknown", "person_location")
+
+    def _loc_key(self, question: str) -> tuple:
+        """The objects a question names: the key of the user's remembered knowledge of where they are."""
+        try:
+            return tuple(dialog.mentioned_objects(self.world, question))
+        except Exception:   # a world without names to match: one shared key
+            return ()
+
     def answer(self, question: str, lang: str, robot_xy, t: float, meaning: dict | None = None):
         """The user's reply to ``question`` (what they hear). ``meaning``: the planner's structured form of the
         question (``intent.QTYPES`` + slots), None = free text (docs/user_model.md)."""
@@ -467,7 +480,11 @@ class SimUser:
         if help_pending:
             kind, text, rule = "yes", dialog.TEXT["help_ok"][L], "help"
         else:
-            knows = rng.random() >= self.p_location_unknown
+            knows = rng.random() >= self.p_location_unknown      # (always drawn: the streams do not shift)
+            lkey = self._loc_key(question)
+            seen = [v for k, v in self._loc_known.items() if k == lkey or set(k) & set(lkey)]
+            if seen:
+                knows = all(seen)
             places = self.wrong_places()
             other = places[rng.randrange(len(places))] if places else None
             gv = None
@@ -480,6 +497,7 @@ class SimUser:
                 knows_location=knows, other_place=other, user_place=self.place_of(uid, t), goal=gv,
                 request=self.request, last_answer=last))
             kind, text, rule = c.kind, c.text, c.rule
+            was_location = rule in self._LOCATION_RULES
             if c.informative:
                 u = rng.random()
                 if u < self.p_wrong:
@@ -492,6 +510,10 @@ class SimUser:
                     # "I'm not sure what you mean." (that one tells the robot its question was unclear; fresh pilot
                     # round 3, sage EN hl-dev-000016: "Where are the reading glasses and the remote?")
                     kind, text = "not_sure", dialog.TEXT["dont_know"][L]
+            if was_location:
+                # remember the knowledge state the user just showed (a "not sure" answer to a where question, from
+                # the noise draw or from not knowing, says "I don't know" either way)
+                self._loc_known[lkey] = rule != "location_unknown" and kind != "not_sure"
         lat = self.latency
         latency = lognormal(rng, lat["median"], lat["sigma"], lat["min"])
         st = self._state(uid, t)

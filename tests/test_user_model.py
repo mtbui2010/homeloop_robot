@@ -244,3 +244,31 @@ def test_where_are_you_through_user():
     walk = w.walks(pid)[0]
     assert w.place_of(pid, (walk["t0"] + walk["t1"]) / 2) == (walk["to"], True)
     assert w.place_of(pid, walk["t1"] + 0.5) == (walk["to"], False)
+
+
+def test_location_knowledge_is_consistent_within_an_episode():
+    """Consistency fix (not tuning): a user who said it does not know where the mug is does not name its place in a
+    later turn of the same episode, and one who named it does not then say it does not know (hl-dev-000003 EN:
+    "I don't know." twice, then "It's on the dining table.")."""
+    q = "Where is the red mug?"
+    n_flip = 0
+    for seed in range(300):
+        u = user(seed=seed, **{"user.p_location_unknown": 0.5, "user.p_no_answer": 0.0, "user.answer.p_wrong": 0.0,
+                               "user.answer.p_not_sure": 0.0, "user.patience_questions": 50})
+        said = []
+        for i in range(6):
+            r, _ = u.answer(q, "en", NEAR, float(i))
+            said.append("unknown" if r.kind == "not_sure" else "place")
+        n_flip += len(set(said)) > 1
+        assert len(set(said)) == 1, (seed, said)
+    assert n_flip == 0
+
+
+def test_location_knowledge_draw_keeps_streams_stable():
+    """The knowledge draw is still taken on every ask, so the other draws of an episode do not shift."""
+    a = user(seed=3, **{"user.p_location_unknown": 0.0})
+    b = user(seed=3, **{"user.p_location_unknown": 0.0})
+    for i in range(3):
+        ra, _ = a.answer("Where is the red mug?", "en", NEAR, float(i))
+        rb, _ = b.answer("Where is the red mug?", "en", NEAR, float(i))
+        assert (ra.text, ra.latency_s if hasattr(ra, "latency_s") else None) == (rb.text, rb.latency_s if hasattr(rb, "latency_s") else None)
