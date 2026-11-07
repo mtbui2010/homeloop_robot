@@ -72,7 +72,7 @@ _ALL = [
     _c("detergent", "detergent", "세제", "household", 0.9, ("toxic", "liquid"), ("bleach", "cleaning_spray"), ("dish soap",), ("주방세제",)),
     _c("cleaning_spray", "cleaning spray", "세정 스프레이", "household", 0.5, ("toxic", "liquid"), ("detergent",), ("spray",), ("스프레이",)),
     # medicine
-    _c("medicine_bottle", "medicine bottle", "약병", "household", 0.1, ("medicine",), ("pill_box", "vitamins"), ("medicine",), ("약",)),
+    _c("medicine_bottle", "medicine bottle", "약병", "household", 0.1, ("medicine",), ("pill_box", "vitamins"), ("medicine", "pill bottle"), ("약",)),  # "pill bottle": BEHAVIOR-1K synset pill_bottle.n.01
     _c("pill_box", "pill box", "약통", "household", 0.1, ("medicine",), ("medicine_bottle",), ("pill organizer",), ("알약 통",)),
     _c("vitamins", "vitamin bottle", "비타민", "household", 0.1, ("medicine",), ("medicine_bottle",), ("vitamins",), ("영양제",)),
     # electronics

@@ -30,3 +30,19 @@ def test_packaging_noun_and_korean_description():
     assert ids == ["milk_1"]
     assert detector_hits(w, "milk pack") == ids and detector_hits(w, "우유 팩") == ids
     assert "milk_1" not in detector_hits(w, "milk glass")
+
+
+def test_pill_bottle_synonym_hits_only_the_medicine_bottle():
+    """Round 10 (KO 014): "orange pill bottle" (the common name; BEHAVIOR-1K synset pill_bottle.n.01) named the
+    orange medicine bottle but the camera knew only "medicine bottle". "pill box" stays the pill organizer."""
+    ep = episode("senior_flat")
+    w = ep.world
+    assert w.objects["medicine_bottle_2"].attrs["color"] == "orange"
+    assert detector_hits(w, "orange pill bottle") == ["medicine_bottle_2"]
+    assert detector_hits(w, "pill bottle") == ["medicine_bottle_1", "medicine_bottle_2"]
+    assert ep.robot._resolve_obj("orange pill bottle") == "medicine_bottle_2"
+    pb = [o for o in w.objects if w.objects[o].cls == "pill_box"]
+    hits = detector_hits(w, "pill box")
+    assert hits == sorted(pb)
+    assert not set(hits) & {"medicine_bottle_1", "medicine_bottle_2"}
+    assert detector_hits(w, "medicine bottle") == ["medicine_bottle_1", "medicine_bottle_2"]

@@ -20,6 +20,7 @@ destinations, `report` for the robot-side rules) and adds its task rules (R-e, R
 | ALFRED (Shridhar et al., 2020) | the benchmark that uses these object / receptacle types | https://arxiv.org/abs/1912.01734 |
 | YCB object set, Table II (Calli et al. 2015) | object identities and masses: mug 118 g, plate 279 g, bowl 147 g, fork 34 g, spoon 30 g, knife 31 g, wine glass 133 g, scissors 82 g, keys 6 g, apple 68 g, orange 47 g, banana 66 g, tomato soup can 349 g, cereal box 510 g | https://arxiv.org/abs/1502.03143 |
 | OK-Robot payload limit (Sec. III-D) | 1 kg: heavier objects are not graspable | https://arxiv.org/abs/2401.12202 |
+| BEHAVIOR-1K knowledge base (Li et al.), synset `pill_bottle.n.01` ("a small bottle for holding pills", child of `bottle.n.01`) | the common English name "pill bottle", declared as an alias of `medicine_bottle` (the camera's detector reads it; the pill organizer keeps its own name "pill box") | https://behavior.stanford.edu/knowledgebase/synsets/pill_bottle.n.01.html |
 
 Each catalog class (`homeloop_robot/catalog.py`, `REALISM`) has `category`, `provenance` (set, item,
 URL; or a note that no published set has the item, e.g. a kimchi container or a pill organizer),
