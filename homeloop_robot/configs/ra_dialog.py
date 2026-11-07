@@ -30,6 +30,10 @@ TEMPLATES = [
     # assist_loop._read_back: "I am not sure I understood (...). " + summary(goals) + " Is that right?"
     ("read_back", r"(?:I am not sure I understood \(.*?\)\. )?(?P<goal>I will .+?) Is that right\?",
      "confirm", lambda m: {"goal": m["goal"]}),
+    # assist_loop._coverage_gap (option request_coverage, speech phrase q_coverage; the clarify event has kind
+    # "coverage"): a part of the request the run has not done: the part is the goal slot, ask=coverage
+    ("coverage", r"You also asked me for this, but I have not done it: (?P<goal>[^?]+?)\. Should I do it now\?",
+     "confirm", lambda m: {"goal": m["goal"], "ask": "coverage"}),
     # assist_loop goal_change: a new request from someone else during a run
     ("new_task_first", r"Someone asked me to .+?\. Should I do that first\? If not, I will do it after the "
                        r"current task\.", "free", lambda m: {}),

@@ -24,6 +24,8 @@ from robot_agent.core.planning import speech as RS  # noqa: E402
 SRC = "\n".join(Path(m.__file__).read_text(encoding="utf-8") for m in (AL, RG, U, RD, RR, RS))
 # templates robot_agent no longer asks (SAGE-v2 round 3), kept so questions of earlier runs still derive (the audit)
 RETIRED = {"do_with"}
+# templates of a lab build of robot_agent (SAGE-v2 round 8b: the phrase q_coverage): checked when the build has the phrase
+LAB_ONLY = {"coverage": '"q_coverage"'}
 
 # a fixed wording of each template as it stands in robot_agent's source
 ANCHORS = {
@@ -41,12 +43,15 @@ ANCHORS = {
     "where_are_you": '"q_where_are_you": "Where are you?"', "where_is_person": '"Where is {person}?"',
     "repeat_v2": "Sorry, I didn't catch that. Could you say it again?", "did_you_mean": '"Did you mean the {object}?"',
     "what_bring": '"What should I bring?"',
+    "coverage": "You also asked me for this, but I have not done it: {what}. Should I do it now?",
 }
 
 
 def test_every_template_wording_is_in_robot_agent():
     assert set(ANCHORS) == {t[0] for t in TEMPLATES}
     for tid, anchor in ANCHORS.items():
+        if tid in LAB_ONLY and LAB_ONLY[tid] not in SRC:
+            continue
         if tid not in RETIRED:
             assert anchor in SRC, f"{tid}: {anchor!r} no longer in robot_agent"
 
@@ -139,3 +144,14 @@ def test_templates_compile_and_anchor_regex_sanity():
         re.compile(rx)
         assert qt in ("which_object", "which_place", "confirm", "where_are_you", "where_is", "repeat",
                       "did_you_mean", "what_to_say", "help", "free"), tid
+
+
+def test_coverage_question_is_a_structured_confirm_with_the_part_as_goal():
+    """SAGE's request_coverage question (clarify kind 'coverage', phrase q_coverage) maps onto qtype confirm, the part as
+    the goal slot, marked ask=coverage. Built with robot_agent's own LocalText when the build has the phrase."""
+    if "q_coverage" not in RS.CORE_PHRASES:
+        pytest.skip("this robot_agent build has no request_coverage phrase")
+    q = str(RS.LocalText("q_coverage", {"what": "put the phone on the TV stand"}))
+    m = derive(q)
+    assert m == {"qtype": "confirm", "goal": "put the phone on the TV stand", "ask": "coverage", "template": ["coverage"]}
+    assert derive("Sorry, I didn't hear you. " + q)["template"] == ["silence_retry", "coverage"]

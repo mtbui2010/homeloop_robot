@@ -393,8 +393,12 @@ class SimUser:
             ct, _p, qt = self._read_text(question, L, kw)
             if qt != m["qtype"] or not _intent.slots_agree(m, question, self.world):
                 return ct, "structured_mismatch", qt
+            if m.get("ask") == "coverage" and (self.last_reading or {}).get("ask") != "coverage":
+                # the coverage question (a part not done, do it now?) must read as that question in the text heard
+                # (a Korean phrase that lost it, or an English one left untranslated, is answered as heard)
+                return ct, "structured_mismatch", qt
             c = _intent.answer_structured(m, L, self.spec, self.world, **kw)
-            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and c.kind in ("yes", "no")
+            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and not m.get("ask") and c.kind in ("yes", "no")
                     and ct.kind in ("yes", "no") and ct.kind != c.kind
                     and not _intent.vague_read_back(question, L, self.world)):
                 # a read-back is confirmed or corrected for what the user heard: a translation that drops or changes
@@ -403,7 +407,7 @@ class SimUser:
                 # user says yes / no to the sentence they heard (pilot round 1, hl-dev-000010 KO); a read-back that
                 # states nothing ("그렇게 할게요. 맞죠?") is taken from context as before
                 return ct, "structured_mismatch", qt
-            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and c.kind == "no" and ct.kind == "no"
+            if (c is not None and m["qtype"] == "confirm" and m.get("goal") and not m.get("ask") and c.kind == "no" and ct.kind == "no"
                     and c.text != ct.text and str(m["goal"]).strip() not in str(question)
                     and self._heard_has_right(kw.get("goal"), str(m["goal"]), question)):
                 # both say "no", but the part the meaning corrects is right in what the user HEARD: a translated

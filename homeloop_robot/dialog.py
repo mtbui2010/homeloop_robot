@@ -479,6 +479,19 @@ PLAN_READBACK_RX = {
     "ko": re.compile(r"(?:게요|겠어요|겠습니다|할 거예요|할게요|ㄹ게요)[.!\s]*(?:맞아요|맞나요|맞죠|맞습니까|맞을까요)\s*\?\s*$")}
 
 
+def extra_message(q: str, goal: "GoalView | None") -> bool:
+    """Does the read-back ``q`` say something is to be said or told while the request holds no message?"""
+    if goal is None or any(a["pred"] == "said_to" for a in goal.atoms):
+        return False
+    t = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(q or "")))
+    return bool(MESSAGE_READBACK_RX["en"].search(t.lower()) or MESSAGE_READBACK_RX["ko"].search(t)
+                or EXTRA_MESSAGE_RX["en"].search(t.lower()) or EXTRA_MESSAGE_RX["ko"].search(t))
+
+
+EXTRA_MESSAGE_RX = {"en": re.compile(r"\b(?:say|tell|pass on|let \w+ know)\b"),
+                    "ko": re.compile(r"(?:말\s*(?:할|해|씀)|전\s*(?:할|해)|알려)")}
+
+
 def is_plan_readback(question: str) -> bool:
     """Is ``question`` the robot reading back what it will do and asking if that is right (not a question
     about a refusal)?"""

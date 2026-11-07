@@ -59,3 +59,30 @@ def test_canonical_texts_match_only_their_key():
         for lang, t in by_lang.items():
             assert message_matches(k, t, lang), (k, lang)
             assert [k2 for k2 in MESSAGES if k2 != k and message_matches(k2, t, lang)] == [], (k, lang, t)
+
+
+@pytest.mark.parametrize("key,text,lang", [
+    # the English wording of every verb the Korean entries accept (EN / KO symmetry audit)
+    ("come_kitchen", "Grandpa, please go to the kitchen for a sec.", "en"),
+    ("come_kitchen", "Could you go into the kitchen?", "en"),
+    ("dinner_ready", "Come eat dinner, it is served.", "en"),
+    ("lunch_ready", "Lunch is on the table.", "en"),
+    ("take_medicine", "Time for your medication.", "en"),
+    ("drink_water", "Have a glass of water.", "en"),
+    ("laundry_done", "The washing is done.", "en"),
+    ("wake_up", "Time to get up.", "en"),
+    ("leaving_soon", "We are heading out soon.", "en"),
+    ("tv_off", "Turn the TV off, please.", "en"),
+])
+def test_english_wordings_match_the_korean_verbs(key, text, lang):
+    assert message_matches(key, text, lang)
+
+
+def test_come_kitchen_go_satisfies_said_to_and_the_readback_check():
+    from homeloop_robot.dialog import GoalView
+    from homeloop_robot.world import from_house
+    w = from_house("korean_apt_59")
+    q = "I will tell Grandpa: please go to the kitchen for a sec. Is that right?"
+    gv = GoalView(w, {"all": [{"pred": "said_to", "args": ["grandpa", "come_kitchen"]}]}, "user")
+    assert message_matches("come_kitchen", "Grandpa, please go to the kitchen for a sec.", "en")
+    assert all(gv.covered(a, q) for a in gv.atoms if a["pred"] == "said_to")

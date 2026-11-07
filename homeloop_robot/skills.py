@@ -1052,6 +1052,10 @@ class Robot:
         res.dur += float(reply.latency_s)
         res.data.update({"answer": h.text, "answer_lang": lang or self.lang})
         res.truth.update({"reply": reply.text, "reply_kind": reply.kind, "asr": h.event})
+        if reply.kind == "wrong":
+            # an injected user error (the user's p_wrong draw): the call stays ok, the event names it, so the report
+            # of the episode can count it next to the injected robot failures (homeloop_bench metrics.failure_events)
+            res.truth["event"] = "user_wrong_answer"
         if helped:
             for k in helped:
                 if u[U.FAIL] < w.faults[k].p_help:

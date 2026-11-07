@@ -105,6 +105,7 @@ _KO_PHRASES = {
     "rb_say_here": "\"{text}\"라고 말할게요",
     "rb_say_at": "{place}에서 \"{text}\"라고 말할게요",
     "rb_restated": "같은 뜻으로 다시 이해했어요.",
+    "q_coverage": "\"{what}\"도 부탁하셨는데 아직 못 했어요. 지금 할까요?",
     "q_mentioned": "{what} 말씀하셨는데, 거기서 뭘 할까요?",
     "q_unclear_task": "죄송해요, 잘 이해하지 못했어요. 다른 말로 다시 말씀해 주시겠어요?",
     "q_what_exactly": "정확히 뭘 할까요?",

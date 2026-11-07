@@ -21,7 +21,10 @@ which_object    options: [names], the objects offered ("the red mug or the blue 
 which_place     options: [place names / ids]; obj: the object whose destination is asked; verb: open | close
                 (which container / door to open or close: "What should I open?")
 confirm         goal: a read-back of the plan ("I will put the mug on the counter."); obj: one thing
-                ("is it the red mug?"); options are not used
+                ("is it the red mug?"); ask: "coverage" = the robot names a part of the request it has not done
+                and asks whether to do it now, goal is then that part in the user's own words ("You also asked me
+                for this, but I have not done it: <part>. Should I do it now?"): yes when something that part is
+                about does not hold in the true world, no when all of it does; options are not used
 where_are_you   -
 where_is        obj (required): an object or a person
 repeat          about: request | answer (default: the request right after it, else the last answer)
@@ -40,7 +43,7 @@ from homeloop_robot import dialog as D
 
 QTYPES = ("which_object", "which_place", "confirm", "where_are_you", "where_is", "repeat", "did_you_mean",
           "what_to_say", "help", "free")
-SLOTS = {"which_object": ("options", "obj"), "which_place": ("options", "obj", "verb"), "confirm": ("goal", "obj"),
+SLOTS = {"which_object": ("options", "obj"), "which_place": ("options", "obj", "verb"), "confirm": ("goal", "obj", "ask"),
          "where_are_you": (), "where_is": ("obj",), "repeat": ("about",), "did_you_mean": ("word",),
          "what_to_say": ("person",), "help": (), "free": ()}
 REQUIRED = {"where_is": "obj", "did_you_mean": "word"}
@@ -57,7 +60,7 @@ _RULE_QTYPE = {"self_position": "where_are_you", "repeat_answer": "repeat", "rep
                "goal_confirm": "confirm", "goal_correct": "confirm", "help": "help",
                "not_understood": "free", "generic_user": "free", "goal_message": "what_to_say",
                "goal_open": "which_place", "goal_place_message": "which_place", "goal_order": "confirm",
-               "not_in_lang": "free"}
+               "not_in_lang": "free", "coverage": "confirm"}
 
 GO_TEXT = {"en": "To the {place}, please.", "ko": "{place}{ro} 가 주세요."}
 NAMES_JOIN = {"en": " and the ", "ko": "하고 "}
@@ -161,6 +164,9 @@ def clean(meaning: Any) -> dict | None:
             v = [str(x).strip() for x in v if str(x or "").strip()][:6]
             if v:
                 out[k] = v
+        elif k == "ask":
+            if str(v) == "coverage":
+                out[k] = "coverage"
         elif k == "about":
             if str(v) in ("request", "answer"):
                 out[k] = str(v)
@@ -278,6 +284,8 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
         if ans and not cands:
             return _scripted(spec, L)
         return _which_place(m, L, world, goal, kw) or _not_sure(L, spec)
+    if qt == "confirm" and m.get("ask") == "coverage":
+        return _coverage_answer(m.get("goal") or "", L, world, goal, spec)
     if qt == "confirm":
         text = m.get("goal") or m.get("obj") or ""
         if cands and ans:
@@ -285,6 +293,10 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
                                            for p in (c.get("mentions") or {}).get(lg, []))]
             if len(hit) == 1:
                 if hit[0].get("id") == intended:
+                    if m.get("goal"):
+                        bad = _readback_mismatch(m["goal"], L, world, goal, request, kw)
+                        if bad is not None:
+                            return bad
                     return D.Content("yes", D.TEXT["yes"][L], True,
                                      D.TEXT["no"][L] + D.lower_first(wrong) if wrong else None, "yes_no_intended")
                 return D.Content("no", D.TEXT["no"][L] + D.lower_first(ans[L]), True, D.TEXT["yes"][L],
@@ -301,6 +313,54 @@ def answer_structured(meaning: dict, L: str, spec: dict | None, world: Any, *, k
                 return c
         return _not_sure(L, spec)
     return None
+
+
+COVERAGE_TEXT = {"yes": {"en": "Yes, please do that too.", "ko": "네, 그것도 해 주세요."},
+                 "no": {"en": "No, that is already done.", "ko": "아니요, 그건 이미 됐어요."}}
+COVERAGE_RX = {"en": re.compile(r"you also asked me for this[^:]*:\s*(?P<part>.+?)\.?\s*should i do it now\s*\?\s*$", re.I | re.S),
+               "ko": re.compile(r"(?P<part>\S.*?)[\"”'’]?\s*(?:도|까지도)\s*(?:부탁|요청)\s*하셨는데.*?(?:지금|이제)\s*"
+                                r"(?:할까요|해 ?드릴까요|할까)\s*\?\s*$", re.S)}
+
+
+def read_coverage(question: str, L: str) -> "dict | None":
+    """The meaning of the coverage question in the text the user hears (English, or the robot's Korean phrase)."""
+    q = strip_preamble(question)
+    m = COVERAGE_RX["ko" if _hangul(q) else "en"].search(q.strip())
+    if not m:
+        return None
+    part = m["part"].strip().strip("\"“”'‘’ ").strip()
+    return {"qtype": "confirm", "ask": "coverage", **({"goal": part} if part else {})}
+
+
+def _coverage_answer(part: str, L: str, world: Any, goal: "D.GoalView | None", spec: dict) -> "D.Content":
+    """The user answers "should I do this part now?" from the TRUE state: yes when an atom of their request that the
+    part is about does not hold, no when all of them hold, not sure when the part is about no atom."""
+    from homeloop_robot import goals as G
+    if goal is None:
+        return _not_sure(L, spec)
+    rel = [a for a in goal.atoms if goal.subject_said(a, part)]
+    if not rel:
+        return _not_sure(L, spec)
+    if any(not G.holds(a, world) for a in rel):
+        return D.Content("yes", COVERAGE_TEXT["yes"][L], True, COVERAGE_TEXT["no"][L], "coverage")
+    return D.Content("no", COVERAGE_TEXT["no"][L], True, COVERAGE_TEXT["yes"][L], "coverage")
+
+
+def _readback_mismatch(text: str, L: str, world: Any, goal: "D.GoalView | None", request: str | None,
+                       kw: dict) -> "D.Content | None":
+    """A plan read-back that names the intended candidate is still a read-back of the whole plan: when it states
+    a part of the request wrongly (another destination, a missing atom) or adds a message the user did not ask for,
+    the user says no and gives the request. None when the read-back is right (or cannot be judged)."""
+    if goal is not None:
+        c = D.compose_from_goal(_canon("confirm_goal", text, goal=text), L, world, goal, **kw)
+        if c is not None and c.kind == "no":
+            return c
+        if D.extra_message(text, goal):
+            return D.Content("no", D.TEXT_GOAL_NO[L] + (" " + request if request else ""), True, D.TEXT["yes"][L],
+                             "goal_correct")
+        return None
+    c = D.plan_readback_answer(text, L, world, request, structured=True)
+    return c if c is not None and c.kind == "no" else None
 
 
 def _not_sure(L: str, spec: dict) -> "D.Content":
@@ -603,6 +663,9 @@ def read_free(question: str, L: str, world: Any) -> tuple | None:
     """Conventions 1-4 for a free-text question: ``(meaning, rule)`` when one of them decides the reading, or None
     (the rules of ``dialog.compose`` read the text, see :func:`text_for_rules`)."""
     q = strip_preamble(question)
+    cov = read_coverage(q, L)
+    if cov is not None:
+        return cov, "free_coverage"
     # a request for help with an obstacle ("Please clear the way and say yes."), a request for a yes / no
     # ("Please answer yes or no."): asked whatever else the text says
     if HELP_RX.search(q):
