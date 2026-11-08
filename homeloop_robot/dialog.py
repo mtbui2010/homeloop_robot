@@ -157,6 +157,11 @@ def _compound_names(world: Any, lang: str) -> list[tuple[str, frozenset]]:
     for g in groups:
         names = frozenset(normalize(f, lang) for x in g if x and detect_lang(x) == lang for f in ko_plural_forms(x))
         out += [(n, names) for n in sorted(names) if n]
+        if lang == "ko":
+            # a Korean name is also said by its head word alone ("A 방 책상" -> "책상"; spaces are dropped in the
+            # normalised name, so the head is taken from the written name): 책 inside 책상 names the desk, not a book
+            heads = {normalize(str(x).split()[-1], lang) for x in g if x and detect_lang(x) == lang and " " in str(x)}
+            out += [(h, names) for h in sorted(heads - names) if h]
     cache[lang] = out
     return out
 
@@ -889,8 +894,9 @@ def _atoms(wants: dict | None) -> list[dict]:
 class GoalView:
     """What the user wants, readable against a question."""
 
-    def __init__(self, world: Any, wants: dict | None, user_id: str | None, place_of=None):
+    def __init__(self, world: Any, wants: dict | None, user_id: str | None, place_of=None, request: str | None = None):
         self.w = world
+        self.request = request                  # the request text as said: places it names are part of the request
         self.atoms = _atoms(wants)
         self.user_id = user_id
         self.place_of = place_of or (lambda pid: getattr(world.people.get(pid), "seat", None))
@@ -975,6 +981,11 @@ class GoalView:
             # '요리용 마이크로웨이브를 주방에 두겠습니다' got yes). With something to be put in it ("open the fridge and put
             # the plate inside"), naming the container is enough, as before
             return self.subject_said(a, q) and said_with_verb(self.w, q, args[0], "open" if p == "open" else "close")
+        if p in ("open", "closed") and said_with_verb(self.w, q, args[0], "close" if p == "open" else "open"):
+            # with something to be put in it the container need not be said with its verb, but a read-back that says the
+            # opposite one ("..., then close the drawer" for a drawer to be left open) states another end state: the
+            # user corrects it (gate r11, hl-dev-000038 KO: the judge failed an open(drawer) the user had accepted)
+            return False
         if p == "held_by":
             if not self.subject_said(a, q):
                 return False
@@ -1123,6 +1134,14 @@ class GoalView:
             # then put the vitamins ..., then go to the dock": gate pilot round 1, hl-dev-000024, every read-back got
             # "No, I asked you to tell the kid.")
             mq = message_part(self.w, q0, pid)
+            # a place that the request text itself names outside its message part (the check place of a conditional:
+            # "check the kitchen table, if the milk is there ..., then tell my husband ...", gate r11, hl-dev-000030)
+            # is part of the request, not a wrong place to say the message
+            if self.request:
+                rq = QUOTED_RX.sub(" ", unicodedata.normalize("NFC", str(self.request)))
+                rm = message_part(self.w, rq, pid)
+                others |= {k for k in places if _mentions_any(rq, _place_words(self.w, k)[:2], self.w)
+                           and not _mentions_any(rm, _place_words(self.w, k)[:2], self.w)}
             other_place = any(_mentions_any(mq, _place_words(self.w, k)[:2], self.w) for k in places
                               if k != here and k not in others)
             return at_here or (named and not other_place)

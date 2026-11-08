@@ -493,7 +493,8 @@ class SimUser:
             other = places[rng.randrange(len(places))] if places else None
             gv = None
             if self.wants:
-                gv = dialog.GoalView(self.world, self.wants, uid, lambda pid: self.place_of(pid, t)[0])
+                gv = dialog.GoalView(self.world, self.wants, uid, lambda pid: self.place_of(pid, t)[0],
+                                     request=self.request)
             # the user's last reply that said something (an answer, not "not sure"): what "could you repeat?" repeats
             last = next((e for e in reversed(self.log) if e.get("text")), None)
             last = last["text"] if last is not None and last.get("kind") in ("correct", "yes", "no", "wrong") else None

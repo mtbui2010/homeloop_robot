@@ -799,13 +799,21 @@ def _thing_word(world: Any, text: str) -> bool:
     words = set(re.findall(r"[a-z]+|[가-힣]+", t))
     if words & set(THING_WORDS):
         return True
+    ko_names = D._compound_names(world, "ko")
     for oid in sorted(world.objects):
         for lg in ("en", "ko"):
             for n in D.object_names(world, oid, lg):
                 base = str(n).split()[-1].lower() if n else ""
-                if base and (base in words or (lg == "ko" and any(w.startswith(base) for w in words))):
+                if base and (base in words or (lg == "ko" and any(
+                        w.startswith(base) and not _longer_name(ko_names, base, w) for w in words))):
                     return True
     return False
+
+
+def _longer_name(ko_names, base: str, w: str) -> bool:
+    """Is Korean word ``w`` (it starts with ``base``) a longer name of a house place or object, or does it start with
+    one? 책상 (desk) and 책장 (bookshelf) are not 책 (book) with a particle."""
+    return any(len(n) > len(base) and n.startswith(base) and w.startswith(n) for n, _ in ko_names)
 
 
 # What a question asks, read from its surface when the rules of ``dialog.compose`` find no answer to it (the user
