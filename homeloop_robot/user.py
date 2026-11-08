@@ -361,6 +361,16 @@ class SimUser:
         round 1, hl-dev-000060 KO: only the objects were said)."""
         gv = kw.get("goal")
         ql = dialog._q_text(question)
+        if c is not None and gv is not None and c.rule in ("location", "location_unknown") \
+                and c.kind in ("correct", "not_sure") and self._asks_both(question, L):
+            # "Where is the milk, and where would you like me to put it away?": the user answers both questions, the
+            # second one with where they want it (a knowledge draw only concerns the first), gate r12 S8
+            asked = [o for o in dialog.mentioned_objects(self.world, question) if o in gv.objects()]
+            dest = dialog._dest_answer(gv, asked or list(dict.fromkeys(gv.objects())), L) if gv.atoms else None
+            if dest and dest not in c.text and any(a["pred"] in ("on", "in") for a in gv.atoms):
+                return dialog.Content(c.kind, c.text + " " + dest, c.informative,
+                                      (c.wrong_text + " " + dest) if c.wrong_text else c.wrong_text, c.rule)
+            return c
         if c is None or c.rule != "goal_object" or c.kind != "correct" or gv is None or \
                 not dialog.asks_destination(question) or \
                 dialog.LOC_RX["en"].search(ql.lower()) or dialog.LOC_RX["ko"].search(ql):
@@ -373,6 +383,18 @@ class SimUser:
             return c
         return dialog.Content(c.kind, c.text + " " + dest, c.informative,
                               (c.wrong_text + " " + dest) if c.wrong_text else c.wrong_text, c.rule)
+
+    @staticmethod
+    def _asks_both(question: str, L: str) -> bool:
+        """Is the question a compound one: a where-is part, joined to a where-should-it-go part?"""
+        whole = _intent._SENT_RX.split(_intent.first_question(question, L, cut=False))[-1]
+        rx = _intent._JOIN_KO if _intent._hangul(whole) else _intent._JOIN_EN
+        parts = rx.split(whole, maxsplit=1)
+        if len(parts) < 2:
+            parts = [x for x in re.split(r"(?<=[?])\s+", whole) if x.strip()]
+        return len(parts) >= 2 and bool(dialog.LOC_RX["en"].search(parts[0].lower()) or dialog.LOC_RX["ko"].search(parts[0])) \
+            and dialog.asks_destination(parts[-1]) and not (dialog.LOC_RX["en"].search(parts[-1].lower())
+                                                           or dialog.LOC_RX["ko"].search(parts[-1]))
 
     def _content_read(self, question: str, L: str, meaning, kw: dict):
         """(Content, path, qtype): structured (the planner's meaning) -> rules -> llm (``_read_text``).
@@ -450,6 +472,16 @@ class SimUser:
                      w.house.places[pid])) for c in classes)]
         return usual or places
 
+    def _true_places(self, obj_ids) -> set:
+        """Where the given objects are now and where the user wants them to go."""
+        w = self.world
+        obj_ids = tuple(obj_ids) or tuple(dict.fromkeys(                 # "where should it go?": the things asked for
+            x for a in dialog._atoms(self.wants) for x in (a.get("args") or [])[:1] if x in w.objects))
+        out = {w.objects[o].at for o in obj_ids if o in w.objects}
+        out |= {a["args"][1] for a in dialog._atoms(self.wants)
+                if a.get("pred") in ("on", "in", "held_by") and a["args"][0] in obj_ids and len(a["args"]) > 1}
+        return out
+
     _LOCATION_RULES = ("location", "location_unknown", "person_location")
 
     def _loc_key(self, question: str) -> tuple:
@@ -491,6 +523,12 @@ class SimUser:
                 knows = all(seen)
             places = self.wrong_places()
             other = places[rng.randrange(len(places))] if places else None
+            if other is not None and other in self._true_places(lkey):
+                # a wrong place is not where the thing asked about is, nor where the user wants it to go: the next
+                # place of the list (the draw itself is unchanged, so the other streams do not shift)
+                rest = [x for x in places[places.index(other) + 1:] + places[:places.index(other)]
+                        if x not in self._true_places(lkey)]
+                other = rest[0] if rest else other
             gv = None
             if self.wants:
                 gv = dialog.GoalView(self.world, self.wants, uid, lambda pid: self.place_of(pid, t)[0],
