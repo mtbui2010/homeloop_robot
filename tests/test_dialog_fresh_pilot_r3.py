@@ -130,3 +130,39 @@ def test_a_question_not_understood_is_still_not_sure_what_you_mean(L):
     q = {"en": "I will go now.", "ko": "이제 갈게요."}[L]
     r, _h = u.answer(q, L, tuple(ep.world.people[ep.world.user_id()].pos), 1.0)
     assert r.kind == "not_sure" and r.text == D.TEXT["not_sure"][L], r.text
+
+
+# r11 n10 gate (hl-dev-000021 EN): "..., then bring you the green glass, then dock to charge." was answered "No." because
+# the dock clause (docked() has no place or person argument) never ended the glass's part, so the dock, a place of
+# another room, counted as a place said for the glass. A part ends at a clause that states another atom of the request.
+G021 = {"all": [{"pred": "in", "args": ["keys_1", "dresser@bedroom"]},
+                {"pred": "delivered", "args": ["glass_2", "grandma"], "mode": "reach", "mode_reason": None},
+                {"pred": "docked", "args": []}]}
+KEYS_021 = "I will put the keys in the bedroom dresser, then bring you the green glass"
+
+
+def _gv_021():
+    ep = make_episode("senior_flat", 0, "ideal", 0, lang="en", user_spec={"persona": "adult"}, key="r11-021")
+    w = ep.world
+    uid = w.user_id()
+    w.people[uid].seat = "bed@bedroom"                      # grandma is in bed, in the bedroom
+    w.objects["glass_2"].at = w.initial_at["glass_2"] = "shelf@kitchen"
+    ep.user.set_wants(G021)
+    return D.GoalView(w, ep.user.wants, uid, lambda pid: "bed@bedroom")
+
+
+@pytest.mark.parametrize("tail", [", then go to the living room charging dock.", ", then dock to charge."])
+def test_a_dock_clause_ends_the_objects_part(tail):
+    gv = _gv_021()
+    q = KEYS_021 + tail
+    assert [p.strip() for p in gv.object_parts(q, "glass_2")] == ["bring you the green glass"]
+    assert gv._to_speaker_said("glass_2", q)
+    assert gv.covered(gv.atoms[1], q)
+
+
+def test_a_delivery_to_another_room_is_still_not_to_the_speaker():
+    gv = _gv_021()
+    assert not gv._to_speaker_said("glass_2", "I will put the keys in the bedroom dresser, then bring the green "
+                                              "glass to the living room, then dock to charge.")
+    assert not gv._to_speaker_said("glass_2", "I will put the keys in the bedroom dresser, then bring the green "
+                                              "glass to the living room.")

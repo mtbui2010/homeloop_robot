@@ -1044,11 +1044,16 @@ class GoalView:
                     others.append(_place_words(self.w, x)[:2])
                 elif isinstance(x, str) and x in self.w.people and x != self.user_id:
                     others.append(_person_words(self.w, x))
+        # ... or a clause that states another atom of the request ("..., then dock to charge": docked() has no place
+        # or person argument, so it never ended the glass's part, and the dock was read as a place said for the glass)
+        rest = [a for a in self.atoms
+                if not (a["pred"] in ("on", "in", "held_by") and a["args"][0] == oid)]
         out, cur = [], False
         for cl in read_back_clauses(SENTENCE_RX.sub(",", q)):
             if _mentions_any(cl, mine, self.w):
                 cur = True
-            elif any(_mentions_any(cl, ws, self.w) for ws in others):
+            elif (any(_mentions_any(cl, ws, self.w) for ws in others)
+                  or any(self.subject_said(b, cl) for b in rest)):
                 cur = False
             if cur:
                 out.append(cl)
