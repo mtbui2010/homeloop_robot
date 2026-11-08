@@ -36,11 +36,12 @@ def detector_hits(world, query) -> list:
     query as whole words (EN) or a part of it (KO, no spaces after norm), the query ends with that name or a
     packaging noun (PACKAGING), and no colour word in the query contradicts the object's colour."""
     from .catalog import COLORS
-    from .world import LANGS, norm
+    from .world import LANGS, norm, stem_en
     q = norm(query)
     if not q:
         return []
     qw = q.split()
+    qs = {stem_en(w) for w in qw}
     said_cols = {k for k, v in COLORS.items() for lg in LANGS
                  if (re.search(rf"(?<!\w){re.escape(norm(v[lg]))}(?!\w)", q) if lg == "en" else norm(v[lg]) in q)}
     out = []
@@ -58,7 +59,8 @@ def detector_hits(world, query) -> list:
                     continue
                 if lg == "en":
                     nw = nn.split()
-                    hit = set(nw) <= set(qw) and (qw[-1] in nw or qw[-1] in PACKAGING["en"])
+                    ns = [stem_en(w) for w in nw]       # a word differing only by the plural inflection matches
+                    hit = set(ns) <= qs and (stem_en(qw[-1]) in ns or stem_en(qw[-1]) in PACKAGING["en"])
                 else:
                     hit = nn in q and (q.endswith(nn) or any(q.endswith(nn + p) for p in PACKAGING["ko"]))
                 if hit:

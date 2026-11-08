@@ -46,3 +46,29 @@ def test_pill_bottle_synonym_hits_only_the_medicine_bottle():
     assert hits == sorted(pb)
     assert not set(hits) & {"medicine_bottle_1", "medicine_bottle_2"}
     assert detector_hits(w, "medicine bottle") == ["medicine_bottle_1", "medicine_bottle_2"]
+
+
+def test_english_plural_inflection_is_the_same_name():
+    """r11 n50 gate (hl-dev-000024): the task says "vitamin bottle", the catalog alias is "vitamins"; find("vitamin") was
+    `absent` with no event. An English query word matches a name word that differs only by the regular plural
+    (-s, -es, -ies); a general rule, so "mugs" / "mug" and "shelves"-like regular forms work for every object."""
+    from homeloop_robot.episode import make_episode
+    from homeloop_robot.world import stem_en
+    ep = make_episode("family_house", 4436, "ideal", 0, lang="en", user_spec={"persona": "child_present"}, key="s1")
+    w = ep.world
+    assert detector_hits(w, "vitamin") == ["vitamins_1"]
+    assert detector_hits(w, "vitamins") == ["vitamins_1"]
+    assert detector_hits(w, "vitamin bottle") == ["vitamins_1"]
+    assert w.resolve_object("vitamin", None) == "vitamins_1"
+    assert ep.robot._resolve_obj("vitamin") == "vitamins_1"
+    assert detector_hits(w, "vitamin rack") == []
+    assert [stem_en(x) for x in ("mugs", "boxes", "batteries", "glass", "bus", "gas")] == \
+        ["mug", "box", "battery", "glass", "bus", "gas"]
+    ep.robot.call("move", target=w.objects["vitamins_1"].at)
+    r = ep.robot.call("find", obj="vitamin")
+    assert r.ok and r.data["found"] == "vitamins_1", (r.code, r.msg)
+
+
+def test_plural_packaging_noun_in_a_description():
+    ep = episode("senior_flat")
+    assert detector_hits(ep.world, "milk packs") == ["milk_1"] and detector_hits(ep.world, "milk pack") == ["milk_1"]

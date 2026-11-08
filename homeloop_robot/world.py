@@ -162,6 +162,23 @@ def norm(s: str) -> str:
     return s
 
 
+def stem_en(w: str) -> str:
+    """The singular of an English word under the regular plural inflection only (-ies, -es after s / x / z / ch /
+    sh, -s; not -ss, -us, -is): a morphology rule, not a word list. Irregular plurals are not handled."""
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 4 and re.search(r"(s|x|z|ch|sh)es$", w):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not re.search(r"(ss|us|is)$", w):
+        return w[:-1]
+    return w
+
+
+def stem_phrase(s: str) -> str:
+    """norm()-ed text of English words with each word reduced by :func:`stem_en`."""
+    return " ".join(stem_en(w) for w in s.split())
+
+
 @dataclass
 class World:
     house: House
@@ -248,6 +265,10 @@ class World:
         if q in ids:
             return q
         hits = sorted({i for i, names in items if q in names})
+        if not hits and not re.search(r"[가-힣]", q):       # a name that differs only by the English plural
+            sq = stem_phrase(q)
+            hits = sorted({i for i, names in items if any(sq == stem_phrase(n) for n in names
+                                                         if not re.search(r"[가-힣]", n))})
         if not hits:
             return None
         return hits[0] if len(hits) == 1 else hits
