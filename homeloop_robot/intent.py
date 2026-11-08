@@ -525,6 +525,9 @@ _JOIN_EN = re.compile(r",?\s+(?:and|or)\s+(?=(?:if so|where|what|which|who|how|s
                       r",\s*(?=(?:and\s+)?if so\b)", re.I)
 _JOIN_KO = re.compile(r"(?<=고)\s*,\s*|(?<=있고)\s+|,?\s*그리고\s+|,\s*아니면\s+(?=다른|그냥|혹시)")
 _SENT_RX = re.compile(r"(?<=[.!?])\s+")
+# a Korean context clause joined to its question by a comma ("충전기 말씀하셨는데, 거기서 뭘 할까요?") is the context
+# sentence of the English "You mentioned the charging dock. What should I do there?" (rule 1 above)
+CONTEXT_CLAUSE_KO = re.compile(r"^(.+?(?:얘기|말씀)(?:하셨|하신)(?:는데요?|던데요?|죠|네요|군요)),\s+(.+\?)$")
 
 OPEN_DO_EN = re.compile(
     r"^(?:sorry\.?\s*)?(?:so\s+)?what(?:\s+exactly)?\s+(?:should|shall|do\s+you\s+want|would\s+you\s+like|can)\s+"
@@ -552,7 +555,7 @@ NOT_FOUND = {"en": re.compile(r"\bi\s+(?:couldn'?t|could\s+not|can'?t|cannot)\s+
 WHERE_ANY = re.compile(r"\bwhere\b|어디", re.I)
 SELF_WHERE_EN = re.compile(r"^where\s+are\s+you(?:\s+(?:now|right\s+now))?\s*\??\s*$", re.I)
 SELF_WHERE_BARE_KO = re.compile(r"^(?:지금\s*)?어디(?:에요|예요|세요|계세요|야)\s*\??$")
-TAG_RX = re.compile(r"^(?:is that (?:right|correct|ok(?:ay)?)|right|correct|ok(?:ay)?|맞(?:죠|아요|나요|습니까|지요)|괜찮(?:죠|을까요|아요))"
+TAG_RX = re.compile(r"^(?:is that (?:right|correct|ok(?:ay)?)|right|correct|ok(?:ay)?|" + D.TAG_KO + r"|괜찮(?:죠|을까요|아요))"
                     r"\s*\??$", re.I)
 WHICH_EN = re.compile(r"\bwhich\s+(?P<x>[a-z ]+?)(?:\s+(?:do|should|did|would|in|on|of|to)\b|[?,])", re.I)
 WHICH_KO = re.compile(r"(?:어느|어떤)\s*(?P<x>\S+?)(?:을|를|에|에서|이|가|인지)?(?=\s|\?|$)")
@@ -577,7 +580,10 @@ def first_question(question: str, L: str, cut: bool = True) -> str:
     X." is dropped, and so is a remark on what is not in the robot's plan put as a question when a question follows
     it), cut where that question joins a second one."""
     q = " ".join(str(question or "").split())
-    sents = [x for x in _SENT_RX.split(q) if x]
+    sents = []
+    for x in _SENT_RX.split(q):
+        m = CONTEXT_CLAUSE_KO.match(x)
+        sents += [m[1] + ".", m[2]] if m else ([x] if x else [])
     head = []
     for i, x in enumerate(sents):
         if CONTEXT_RX.match(x) and len(sents) > 1:

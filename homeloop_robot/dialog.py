@@ -16,14 +16,16 @@ WH_KO = ("어느", "어떤", "어디", "누구", "뭐", "무엇", "무슨", "어
 WHERE = {"en": ("where",), "ko": ("어디",)}
 AUX_EN = ("do", "does", "did", "is", "are", "was", "were", "should", "shall", "can", "could", "would", "will",
           "may", "might", "must", "have", "has")
-YESNO_KO = ("까요?", "나요?", "가요?", "죠?", "니?", "맞아요?", "맞죠?", "할까?", "요?", "까?")
+# the Korean tag of a read-back: "맞죠?", "맞아요?", "맞는 거죠?", "맞는 건가요?" (the same tag with or without 는 거)
+TAG_KO = r"맞(?:는\s*(?:거|건|것)\s*)?(?:죠|지요|아요|나요|가요|습니까|을까요)"
+YESNO_KO = ("까요?", "나요?", "가요?", "죠?", "니?", "맞아요?", "맞죠?", "맞는거죠?", "맞는건가요?", "할까?", "요?", "까?")
 
 TEXT = {
     "not_sure": {"en": "I'm not sure what you mean.", "ko": "무슨 말씀인지 잘 모르겠어요."},
     "dont_know": {"en": "I don't know.", "ko": "잘 모르겠어요."},
     "yes": {"en": "Yes, that one.", "ko": "네, 맞아요."},
     "no": {"en": "No, ", "ko": "아니요, "},
-    "help_ok": {"en": "OK, I moved it.", "ko": "치웠어요."},
+    "help_ok": {"en": "OK, I moved it.", "ko": "네, 치웠어요."},
     "stop": {"en": "Stop, please stop.", "ko": "잠깐, 멈춰 주세요."},
     "on": {"en": "It's on the {place}.", "ko": "{place} 위에 있어요."},
     "in": {"en": "It's in the {place}.", "ko": "{place} 안에 있어요."},
@@ -47,7 +49,7 @@ KO_WHERE_LEAD = re.compile(r"^(?:\s|[,.!~]|죄송한데요?|죄송하지만|죄�
 # ASR repair (R2-5 B3, docs/user_model.md): "Did you mean X?" about the user's own words, and "could you repeat?"
 MEAN_RX = {"en": re.compile(r"\b(did|do) you (mean|say|want)\b|\bby\b.+\bdo you mean\b|\bwas it\b|\btypo\b"),
            "ko": re.compile(r"말씀(이세요|이신가요|이시죠|하신\s*(거|건)|하셨)|(이)?라고\s*(하셨|하신|말씀)|"
-                            r"(인가요|인지요|맞나요|맞아요|맞죠)\s*\??$|오타")}
+                            r"(인가요|인지요|맞나요|맞아요|맞죠|" + TAG_KO + r")\s*\??$|오타")}
 QUOTE_RX = re.compile(r"[\'\"‘’“”「」『』]([^\'\"‘’“”「」『』]{2,80})[\'\"‘’“”「」『』]")
 REPEAT_RX = {"en": re.compile(r"\b(repeat|say (that|it) again|come again|pardon|what did you (say|ask)|"
                               r"one more time|didn'?t (catch|hear|get) (that|it|you|what you said))\b"),
@@ -481,7 +483,7 @@ def message_readback(world: Any, q: str, goal: "GoalView | None") -> bool:
 PLAN_READBACK_RX = {
     "en": re.compile(r"\b(?:i will|i'll|i am going to|i'm going to)\b.*\b(?:is that (?:right|correct)|right|correct)\s*\?\s*$",
                      re.I | re.S),
-    "ko": re.compile(r"(?:게요|겠어요|겠습니다|할 거예요|할게요|ㄹ게요)[.!\s]*(?:맞아요|맞나요|맞죠|맞습니까|맞을까요)\s*\?\s*$")}
+    "ko": re.compile(r"(?:게요|겠어요|겠습니다|할 거예요|할게요|ㄹ게요)[.!\s]*(?:" + TAG_KO + r")\s*\?\s*$")}
 
 
 def extra_message(q: str, goal: "GoalView | None") -> bool:
@@ -748,12 +750,30 @@ WHICH_FOR_RX = re.compile(r"\bwhich place\b[^?]*\bfor the\b")       # "which pla
 SEARCH_RX = re.compile(r"\b(look|find|search)\b")
 ALT_RX = re.compile(r"\bor\b|아니면|또는|이나|거나")
 READBACK_RX = re.compile(r"\bI will\b|\bI'll\b|\bI'm going to\b|\bI am going to\b|겠습니다|게요|놓아요|둬요|넣어요|"
-                         r"맞죠|맞나요|맞습니까")
+                         r"맞죠|맞나요|맞습니까|" + TAG_KO)
 # (the speaker's ENV key "spot within your reach" is read back as "on the spot within your reach"; in Korean "손이 닿는
 # 곳 / 손 닿는 자리")
 ME_RX = {"en": re.compile(r"\b(you|your hand|your reach|to me|hand it|give it)\b"),
          "ko": re.compile(r"(드리|드릴|드려|갖다\s*드|가져다\s*드|건네|손에|당신|손이?\s*닿는)")}
 DOCK_WORDS = ("dock", "charg", "충전")
+# a dock word that says where something is or comes from, not where the robot goes: "the mug from the charger",
+# "the book that is at the dock", "충전기에 있는 머그", "충전기에서 가져온 책" (the English phrase ends the text before
+# the word, the Korean one starts at it)
+DOCK_SOURCE_EN = re.compile(r"\bfrom (?:the |your |its |my )?(?:\w+ )?$|"
+                            r"\b(?:that|which) (?:is|are|was|were) (?:at|on|by|near|in) (?:the |your |its |my )?(?:\w+ )?$")
+DOCK_SOURCE_KO = re.compile(r"^충전\w{0,3}?(?:에\s*(?:있|놓|두|올려)|에서\s*(?:가져|꺼내|집|들|있))")
+
+
+def says_dock(q: str) -> bool:
+    """Does ``q`` say the robot goes to / stays at its dock? A dock word that only places something ("the mug
+    from the charger", "충전기에 있는 머그") does not (gate r12, hl-dev-000048 KO: the dock clause was read as the
+    request's docked(), so a read-back without the dock was confirmed)."""
+    low = unicodedata.normalize("NFC", q).lower()
+    for k in DOCK_WORDS:
+        for m in re.finditer(re.escape(k), low):
+            if not (DOCK_SOURCE_EN.search(low[:m.start()]) or DOCK_SOURCE_KO.search(low[m.start():])):
+                return True
+    return False
 
 
 def _final(word: str) -> bool:
@@ -958,7 +978,7 @@ class GoalView:
         if p == "robot_at_any":
             return any(_mentions_any(q, _place_words(self.w, x), self.w) for x in args)
         if p == "docked":
-            return any(k in q.lower() for k in DOCK_WORDS)
+            return says_dock(q)
         if p == "said_to":
             return _mentions_any(q, _person_words(self.w, args[0]), self.w)
         return False
@@ -1476,13 +1496,41 @@ def just_open_answer(world: Any, gv: "GoalView", text: str, L: str) -> "Content 
     return None
 
 
+def expand_one(world: Any, text: str, hint: Any = ()) -> str:
+    """"the red one or the blue one" (a colour + "one" / 빨간 거) names the objects of that colour of the class the
+    question is about: it is read as "the red book or the blue book" when "book" is named in the same question and
+    an object of the house is a red book (an ellipsis, not a new name; the colours and class names are the
+    catalog's). When the question names no class, the class of the things asked for (``hint``: object ids) is
+    taken if only one class of that colour is among them."""
+    from homeloop_robot.catalog import COLORS, class_names
+    out = text
+    for lg, rx in (("en", r"\b{c}\s+ones?\b"), ("ko", r"{c}\s*(?:것|거)(?=\W|[을를은는이가도만과와로요]|$)")):
+        for ckey, cn in COLORS.items():
+            m = re.search(rx.format(c=re.escape(cn[lg])), out, re.I)
+            if not m:
+                continue
+            names = {n for o in sorted(world.objects)
+                     if (getattr(world.objects[o], "attrs", {}) or {}).get("color") == ckey
+                     for n in class_names(world.objects[o].cls, lg)
+                     if mentions(out[:m.start()] + out[m.end():], n, lg)}
+            if not names:
+                cl = {world.objects[o].cls for o in hint if o in world.objects} & \
+                     {world.objects[o].cls for o in world.objects
+                      if (getattr(world.objects[o], "attrs", {}) or {}).get("color") == ckey}
+                names = set(class_names(next(iter(cl)), lg)[:1]) if len(cl) == 1 else set()
+            if names:
+                name = sorted(names, key=lambda n: (-len(n), n))[0]
+                out = out[:m.start()] + f"{cn[lg]} {name}" + out[m.end():]
+    return out
+
+
 def compose_from_goal(question: str, L: str, world: Any, gv: GoalView, *, knows_location: bool,
                       other_place: str | None = None, request: str | None = None) -> Content | None:
     """Answer content from what the user asked for, or None when no rule applies (see the section comment).
     ``request``: the user's own request text (the answer to "Should I do A first, or B?")."""
     if not gv.atoms:
         return None
-    q = _q_text(question)
+    q = expand_one(world, _q_text(question), gv.objects())
     qtype = classify(question)
     low = q.lower()
     goal_objs = [o for o in dict.fromkeys(gv.objects()) if _mentions_any(q, _obj_words(world, o), world)]

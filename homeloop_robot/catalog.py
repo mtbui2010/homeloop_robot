@@ -77,7 +77,7 @@ _ALL = [
     _c("vitamins", "vitamin bottle", "비타민", "household", 0.1, ("medicine",), ("medicine_bottle",), ("vitamins",), ("영양제",)),
     # electronics
     _c("remote", "remote control", "리모컨", "household", 0.15, ("electronic",), ("phone",), ("remote", "tv remote"), ("티비 리모컨",)),
-    _c("phone", "phone", "휴대폰", "household", 0.2, ("electronic", "fragile"), ("remote",), ("mobile phone", "cell phone"), ("핸드폰", "전화기")),
+    _c("phone", "phone", "휴대폰", "household", 0.2, ("electronic", "fragile"), ("remote",), ("mobile phone", "cell phone"), ("핸드폰", "폰", "전화기")),
     _c("charger", "charger", "충전기", "household", 0.1, ("electronic",), (), ("phone charger",), ("충전 케이블",)),
     _c("hair_dryer", "hair dryer", "드라이기", "household", 0.6, ("electronic",), (), ("hairdryer",), ("헤어드라이어",)),
     # personal items
