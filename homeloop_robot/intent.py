@@ -548,7 +548,7 @@ WHERE_IS_EN = re.compile(r"^where\s+(?:is|are)\s+(?P<obj>(?!you\b).+?)(?:\s+(?:l
 WHERE_IS_KO = re.compile(r"^(?P<obj>.+?)(?:은|는|이|가)?\s*(?:지금\s*)?어디(?:에)?\s*(?:있|계)")
 POSITION_KO = re.compile(r"(?P<obj>.+?)(?:의)?\s*위치(?:를|가)?\s*(?:좀\s*)?(?:알려|말씀)")
 NOT_FOUND = {"en": re.compile(r"\bi\s+(?:couldn'?t|could\s+not|can'?t|cannot)\s+find\s+(?P<obj>.+?)\.\s*$", re.I),
-             "ko": re.compile(r"^(?P<obj>.+?)(?:을|를)?\s*(?:찾을\s*수(?:가)?\s*없|찾지\s*못)")}
+             "ko": re.compile(r"^(?P<obj>.+?)(?:을|를)?\s*(?:찾을\s*수(?:가)?\s*없|찾지\s*못|못\s*찾)")}
 WHERE_ANY = re.compile(r"\bwhere\b|어디", re.I)
 SELF_WHERE_EN = re.compile(r"^where\s+are\s+you(?:\s+(?:now|right\s+now))?\s*\??\s*$", re.I)
 SELF_WHERE_BARE_KO = re.compile(r"^(?:지금\s*)?어디(?:에요|예요|세요|계세요|야)\s*\??$")

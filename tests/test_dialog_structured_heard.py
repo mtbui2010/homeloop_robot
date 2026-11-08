@@ -167,3 +167,22 @@ def test_sage_english_templates_read_as_their_meaning(q):
     assert m is not None
     _r, log = _ask("en", q, m)
     assert log["path"] == "structured" and log["qtype"] == m["qtype"], (q, m, log)
+
+
+# ------------------------------------------------------------------------------------ a Korean "not found, where is it?"
+@pytest.mark.parametrize("q", ["하얀 머그컵, 못 찾았어요. 어디에 있는지 아세요?",
+                               "white mug, 못 찾았어요. 어디에 있는지 아세요?",      # a name left in English
+                               "하얀 머그컵을 못 찾았어요. 어디에 있는지 아세요?",
+                               "하얀 머그컵을 찾지 못했어요. 어디에 있는지 아세요?"])
+def test_ko_not_found_where_is_with_an_ambiguous_object(q):
+    """In a task where the user must pick between two mugs, "<mug>, 못 찾았어요. 어디에 있는지 아세요?" is a
+    where-question, not the which-mug clarification: the user says where the mug is, not "the green one" (n10_a2,
+    all 6 Korean where-questions of task 089)."""
+    from test_dialog_structured import GLASS_GOAL as G, GLASS_REQ as RQ, GLASS_SPEC as S
+    en_r, _ = _ask("en", "I couldn't find the white mug. Do you know where it is?", {"qtype": "where_is", "obj": "white mug"},
+                   S, G, RQ)
+    r, log = _ask("ko", q, {"qtype": "where_is", "obj": "white mug"}, S, G, RQ)
+    assert log["path"] == "structured" and log["qtype"] == "where_is" and r.text == "식탁 위에 있어요.", (r.text, log)
+    assert "초록색" not in r.text and en_r.text == "It's on the dining table."
+    r2, log2 = _ask("ko", q, None, S, G, RQ)           # the same text without a meaning reads the same
+    assert log2["qtype"] == "where_is" and r2.text == r.text, (r2.text, log2)

@@ -201,7 +201,7 @@ read as free text. A qtype whose script has nothing to say gets "not sure" like 
    3. an open "what should I do (there)?", "which things ... and where?" with nothing specific named, or "what
       should I do with X?" where X names nothing in the house -> `repeat` (the user says the task again); "what
       does 'X' mean?" about a short quoted word -> `did_you_mean`;
-   4. "Where is X?" naming a thing or person of the house (also after "I couldn't find X.") -> `where_is`;
+   4. "Where is X?" naming a thing or person of the house (also after "I couldn't find X." / "X, 못 찾았어요.") -> `where_is`;
       "which drawer / 어떤 서랍", a choice between two places, "어디에 둘까요?" -> `which_place`; a choice between
       two things -> `which_object`; one proposal ("Should I ...?", "...드릴까요?") or a read-back with a tag
       ("맞죠?", "Is that right?") -> `confirm`; "What should I tell X?" -> `what_to_say`; a remark with no
