@@ -17,7 +17,7 @@ seed give the same answers, walks and ASR errors.
 |---|---|
 | `SimUser(world, profile, streams, lang, spec)` | `lang` = episode language (`en`/`ko`); `spec` = the task's `user` block (persona, candidates, answer, interrupt, optional `wrong_answer`, `asleep`); `None` = a generic user |
 | `answer(question, lang, robot_xy, t, meaning=None) -> (UserReply, Heard)` | `UserReply` = what the person says (`kind`: correct, wrong, not_sure, no_answer, yes, no; `latency_s`); `Heard` = what the robot's ASR returns |
-| `help_request(question, t)` | the robot asked for help while a help-clearable fault is active; call it before `answer`; the reply is "OK, I moved it." / "치웠어요." (the robot core clears the fault with its own probability) |
+| `help_request(question, t)` | the robot asked for help while a help-clearable fault is active; call it before `answer`; the reply is "OK, I moved it." / "네, 치웠어요." (the robot core clears the fault with its own probability) |
 | `hear_instruction(text, lang) -> Heard` | ASR on the spoken task instruction (`app`: near-field; `voice`: near) |
 | `hears(person, robot_xy, t, broadcast)` | same room, or within `user.hearing_range_m`; `broadcast` (announce) also reaches adjacent rooms |
 | `take_handover(person, obj, t) -> (taken, latency_s)` | the person takes the object after a latency, or does not (unresponsive, asleep, timeout) |
@@ -430,6 +430,38 @@ return one row per parameter (`param, expected, observed, n, lo, hi, ok`): the e
 `user.answer.p_not_sure` (per answered question), `asr.p_not_heard`, `asr.p_partial` (per utterance) and the four
 WER/CER values (per heard word or syllable). `python -m homeloop_robot.profiles consistency` includes them.
 With n = 20,000 every row passes for `real` and `ideal` in both languages.
+
+## Simulator freeze `sim-freeze-r13`
+
+After the round 11 n = 50 gate the eight simulated-user bugs that remained (gate decisions S1-S8) were fixed in one
+pass and the simulator was frozen with the git tag `sim-freeze-r13`. Every fix is a consistency fix: the same
+reading for English and Korean, no new word list (the colours, class names and aliases are the catalog's), no change
+of a rate, a profile value or a score. Tests: `tests/test_dialog_r13_freeze.py` (each one fails on the code before).
+
+| id | what the user got wrong | the rule now |
+|---|---|---|
+| S1 | "Which book, the red one or the blue one?" was read as a which-place question ("Bring it to me, please.") or not understood | a colour + "one" / "빨간 거 / 빨간 것" is the object of that colour of the class named in the same question (or, when no class is named, of the class of the things asked for): `dialog.expand_one` |
+| S2 | a correct Korean read-back tagged "맞는 거죠?" got a correction while "맞죠?" / "맞아요?" got "네, 맞아요." | one tag pattern for every Korean read-back tag (`dialog.TAG_KO`: 맞 + optional 는 거/건/것 + 죠, 지요, 아요, 나요, 가요, ...) |
+| S3 | the colloquial "폰" was not the phone, so a correct read-back was corrected | "폰" is declared as a Korean alias of the `phone` class in the catalog (the detector reads it too, as for "pill bottle") |
+| S4 | "충전기에 있는 X" / "the X from the charger" (a dock word that only places an object) counted as the dock step of the request, so a read-back without the dock was confirmed | `dialog.says_dock`: a dock word followed by 에 있는 / 에서 가져 ... (Korean) or preceded by "from the" / "that is at the" (English) is a place of the object, not a step |
+| S5 | the Korean "충전기 말씀하셨는데, 거기서 뭘 할까요?" (context clause and question joined by a comma) was read as a where-to-put question; the English two-sentence form was read as "say the request again" | a Korean context clause "... 말씀(얘기)하셨는데/죠/네요, <question>" is split like the English "You mentioned the X." sentence (`intent.CONTEXT_CLAUSE_KO`) |
+| S6 | the Korean help reply "치웠어요." has no acknowledgement word, the English one is "OK, I moved it."; the robot asked for a "네" and read the reply as a correction | the Korean reply is "네, 치웠어요." |
+| S7 | `wrong_places()` could draw the place where the object really is (or where it should go), so a "wrong" where-answer was true and still labelled `user_wrong_answer` | a drawn wrong place that is the true place or the wanted destination of the things asked about is replaced by the next place of the list; the draw itself is unchanged, so the other random streams do not shift and every episode without such a collision is identical |
+| S8 | "Where is the milk, and where would you like me to put it away?" was answered for the first part only; the destination the user knows was never given | a compound question (where is X, joined to where should it go) gets both parts; the knowledge draw only concerns the first (`SimUser._asks_both`) |
+
+Not touched, because they are robot-side or taste: the robot's compound where-is question with a malformed meaning
+(R9), the repair dialogue after a noisy "No" (R3), the Korean help reply read as a correction by the robot's own
+yes/no parser (R4).
+
+Earlier results that are not comparable with later ones (episodes whose logged questions match a fixed pattern;
+the match is by text, so it is an upper bound; S7 cannot be matched by text and may move any episode with a
+where-question): all of `results/r3`, `r4`, `r4a`, `r4b`, `r7`, `r8`, `r8b`, `r9`, `r10`, `r11`, `milestones_r3`,
+`exp_r2`, `lab1`, `perf1`, `gate30_r27`, `live_smoke`. Per directory, episodes with an S1 pattern: r4b 159, r3 134,
+exp_r2 102, r10/n10 66 + 66, r11/n10 64 + 66, r7 64, milestones_r3 44, r8 42, r4 40, r11/n50 25; S5 (Korean context
+clause): r4b 158, milestones_r3 137, r3 66, r8/r8b 53, r4 40, r7 26, r9 16, r11/n50 12 + 13; S2: r4b 7, r11/n50_a2 3,
+milestones_r3 2; S3 and S4: lab1, milestones_r3, r4b, r3, r11/n50 (3-4); S6: exp_r2 20, milestones_r3 41, r4b 34, r11/n50_a2 7;
+S8: r4b 40, r3 54, milestones_r3 24, lab1 16, r11/n50 5. The round 12 results sit in the same case: compare variants
+only within one run set made after the tag.
 
 ## What the user model is not
 
